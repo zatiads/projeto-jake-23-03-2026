@@ -2173,6 +2173,188 @@ def criativos_gerar_imagem():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/criativos/gerar-video", methods=["POST"])
+@login_required
+def criativos_gerar_video():
+    d = request.get_json() or {}
+    prompt     = (d.get("prompt_expandido") or "").strip()
+    modelo     = d.get("modelo", "wan-t2v-fast")
+    imagem_url = d.get("imagem_url")
+    if not prompt:
+        return jsonify({"error": "prompt_expandido obrigatório"}), 400
+    if modelo not in _CRIATIVOS_MODELOS_VIDEO:
+        return jsonify({"error": f"modelo inválido. Válidos: {list(_CRIATIVOS_MODELOS_VIDEO)}"}), 400
+
+    slug, tipo = _CRIATIVOS_MODELOS_VIDEO[modelo]
+    if tipo == "i2v" and not imagem_url:
+        return jsonify({"error": "imagem_url obrigatório para modelos I2V"}), 400
+
+    input_payload = {"prompt": prompt}
+    if tipo == "i2v":
+        input_payload["image"] = imagem_url
+
+    try:
+        headers = _replicate_headers()
+        resp = requests.post(
+            f"{_REPLICATE_BASE}/models/{slug}/predictions",
+            headers=headers,
+            json={"input": input_payload},
+            timeout=30,
+        )
+        if not resp.ok:
+            return jsonify({"error": f"Replicate {resp.status_code}: {resp.text[:300]}"}), 500
+        pred = resp.json()
+        return jsonify({"prediction_id": pred.get("id"), "ok": True})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/criativos/status/<prediction_id>")
+@login_required
+def criativos_status(prediction_id):
+    try:
+        headers = _replicate_headers()
+        resp = requests.get(
+            f"{_REPLICATE_BASE}/predictions/{prediction_id}",
+            headers={"Authorization": headers["Authorization"]},
+            timeout=15,
+        )
+        if not resp.ok:
+            return jsonify({"status": "failed", "error": resp.text[:200]}), 500
+        pred = resp.json()
+        status = pred.get("status", "starting")
+        url = None
+        if status == "succeeded":
+            out = pred.get("output")
+            url = out[0] if isinstance(out, list) else out
+        return jsonify({"status": status, "url": url, "error": pred.get("error")})
+    except RuntimeError as e:
+        return jsonify({"status": "failed", "error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"status": "failed", "error": str(e)}), 500
+
+
+@app.route("/api/criativos/pastas", methods=["GET"])
+@login_required
+def criativos_listar_pastas():
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("SELECT id, nome, criado_em FROM creative_folders ORDER BY nome")
+        rows = cur.fetchall(); conn.close()
+        return jsonify({"pastas": [dict(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/criativos/pastas", methods=["POST"])
+@login_required
+def criativos_criar_pasta():
+    d = request.get_json() or {}
+    nome = (d.get("nome") or "").strip()
+    if not nome:
+        return jsonify({"error": "nome obrigatório"}), 400
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("INSERT INTO creative_folders (nome) VALUES (%s) RETURNING id", (nome,))
+        novo_id = cur.fetchone()["id"]; conn.commit(); conn.close()
+        return jsonify({"id": novo_id, "ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/criativos/pastas/<int:pid>", methods=["DELETE"])
+@login_required
+def criativos_deletar_pasta(pid):
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) as n FROM creative_history WHERE folder_id = %s", (pid,))
+        count = cur.fetchone()["n"]
+        cur.execute("DELETE FROM creative_folders WHERE id = %s", (pid,))
+        conn.commit(); conn.close()
+        return jsonify({"ok": True, "criativos_desvinculados": count})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/criativos/historico", methods=["GET"])
+@login_required
+def criativos_listar_historico():
+    folder_id = request.args.get("folder_id")
+    tipo      = request.args.get("tipo")
+    page      = max(1, int(request.args.get("page", 1)))
+    limit     = min(50, max(1, int(request.args.get("limit", 20))))
+    offset    = (page - 1) * limit
+    where, params = [], []
+    if folder_id:
+        where.append("folder_id = %s"); params.append(int(folder_id))
+    if tipo in ("imagem", "video"):
+        where.append("tipo = %s"); params.append(tipo)
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute(f"SELECT COUNT(*) as total FROM creative_history {where_sql}", params)
+        total = cur.fetchone()["total"]
+        cur.execute(
+            f"SELECT id, tipo, modo, modelo, prompt_original, prompt_expandido, url_resultado, folder_id, criado_em "
+            f"FROM creative_history {where_sql} ORDER BY criado_em DESC LIMIT %s OFFSET %s",
+            params + [limit, offset]
+        )
+        items = [dict(r) for r in cur.fetchall()]; conn.close()
+        return jsonify({"items": items, "total": total, "page": page, "pages": _math.ceil(total/limit) if total else 1})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/criativos/historico", methods=["POST"])
+@login_required
+def criativos_salvar_historico():
+    d = request.get_json() or {}
+    required = ["tipo", "modo", "modelo", "prompt_original", "prompt_expandido", "url_resultado"]
+    missing = [f for f in required if not d.get(f)]
+    if missing:
+        return jsonify({"error": f"Campos obrigatórios: {missing}"}), 400
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO creative_history (tipo,modo,modelo,prompt_original,prompt_expandido,url_resultado,folder_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+            (d["tipo"], d["modo"], d["modelo"], d["prompt_original"],
+             d["prompt_expandido"], d["url_resultado"], d.get("folder_id"))
+        )
+        novo_id = cur.fetchone()["id"]; conn.commit(); conn.close()
+        return jsonify({"id": novo_id, "ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/criativos/historico/<int:hid>", methods=["DELETE"])
+@login_required
+def criativos_deletar_historico(hid):
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("DELETE FROM creative_history WHERE id = %s", (hid,))
+        conn.commit(); conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/criativos/historico/<int:hid>/pasta", methods=["PATCH"])
+@login_required
+def criativos_mover_pasta(hid):
+    d = request.get_json() or {}
+    folder_id = d.get("folder_id")  # pode ser None para "sem pasta"
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("UPDATE creative_history SET folder_id = %s WHERE id = %s", (folder_id, hid))
+        conn.commit(); conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 def _open_browser_delayed(port, delay=2):
     time.sleep(delay)
     webbrowser.open(f"http://localhost:{port}")
