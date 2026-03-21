@@ -134,9 +134,228 @@
   }
 
   // ── Stubs para tasks seguintes ──────────────────────
-  function bindUpload() {}
-  function bindPromptActions() {}
-  function bindGerarBtn() {}
+  function bindUpload() {
+    var zone  = document.getElementById('cri-upload-zone');
+    var input = document.getElementById('cri-upload-input');
+    if (!zone || !input) return;
+    zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', function () { zone.classList.remove('dragover'); });
+    zone.addEventListener('drop', function (e) {
+      e.preventDefault(); zone.classList.remove('dragover');
+      var f = e.dataTransfer.files[0]; if (f) _processarUpload(f);
+    });
+    input.addEventListener('change', function () { if (this.files[0]) _processarUpload(this.files[0]); });
+    var btnI2V = document.getElementById('cri-btn-i2v');
+    var btnAna = document.getElementById('cri-btn-analisar');
+    var btnRem = document.getElementById('cri-btn-remover-img');
+    if (btnI2V) btnI2V.addEventListener('click', function () {
+      _usarI2V = true;
+      if (_tipo !== 'video') {
+        _tipo = 'video';
+        document.getElementById('cri-tipo-video').classList.add('active');
+        document.getElementById('cri-tipo-imagem').classList.remove('active');
+        _modelo = 'wan-i2v-fast';
+        _setText('cri-modelos-label', 'Modelo de vídeo');
+      } else {
+        _modelo = 'wan-i2v-fast';
+      }
+      renderModelos();
+      alert('Imagem definida como input I2V. Modelo Wan I2V Fast selecionado.');
+    });
+    if (btnAna) btnAna.addEventListener('click', _analisarReferencia);
+    if (btnRem) btnRem.addEventListener('click', function () {
+      _uploadUrl = ''; _uploadB64 = ''; _usarI2V = false;
+      esconder('cri-upload-preview-wrap'); mostrar('cri-upload-placeholder');
+      document.getElementById('cri-upload-input').value = '';
+      renderModelos();
+    });
+  }
+
+  function _processarUpload(file) {
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var img = document.getElementById('cri-upload-img');
+      if (img) { img.src = e.target.result; }
+      esconder('cri-upload-placeholder'); mostrar('cri-upload-preview-wrap');
+    };
+    reader.readAsDataURL(file);
+    // Upload para Replicate
+    var fd = new FormData();
+    fd.append('arquivo', file);
+    fetch('/api/criativos/upload-imagem', { method: 'POST', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) { alert('Erro no upload: ' + data.error); return; }
+        _uploadUrl  = data.url   || '';
+        _uploadB64  = data.base64 || '';
+        _uploadMime = data.mime_type || 'image/jpeg';
+      })
+      .catch(function (e) { alert('Erro de rede no upload: ' + e); });
+  }
+
+  function _analisarReferencia() {
+    if (!_uploadB64) { alert('Faça upload de uma imagem primeiro.'); return; }
+    _setLoading('🔍 Analisando estilo da imagem...');
+    fetch('/api/criativos/analisar-referencia', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imagem_base64: _uploadB64, mime_type: _uploadMime }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _clearLoading();
+        if (data.error) { alert('Erro na análise: ' + data.error); return; }
+        _set('cri-prompt', '(Analisado da referência)');
+        _promptExp = data.prompt_sugerido || '';
+        // Selecionar modo sugerido
+        if (data.modo_sugerido) {
+          _modo = data.modo_sugerido;
+          document.querySelectorAll('.cri-modo-card').forEach(function (c) {
+            c.classList.toggle('active', c.dataset.modo === _modo);
+          });
+        }
+        _setText('cri-expandido-original', 'Gerado a partir da análise da referência');
+        _set('cri-expandido-texto', _promptExp);
+        mostrar('cri-expandido-painel');
+      })
+      .catch(function (e) { _clearLoading(); alert('Erro: ' + e); });
+  }
+
+  function bindPromptActions() {
+    var btnReg = document.getElementById('cri-btn-regerar');
+    if (btnReg) btnReg.addEventListener('click', _expandirPrompt);
+  }
+
+  function _expandirPrompt(callback) {
+    var prompt = _val('cri-prompt').trim();
+    if (!prompt || prompt === '(Analisado da referência)') {
+      if (_promptExp && typeof callback === 'function') { callback(); return; }
+      alert('Digite um prompt antes de gerar.'); return;
+    }
+    _setLoading('✨ Claude expandindo o prompt...');
+    fetch('/api/criativos/expandir-prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: prompt, modo: _modo, tipo: _tipo }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _clearLoading();
+        if (data.error) { alert('Erro ao expandir: ' + data.error); return; }
+        _promptExp = data.prompt_expandido || '';
+        _setText('cri-expandido-original', 'Original: ' + prompt);
+        _set('cri-expandido-texto', _promptExp);
+        mostrar('cri-expandido-painel');
+        if (typeof callback === 'function') callback();
+      })
+      .catch(function (e) { _clearLoading(); alert('Erro: ' + e); });
+  }
+
+  function bindGerarBtn() {
+    var btn = document.getElementById('cri-btn-gerar');
+    if (btn) btn.addEventListener('click', function () {
+      // Prompt expandido já existe? Ir direto para geração
+      var promptFinal = _val('cri-expandido-texto').trim() || _promptExp;
+      if (promptFinal) {
+        _promptExp = promptFinal;
+        _gerar();
+      } else {
+        // Expandir primeiro, depois gerar
+        _expandirPrompt(function () { _gerar(); });
+      }
+    });
+  }
+
+  function _gerar() {
+    if (_tipo === 'imagem') {
+      _gerarImagem();
+    } else {
+      _gerarVideo();
+    }
+  }
+
+  function _gerarImagem() {
+    _setLoading('🖼️ Gerando imagem...', 40);
+    fetch('/api/criativos/gerar-imagem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt_expandido: _promptExp, modelo: _modelo }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _clearLoading();
+        if (data.error) { alert('Erro na geração: ' + data.error); return; }
+        _resultadoUrl = data.url;
+        _mostrarResultado('imagem');
+      })
+      .catch(function (e) { _clearLoading(); alert('Erro: ' + e); });
+  }
+
+  function _gerarVideo() {
+    _setLoading('🎬 Iniciando geração de vídeo...', 10);
+    var payload = { prompt_expandido: _promptExp, modelo: _modelo };
+    if (_usarI2V && _uploadUrl) payload.imagem_url = _uploadUrl;
+    fetch('/api/criativos/gerar-video', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) { _clearLoading(); alert('Erro: ' + data.error); return; }
+        _predId = data.prediction_id;
+        _pollVideo(0);
+      })
+      .catch(function (e) { _clearLoading(); alert('Erro: ' + e); });
+  }
+
+  function _pollVideo(tentativa) {
+    var progresso = Math.min(10 + tentativa * 4, 85);
+    _setLoading('🎬 Gerando vídeo (' + (tentativa * 3) + 's)...', progresso);
+    fetch('/api/criativos/status/' + _predId)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.status === 'succeeded') {
+          _clearLoading(); _resultadoUrl = data.url; _mostrarResultado('video');
+        } else if (data.status === 'failed') {
+          _clearLoading(); alert('Geração falhou: ' + (data.error || 'erro desconhecido'));
+        } else {
+          // Continuar polling
+          _pollTimer = setTimeout(function () { _pollVideo(tentativa + 1); }, 3000);
+        }
+      })
+      .catch(function () { _pollTimer = setTimeout(function () { _pollVideo(tentativa + 1); }, 3000); });
+  }
+
+  function _setLoading(texto, progresso) {
+    esconder('cri-empty'); esconder('cri-preview-wrap'); esconder('cri-acoes');
+    mostrar('cri-loading-wrap');
+    _setText('cri-loading-text', texto);
+    var fill = document.getElementById('cri-progress-fill');
+    if (fill && progresso) fill.style.width = progresso + '%';
+    var btn = document.getElementById('cri-btn-gerar');
+    if (btn) { btn.textContent = 'Gerando...'; btn.classList.add('loading'); }
+  }
+
+  function _clearLoading() {
+    esconder('cri-loading-wrap');
+    var btn = document.getElementById('cri-btn-gerar');
+    if (btn) { btn.textContent = '✦ Gerar Criativo'; btn.classList.remove('loading'); }
+  }
+
+  function _mostrarResultado(tipo) {
+    esconder('cri-empty'); esconder('cri-loading-wrap');
+    mostrar('cri-preview-wrap'); mostrar('cri-acoes');
+    var img = document.getElementById('cri-preview-img');
+    var vid = document.getElementById('cri-preview-video');
+    if (tipo === 'imagem') {
+      if (img) { img.src = _resultadoUrl; img.classList.remove('hidden'); }
+      if (vid) vid.classList.add('hidden');
+    } else {
+      if (vid) { vid.src = _resultadoUrl; vid.classList.remove('hidden'); }
+      if (img) img.classList.add('hidden');
+    }
+  }
   function bindResultadoAcoes() {}
   function bindAbas() {}
   function bindHistoricoEvents() {}
