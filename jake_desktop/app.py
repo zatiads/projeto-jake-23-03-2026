@@ -1949,7 +1949,6 @@ def anuncios_publicar():
 #  FÁBRICA DE CRIATIVOS v2
 # ══════════════════════════════════════════════════════════════════════════
 import math as _math
-import time as _t
 
 _CRIATIVOS_MODOS = {"anuncios", "criativo", "psicodelico", "pessoas", "cena"}
 
@@ -2025,6 +2024,8 @@ def criativos_upload_imagem():
         return jsonify({"error": "Campo 'arquivo' ausente"}), 400
     arquivo = request.files["arquivo"]
     file_bytes = arquivo.read()
+    if len(file_bytes) > 10 * 1024 * 1024:  # 10 MB limit
+        return jsonify({"error": "Arquivo muito grande. Limite: 10 MB"}), 413
     mime = arquivo.content_type or "image/jpeg"
     # base64 para análise via Claude
     b64 = base64.b64encode(file_bytes).decode("utf-8")
