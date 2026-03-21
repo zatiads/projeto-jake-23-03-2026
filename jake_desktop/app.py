@@ -2214,6 +2214,9 @@ def criativos_gerar_video():
 @app.route("/api/criativos/status/<prediction_id>")
 @login_required
 def criativos_status(prediction_id):
+    import re as _re
+    if not _re.fullmatch(r'[a-zA-Z0-9]+', prediction_id or ''):
+        return jsonify({"status": "failed", "error": "prediction_id inválido"}), 400
     try:
         headers = _replicate_headers()
         resp = requests.get(
@@ -2239,13 +2242,16 @@ def criativos_status(prediction_id):
 @app.route("/api/criativos/pastas", methods=["GET"])
 @login_required
 def criativos_listar_pastas():
+    conn = _get_db()
     try:
-        conn = _get_db(); cur = conn.cursor()
+        cur = conn.cursor()
         cur.execute("SELECT id, nome, criado_em FROM creative_folders ORDER BY nome")
-        rows = cur.fetchall(); conn.close()
+        rows = cur.fetchall()
         return jsonify({"pastas": [dict(r) for r in rows]})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
 
 
 @app.route("/api/criativos/pastas", methods=["POST"])
@@ -2255,27 +2261,36 @@ def criativos_criar_pasta():
     nome = (d.get("nome") or "").strip()
     if not nome:
         return jsonify({"error": "nome obrigatório"}), 400
+    conn = _get_db()
     try:
-        conn = _get_db(); cur = conn.cursor()
+        cur = conn.cursor()
         cur.execute("INSERT INTO creative_folders (nome) VALUES (%s) RETURNING id", (nome,))
-        novo_id = cur.fetchone()["id"]; conn.commit(); conn.close()
+        novo_id = cur.fetchone()["id"]
+        conn.commit()
         return jsonify({"id": novo_id, "ok": True})
     except Exception as e:
+        conn.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
 
 
 @app.route("/api/criativos/pastas/<int:pid>", methods=["DELETE"])
 @login_required
 def criativos_deletar_pasta(pid):
+    conn = _get_db()
     try:
-        conn = _get_db(); cur = conn.cursor()
+        cur = conn.cursor()
         cur.execute("SELECT COUNT(*) as n FROM creative_history WHERE folder_id = %s", (pid,))
         count = cur.fetchone()["n"]
         cur.execute("DELETE FROM creative_folders WHERE id = %s", (pid,))
-        conn.commit(); conn.close()
+        conn.commit()
         return jsonify({"ok": True, "criativos_desvinculados": count})
     except Exception as e:
+        conn.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
 
 
 @app.route("/api/criativos/historico", methods=["GET"])
@@ -2283,17 +2298,23 @@ def criativos_deletar_pasta(pid):
 def criativos_listar_historico():
     folder_id = request.args.get("folder_id")
     tipo      = request.args.get("tipo")
-    page      = max(1, int(request.args.get("page", 1)))
-    limit     = min(50, max(1, int(request.args.get("limit", 20))))
+    try:
+        page  = max(1, int(request.args.get("page", 1)))
+        limit = min(50, max(1, int(request.args.get("limit", 20))))
+        if folder_id:
+            folder_id = int(folder_id)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Parâmetros de paginação inválidos"}), 400
     offset    = (page - 1) * limit
     where, params = [], []
     if folder_id:
-        where.append("folder_id = %s"); params.append(int(folder_id))
+        where.append("folder_id = %s"); params.append(folder_id)
     if tipo in ("imagem", "video"):
         where.append("tipo = %s"); params.append(tipo)
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+    conn = _get_db()
     try:
-        conn = _get_db(); cur = conn.cursor()
+        cur = conn.cursor()
         cur.execute(f"SELECT COUNT(*) as total FROM creative_history {where_sql}", params)
         total = cur.fetchone()["total"]
         cur.execute(
@@ -2301,10 +2322,12 @@ def criativos_listar_historico():
             f"FROM creative_history {where_sql} ORDER BY criado_em DESC LIMIT %s OFFSET %s",
             params + [limit, offset]
         )
-        items = [dict(r) for r in cur.fetchall()]; conn.close()
+        items = [dict(r) for r in cur.fetchall()]
         return jsonify({"items": items, "total": total, "page": page, "pages": _math.ceil(total/limit) if total else 1})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
 
 
 @app.route("/api/criativos/historico", methods=["POST"])
@@ -2315,30 +2338,39 @@ def criativos_salvar_historico():
     missing = [f for f in required if not d.get(f)]
     if missing:
         return jsonify({"error": f"Campos obrigatórios: {missing}"}), 400
+    conn = _get_db()
     try:
-        conn = _get_db(); cur = conn.cursor()
+        cur = conn.cursor()
         cur.execute(
             "INSERT INTO creative_history (tipo,modo,modelo,prompt_original,prompt_expandido,url_resultado,folder_id) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
             (d["tipo"], d["modo"], d["modelo"], d["prompt_original"],
              d["prompt_expandido"], d["url_resultado"], d.get("folder_id"))
         )
-        novo_id = cur.fetchone()["id"]; conn.commit(); conn.close()
+        novo_id = cur.fetchone()["id"]
+        conn.commit()
         return jsonify({"id": novo_id, "ok": True})
     except Exception as e:
+        conn.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
 
 
 @app.route("/api/criativos/historico/<int:hid>", methods=["DELETE"])
 @login_required
 def criativos_deletar_historico(hid):
+    conn = _get_db()
     try:
-        conn = _get_db(); cur = conn.cursor()
+        cur = conn.cursor()
         cur.execute("DELETE FROM creative_history WHERE id = %s", (hid,))
-        conn.commit(); conn.close()
+        conn.commit()
         return jsonify({"ok": True})
     except Exception as e:
+        conn.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
 
 
 @app.route("/api/criativos/historico/<int:hid>/pasta", methods=["PATCH"])
@@ -2346,13 +2378,17 @@ def criativos_deletar_historico(hid):
 def criativos_mover_pasta(hid):
     d = request.get_json() or {}
     folder_id = d.get("folder_id")  # pode ser None para "sem pasta"
+    conn = _get_db()
     try:
-        conn = _get_db(); cur = conn.cursor()
+        cur = conn.cursor()
         cur.execute("UPDATE creative_history SET folder_id = %s WHERE id = %s", (folder_id, hid))
-        conn.commit(); conn.close()
+        conn.commit()
         return jsonify({"ok": True})
     except Exception as e:
+        conn.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
 
 
 def _open_browser_delayed(port, delay=2):
