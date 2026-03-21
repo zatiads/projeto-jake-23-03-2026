@@ -2027,6 +2027,8 @@ def criativos_upload_imagem():
     if len(file_bytes) > 10 * 1024 * 1024:  # 10 MB limit
         return jsonify({"error": "Arquivo muito grande. Limite: 10 MB"}), 413
     mime = arquivo.content_type or "image/jpeg"
+    if mime not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+        return jsonify({"error": "Tipo de arquivo não suportado. Use JPEG, PNG, WebP ou GIF"}), 415
     # base64 para análise via Claude
     b64 = base64.b64encode(file_bytes).decode("utf-8")
     # Upload para Replicate Files API para uso como URL em I2V
