@@ -356,10 +356,237 @@
       if (img) img.classList.add('hidden');
     }
   }
-  function bindResultadoAcoes() {}
-  function bindAbas() {}
-  function bindHistoricoEvents() {}
-  function carregarPastas() {}
-  function carregarHistorico() {}
+  function bindResultadoAcoes() {
+    var btnDl = document.getElementById('cri-btn-download');
+    if (btnDl) btnDl.addEventListener('click', function () {
+      if (!_resultadoUrl) return;
+      var a = document.createElement('a');
+      a.href = _resultadoUrl; a.download = 'criativo-jakeos.' + (_tipo === 'video' ? 'mp4' : 'webp');
+      a.target = '_blank'; a.click();
+    });
+
+    var btnAnu = document.getElementById('cri-btn-enviar-anuncios');
+    if (btnAnu) btnAnu.addEventListener('click', function () {
+      if (!_resultadoUrl) return;
+      if (window.JakeAnuncios && window.JakeAnuncios.receberCriativo) {
+        window.JakeAnuncios.receberCriativo({ url: _resultadoUrl, tipo: _tipo });
+      } else {
+        alert('Abra a aba Subir Anúncios e use a URL: ' + _resultadoUrl);
+      }
+    });
+
+    var btnSalvar = document.getElementById('cri-btn-salvar-historico');
+    if (btnSalvar) btnSalvar.addEventListener('click', _abrirModalSalvar);
+
+    var btnCancelar = document.getElementById('cri-modal-salvar-cancelar');
+    if (btnCancelar) btnCancelar.addEventListener('click', function () { esconder('cri-modal-salvar'); });
+
+    var btnConfirmar = document.getElementById('cri-modal-salvar-confirmar');
+    if (btnConfirmar) btnConfirmar.addEventListener('click', _confirmarSalvar);
+  }
+
+  function _abrirModalSalvar() {
+    if (!_resultadoUrl) return;
+    carregarPastasModal();
+    mostrar('cri-modal-salvar');
+  }
+
+  function carregarPastasModal() {
+    var sel = document.getElementById('cri-modal-pasta');
+    if (!sel) return;
+    fetch('/api/criativos/pastas')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        sel.innerHTML = '<option value="">Sem pasta</option>' +
+          (data.pastas || []).map(function (p) {
+            return '<option value="' + p.id + '">' + _esc(p.nome) + '</option>';
+          }).join('');
+      });
+  }
+
+  function _confirmarSalvar() {
+    var folderId = _val('cri-modal-pasta') || null;
+    var payload = {
+      tipo: _tipo, modo: _modo, modelo: _modelo,
+      prompt_original: _val('cri-prompt') || '(referência)',
+      prompt_expandido: _promptExp || _val('cri-expandido-texto'),
+      url_resultado: _resultadoUrl,
+      folder_id: folderId ? parseInt(folderId) : null,
+    };
+    fetch('/api/criativos/historico', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        esconder('cri-modal-salvar');
+        if (data.error) { alert('Erro ao salvar: ' + data.error); return; }
+        carregarHistorico();
+      })
+      .catch(function (e) { alert('Erro: ' + e); });
+  }
+
+  function bindAbas() {
+    document.querySelectorAll('.cri-aba').forEach(function (aba) {
+      aba.addEventListener('click', function () {
+        var alvo = this.dataset.aba;
+        document.querySelectorAll('.cri-aba').forEach(function (a) { a.classList.remove('active'); });
+        this.classList.add('active');
+        if (alvo === 'resultado') {
+          mostrar('cri-painel-resultado'); esconder('cri-painel-historico');
+        } else {
+          esconder('cri-painel-resultado'); mostrar('cri-painel-historico');
+          carregarHistorico();
+        }
+      });
+    });
+  }
+
+  function carregarPastas() {
+    fetch('/api/criativos/pastas')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var sel = document.getElementById('cri-filtro-pasta');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">Todas as pastas</option>' +
+          (data.pastas || []).map(function (p) {
+            return '<option value="' + p.id + '">' + _esc(p.nome) + '</option>';
+          }).join('');
+      });
+  }
+
+  function bindHistoricoEvents() {
+    var filtPasta = document.getElementById('cri-filtro-pasta');
+    var filtTipo  = document.getElementById('cri-filtro-tipo');
+    if (filtPasta) filtPasta.addEventListener('change', function () {
+      _histFiltros.folder_id = this.value; _histPage = 1; carregarHistorico();
+    });
+    if (filtTipo) filtTipo.addEventListener('change', function () {
+      _histFiltros.tipo = this.value; _histPage = 1; carregarHistorico();
+    });
+
+    var btnNovaPasta = document.getElementById('cri-btn-nova-pasta');
+    if (btnNovaPasta) btnNovaPasta.addEventListener('click', function () {
+      var nome = prompt('Nome da nova pasta:');
+      if (!nome || !nome.trim()) return;
+      fetch('/api/criativos/pastas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome: nome.trim() }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.error) { alert('Erro: ' + data.error); return; }
+          carregarPastas(); carregarHistorico();
+        });
+    });
+
+    // Deletar pasta selecionada no filtro (com aviso de quantos criativos serão desvinculados)
+    var btnDelPasta = document.getElementById('cri-btn-del-pasta');
+    if (btnDelPasta) btnDelPasta.addEventListener('click', function () {
+      var sel = document.getElementById('cri-filtro-pasta');
+      var pid = sel && sel.value;
+      if (!pid) { alert('Selecione uma pasta no filtro para deletar.'); return; }
+      var nomePasta = sel.options[sel.selectedIndex].text;
+      // Primeiro busca contagem de criativos na pasta
+      fetch('/api/criativos/historico?folder_id=' + pid + '&limit=1')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var n = data.total || 0;
+          var msg = n > 0
+            ? 'Deletar pasta "' + nomePasta + '"?\n' + n + ' criativo(s) serão desvinculados (não deletados).'
+            : 'Deletar pasta "' + nomePasta + '"? Está vazia.';
+          if (!confirm(msg)) return;
+          fetch('/api/criativos/pastas/' + pid, { method: 'DELETE' })
+            .then(function () { carregarPastas(); _histFiltros.folder_id = ''; carregarHistorico(); });
+        });
+    });
+
+    var btnAnterior = document.getElementById('cri-pag-anterior');
+    var btnProximo  = document.getElementById('cri-pag-proximo');
+    if (btnAnterior) btnAnterior.addEventListener('click', function () {
+      if (_histPage > 1) { _histPage--; carregarHistorico(); }
+    });
+    if (btnProximo) btnProximo.addEventListener('click', function () {
+      _histPage++; carregarHistorico();
+    });
+  }
+
+  function carregarHistorico() {
+    var params = '?page=' + _histPage + '&limit=20';
+    if (_histFiltros.folder_id) params += '&folder_id=' + _histFiltros.folder_id;
+    if (_histFiltros.tipo)      params += '&tipo=' + _histFiltros.tipo;
+    fetch('/api/criativos/historico' + params)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var grid = document.getElementById('cri-historico-grid');
+        if (!grid) return;
+        var items = data.items || [];
+        if (!items.length) {
+          grid.innerHTML = '<div class="cri-historico-empty">Nenhum criativo salvo</div>';
+        } else {
+          grid.innerHTML = items.map(function (item) {
+            var thumb = item.tipo === 'video'
+              ? '<video class="cri-hist-thumb-video" src="' + _esc(item.url_resultado) + '" muted></video>'
+              : '<img class="cri-hist-thumb" src="' + _esc(item.url_resultado) + '" alt="">';
+            var data_fmt = item.criado_em ? item.criado_em.substring(0, 10) : '';
+            return '<div class="cri-hist-card" data-id="' + item.id + '">' +
+              thumb +
+              '<div class="cri-hist-info">' +
+              '<span class="cri-hist-modelo">' + _esc(item.modelo) + '</span>' +
+              '<span class="cri-hist-data">' + data_fmt + '</span>' +
+              '<div class="cri-hist-acoes">' +
+              '<button class="cri-hist-btn cri-hist-btn-dl" title="Download" data-url="' + _esc(item.url_resultado) + '" data-tipo="' + item.tipo + '">⬇</button>' +
+              '<button class="cri-hist-btn cri-hist-btn-pasta" title="Mover de pasta" data-id="' + item.id + '">📁</button>' +
+              '<button class="cri-hist-btn cri-hist-btn-del" title="Deletar" data-id="' + item.id + '">✕</button>' +
+              '</div></div></div>';
+          }).join('');
+          // Bind actions
+          grid.querySelectorAll('.cri-hist-btn-dl').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              var a = document.createElement('a');
+              a.href = this.dataset.url; a.download = 'criativo.' + (this.dataset.tipo === 'video' ? 'mp4' : 'webp');
+              a.target = '_blank'; a.click();
+            });
+          });
+          grid.querySelectorAll('.cri-hist-btn-del').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              if (!confirm('Deletar este criativo do histórico?')) return;
+              var id = this.dataset.id;
+              fetch('/api/criativos/historico/' + id, { method: 'DELETE' })
+                .then(function () { carregarHistorico(); });
+            });
+          });
+          grid.querySelectorAll('.cri-hist-btn-pasta').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              var id = this.dataset.id;
+              carregarPastas(); // garante lista atualizada
+              fetch('/api/criativos/pastas')
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                  var opcoes = ['Sem pasta (null)'].concat((data.pastas || []).map(function (p, i) { return (i + 1) + ') ' + p.nome; }));
+                  var escolha = prompt('Mover para pasta:\n' + opcoes.join('\n') + '\n\nDigite 0 para sem pasta, ou o número da pasta:');
+                  if (escolha === null) return;
+                  var idx = parseInt(escolha);
+                  var folderId = idx === 0 ? null : ((data.pastas || [])[idx - 1] || {}).id || null;
+                  fetch('/api/criativos/historico/' + id + '/pasta', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ folder_id: folderId }),
+                  }).then(function () { carregarHistorico(); });
+                });
+            });
+          });
+        }
+        // Paginação
+        var total = data.total || 0;
+        var pages = data.pages || 1;
+        _setText('cri-pag-info', _histPage + ' / ' + pages);
+        var btnAnt = document.getElementById('cri-pag-anterior');
+        var btnPro = document.getElementById('cri-pag-proximo');
+        if (btnAnt) btnAnt.disabled = _histPage <= 1;
+        if (btnPro) btnPro.disabled = _histPage >= pages;
+      });
+  }
 
 })();
