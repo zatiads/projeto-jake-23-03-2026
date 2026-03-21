@@ -1945,6 +1945,185 @@ def anuncios_publicar():
         return jsonify({"error": str(e)}), 500
 
 
+# ══════════════════════════════════════════════════════════════════════════
+#  FÁBRICA DE CRIATIVOS v2
+# ══════════════════════════════════════════════════════════════════════════
+import math as _math
+import time as _t
+
+_CRIATIVOS_MODOS = {"anuncios", "criativo", "psicodelico", "pessoas", "cena"}
+
+_CRIATIVOS_MODELOS_IMAGEM = {
+    "flux-1.1-pro":     "black-forest-labs/flux-1.1-pro",
+    "flux-dev":         "black-forest-labs/flux-dev",
+    "recraft-v3":       "recraft-ai/recraft-v3",
+    "ideogram-v3-turbo":"ideogram-ai/ideogram-v3-turbo",
+    "imagen-4":         "google/imagen-4",
+}
+
+_CRIATIVOS_MODELOS_VIDEO = {
+    "wan-t2v-fast":  ("wavespeedai/wan-2.2-t2v-480p", "t2v"),
+    "wan-5b-fast":   ("wavespeedai/wan-2.2-t2v-720p", "t2v"),
+    "hailuo-02":     ("minimax/hailuo-02",             "t2v"),
+    "seedance-lite": ("bytedance/seedance-1-lite",     "t2v"),
+    "runway-gen4":   ("runwayml/gen4-turbo",           "t2v"),
+    "wan-i2v-fast":  ("wavespeedai/wan-2.2-i2v-480p", "i2v"),
+}
+
+_CRIATIVOS_SYSTEM_PROMPTS = {
+    "anuncios": (
+        "You are an expert commercial photographer and ad creative director specializing in Meta Ads and Google Ads. "
+        "Expand simple Portuguese prompts into professional English image/video generation prompts. "
+        "Focus on: studio lighting, commercial photography style, trust-inspiring composition, clean backgrounds, "
+        "specific camera/lens (Canon EOS R5, 85mm f/1.4), warm color grading. "
+        "Return ONLY the expanded prompt, no explanation, no quotes, 50-120 words."
+    ),
+    "criativo": (
+        "You are an expert creative director and editorial photographer. "
+        "Expand simple Portuguese prompts into professional English image/video generation prompts. "
+        "Focus on: conceptual art, bold composition, editorial/National Geographic style, dynamic lighting, "
+        "color contrast, visual narrative, storytelling. "
+        "Return ONLY the expanded prompt, no explanation, no quotes, 50-120 words."
+    ),
+    "psicodelico": (
+        "You are an expert AI artist specializing in psychedelic and surrealist visual art. "
+        "Expand simple Portuguese prompts into professional English image/video generation prompts. "
+        "Focus on: fractal geometry, neon/vibrant colors, DMT-inspired visuals, kaleidoscope patterns, "
+        "liquid geometry, cosmic themes, ultra-detailed, 8K resolution, surrealist dreamscape. "
+        "Return ONLY the expanded prompt, no explanation, no quotes, 50-120 words."
+    ),
+    "pessoas": (
+        "You are an expert portrait and fashion photographer. "
+        "Expand simple Portuguese prompts into professional English image/video generation prompts. "
+        "Focus on: hyperrealistic skin texture, subsurface scattering, Rembrandt or natural window lighting, "
+        "Canon EOS R5 85mm f/1.2, shallow depth of field, authentic candid expressions, photojournalism style. "
+        "Return ONLY the expanded prompt, no explanation, no quotes, 50-120 words."
+    ),
+    "cena": (
+        "You are an expert landscape and architectural photographer. "
+        "Expand simple Portuguese prompts into professional English image/video generation prompts. "
+        "Focus on: cinematic wide angle (16mm), leading lines, volumetric light, golden hour, atmospheric haze, "
+        "rule of thirds, long exposure, National Geographic / award-winning landscape style. "
+        "Return ONLY the expanded prompt, no explanation, no quotes, 50-120 words."
+    ),
+}
+
+_REPLICATE_BASE = "https://api.replicate.com/v1"
+
+
+def _replicate_headers():
+    token = os.getenv("REPLICATE_API_TOKEN", "").strip()
+    if not token:
+        raise RuntimeError("REPLICATE_API_TOKEN não configurado no .env")
+    return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+
+@app.route("/api/criativos/upload-imagem", methods=["POST"])
+@login_required
+def criativos_upload_imagem():
+    if "arquivo" not in request.files:
+        return jsonify({"error": "Campo 'arquivo' ausente"}), 400
+    arquivo = request.files["arquivo"]
+    file_bytes = arquivo.read()
+    mime = arquivo.content_type or "image/jpeg"
+    # base64 para análise via Claude
+    b64 = base64.b64encode(file_bytes).decode("utf-8")
+    # Upload para Replicate Files API para uso como URL em I2V
+    try:
+        headers = _replicate_headers()
+        headers.pop("Content-Type")  # multipart não usa Content-Type JSON
+        resp = requests.post(
+            f"{_REPLICATE_BASE}/files",
+            headers={"Authorization": headers["Authorization"]},
+            files={"content": (arquivo.filename or "upload", file_bytes, mime)},
+            timeout=30,
+        )
+        if not resp.ok:
+            return jsonify({"error": f"Replicate upload: {resp.text[:200]}"}), 500
+        url = resp.json().get("urls", {}).get("get") or resp.json().get("url", "")
+        return jsonify({"url": url, "base64": b64, "mime_type": mime, "ok": True})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/criativos/expandir-prompt", methods=["POST"])
+@login_required
+def criativos_expandir_prompt():
+    d = request.get_json() or {}
+    prompt = (d.get("prompt") or "").strip()
+    modo   = d.get("modo", "criativo")
+    tipo   = d.get("tipo", "imagem")
+    if not prompt:
+        return jsonify({"error": "Campo 'prompt' obrigatório"}), 400
+    if modo not in _CRIATIVOS_MODOS:
+        return jsonify({"error": f"modo inválido. Válidos: {list(_CRIATIVOS_MODOS)}"}), 400
+
+    client = _anthropic_client()
+    if not client:
+        return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
+
+    system = _CRIATIVOS_SYSTEM_PROMPTS[modo]
+    tipo_hint = " Optimize for motion, camera movement, and temporal consistency." if tipo == "video" else ""
+    try:
+        msg = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=200,
+            system=system + tipo_hint,
+            messages=[{"role": "user", "content": f"Expand this prompt: {prompt}"}],
+        )
+        return jsonify({"prompt_expandido": msg.content[0].text.strip()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/criativos/analisar-referencia", methods=["POST"])
+@login_required
+def criativos_analisar_referencia():
+    d = request.get_json() or {}
+    b64  = d.get("imagem_base64", "")
+    mime = d.get("mime_type", "image/jpeg")
+    if not b64:
+        return jsonify({"error": "imagem_base64 obrigatório"}), 400
+
+    client = _anthropic_client()
+    if not client:
+        return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
+
+    system = (
+        "You are an expert visual analyst and prompt engineer. "
+        "Analyze the image and return ONLY valid JSON with two fields: "
+        "'prompt_sugerido' (English prompt 50-120 words to recreate this visual style) and "
+        "'modo_sugerido' (one of: anuncios, criativo, psicodelico, pessoas, cena). "
+        "No markdown, no explanation, just the JSON object."
+    )
+    try:
+        msg = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=300,
+            system=system,
+            messages=[{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": mime, "data": b64}},
+                {"type": "text",  "text": "Analyze this image and return the JSON."},
+            ]}],
+        )
+        raw = msg.content[0].text.strip()
+        if "```" in raw:
+            raw = raw.split("```")[1]
+            if raw.startswith("json\n"):
+                raw = raw[5:]
+        result = json.loads(raw)
+        # Validar modo_sugerido
+        if result.get("modo_sugerido") not in _CRIATIVOS_MODOS:
+            result["modo_sugerido"] = "criativo"
+        return jsonify(result)
+    except json.JSONDecodeError:
+        return jsonify({"error": "IA retornou formato inválido"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 def _open_browser_delayed(port, delay=2):
     time.sleep(delay)
     webbrowser.open(f"http://localhost:{port}")
