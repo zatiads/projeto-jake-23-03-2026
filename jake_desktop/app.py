@@ -2125,6 +2125,54 @@ def criativos_analisar_referencia():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/criativos/gerar-imagem", methods=["POST"])
+@login_required
+def criativos_gerar_imagem():
+    d = request.get_json() or {}
+    prompt  = (d.get("prompt_expandido") or "").strip()
+    modelo  = d.get("modelo", "flux-1.1-pro")
+    if not prompt:
+        return jsonify({"error": "prompt_expandido obrigatório"}), 400
+    if modelo not in _CRIATIVOS_MODELOS_IMAGEM:
+        return jsonify({"error": f"modelo inválido. Válidos: {list(_CRIATIVOS_MODELOS_IMAGEM)}"}), 400
+
+    slug = _CRIATIVOS_MODELOS_IMAGEM[modelo]
+    try:
+        headers = _replicate_headers()
+        headers["Prefer"] = "wait=60"
+        resp = requests.post(
+            f"{_REPLICATE_BASE}/models/{slug}/predictions",
+            headers=headers,
+            json={"input": {"prompt": prompt, "aspect_ratio": "4:5",
+                            "output_format": "webp", "output_quality": 90}},
+            timeout=90,
+        )
+        if not resp.ok:
+            return jsonify({"error": f"Replicate {resp.status_code}: {resp.text[:300]}"}), 500
+        pred = resp.json()
+        # Caminho síncrono (Prefer: wait)
+        if pred.get("status") == "succeeded":
+            out = pred.get("output")
+            url = out[0] if isinstance(out, list) else out
+            return jsonify({"url": url, "ok": True})
+        # Fallback polling (raro) — usa time já importado no topo do arquivo
+        get_url = (pred.get("urls") or {}).get("get", "")
+        hdrs = {"Authorization": headers["Authorization"]}
+        for _ in range(20):
+            time.sleep(3)
+            p = requests.get(get_url, headers=hdrs, timeout=15).json()
+            if p.get("status") == "succeeded":
+                out = p.get("output")
+                return jsonify({"url": (out[0] if isinstance(out, list) else out), "ok": True})
+            if p.get("status") == "failed":
+                return jsonify({"error": p.get("error", "Geração falhou")}), 500
+        return jsonify({"error": "Timeout na geração de imagem"}), 500
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 def _open_browser_delayed(port, delay=2):
     time.sleep(delay)
     webbrowser.open(f"http://localhost:{port}")
