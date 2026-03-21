@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/anuncios.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/criativos.css') }}">
 </head>
 <body>
 
@@ -688,154 +689,151 @@
 
       <!-- 4.1 FÁBRICA DE CRIATIVOS ────────────────────── -->
       <section class="page" id="page-criativos">
-        <div class="cp-layout">
+        <div class="cri-layout">
 
-          <!-- ── Sidebar Esquerda: Configurações ───────── -->
-          <aside class="cp-sidebar">
+          <!-- ── Painel Esquerdo — Configuração ── -->
+          <div class="cri-config">
 
-            <header class="cp-header">
-              <span class="cp-header-icon">⚙️</span>
-              <div>
-                <h2 class="cp-title">Fábrica de <span class="cyan">Criativos</span></h2>
-                <p class="cp-subtitle">Gere imagens e headlines de alto CTR para campanhas de mensagem</p>
+            <!-- Toggle Imagem/Vídeo -->
+            <div>
+              <span class="cri-label">Tipo de saída</span>
+              <div class="cri-tipo-toggle">
+                <button class="cri-tipo-btn active" id="cri-tipo-imagem">🖼️ Imagem</button>
+                <button class="cri-tipo-btn" id="cri-tipo-video">🎬 Vídeo</button>
               </div>
-            </header>
+            </div>
 
-            <div class="cp-form">
+            <!-- Seletor de Modo -->
+            <div>
+              <span class="cri-label">Especialista de Prompt</span>
+              <div class="cri-modos">
+                <div class="cri-modo-card active" data-modo="anuncios"><span class="cri-modo-icon">🎯</span><span class="cri-modo-nome">Anúncios</span></div>
+                <div class="cri-modo-card" data-modo="criativo"><span class="cri-modo-icon">🎨</span><span class="cri-modo-nome">Criativo</span></div>
+                <div class="cri-modo-card" data-modo="psicodelico"><span class="cri-modo-icon">🌀</span><span class="cri-modo-nome">Psicodélico</span></div>
+                <div class="cri-modo-card" data-modo="pessoas"><span class="cri-modo-icon">👤</span><span class="cri-modo-nome">Pessoas</span></div>
+                <div class="cri-modo-card" data-modo="cena"><span class="cri-modo-icon">🌆</span><span class="cri-modo-nome">Cena</span></div>
+              </div>
+            </div>
 
-              <!-- Grupo: Modo de Geração -->
-              <div class="cp-group-label">Modo de Geração</div>
+            <!-- Prompt -->
+            <div>
+              <span class="cri-label">Seu prompt (simples, em português)</span>
+              <textarea id="cri-prompt" class="cri-prompt-area" placeholder="Ex: clínica odontológica com sorriso feliz..."></textarea>
+            </div>
 
-              <div class="cp-field">
-                <div class="cp-toggle-wrap" style="justify-content: space-between;">
-                  <span class="cp-toggle-label-text">Entrada</span>
-                  <div style="display:flex; gap:.4rem;">
-                    <button type="button" id="cf-mode-prompt-btn" class="cp-btn-variation" style="height:36px;">
-                      🔮 Por Prompt
-                    </button>
-                    <button type="button" id="cf-mode-upload-btn" class="cp-btn-variation" style="height:36px;">
-                      📷 Upload de Imagem
-                    </button>
+            <!-- Painel Expandido -->
+            <div class="hidden" id="cri-expandido-painel">
+              <span class="cri-label">Prompt expandido pelo Claude</span>
+              <div class="cri-expandido-painel">
+                <div class="cri-expandido-original" id="cri-expandido-original"></div>
+                <textarea class="cri-expandido-texto" id="cri-expandido-texto" rows="4"></textarea>
+                <div class="cri-expandido-actions">
+                  <button class="cri-btn-sm-cyan" id="cri-btn-regerar">↺ Regerar</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Upload de Imagem -->
+            <div>
+              <span class="cri-label">Imagem de referência (opcional)</span>
+              <div class="cri-upload-zone" id="cri-upload-zone">
+                <input type="file" id="cri-upload-input" class="cri-upload-input" accept="image/jpeg,image/png,image/webp">
+                <div id="cri-upload-placeholder">
+                  <span class="cri-upload-text">⬆ Arraste ou clique para selecionar (JPG, PNG)</span>
+                </div>
+                <div class="hidden" id="cri-upload-preview-wrap">
+                  <img id="cri-upload-img" class="cri-upload-preview" src="" alt="preview">
+                  <div class="cri-upload-actions">
+                    <button class="cri-btn-sm-cyan" id="cri-btn-i2v" data-modo="i2v">🎬 Usar como I2V</button>
+                    <button class="cri-btn-sm-cyan" id="cri-btn-analisar">🔍 Analisar estilo</button>
+                    <button class="cri-btn-sm" id="cri-btn-remover-img">✕</button>
                   </div>
                 </div>
               </div>
-
-              <!-- Prompt de Cena -->
-              <div class="cp-field" id="cf-prompt-block">
-                <label class="cp-label" for="cf-prompt">Cena do Criativo (Prompt)</label>
-                <textarea id="cf-prompt" class="cp-textarea" rows="4"
-                  placeholder="Ex: Foto vertical mostrando a fachada da loja de pedras, cliente sorrindo, luz natural, clima de confiança..."></textarea>
-              </div>
-
-              <!-- Upload de Imagem Base -->
-              <div class="cp-field hidden" id="cf-upload-block">
-                <label class="cp-label" for="cf-image-input">Imagem Base do Cliente / Produto</label>
-                <div class="cs-img-drop" id="cf-dropzone">
-                  <div id="cf-img-placeholder" class="cs-img-ph">
-                    <span style="font-size:1.5rem;">🖼</span>
-                    <p>Clique ou arraste uma imagem</p>
-                  </div>
-                  <img id="cf-image-preview" class="cs-img-prev hidden" src="" alt="">
-                  <input type="file" id="cf-image-input" accept="image/*" class="hidden">
-                </div>
-                <p class="cs-hint">Se o cliente te mandar uma foto crua, jogue aqui e o Jake combina com as promessas.</p>
-              </div>
-
-              <!-- Grupo: Motores -->
-              <div class="cp-group-label">Motores de IA</div>
-
-              <div class="cp-field">
-                <label class="cp-label" for="cf-image-engine">Motor de Imagem (Replicate)</label>
-                <div class="cp-select-wrap">
-                  <select id="cf-image-engine" class="cp-select">
-                    <option value="flux">Flux 1.1 Pro (Black Forest)</option>
-                    <option value="imagen4">Google Imagen 4</option>
-                  </select>
-                  <span class="cp-select-arrow">▾</span>
-                </div>
-              </div>
-
-              <div class="cp-field">
-                <label class="cp-label" for="cf-text-engine">Motor de Texto (API)</label>
-                <div class="cp-select-wrap">
-                  <select id="cf-text-engine" class="cp-select">
-                    <option value="claude">Claude 3.5 Sonnet</option>
-                    <option value="gpt4o">GPT‑4o</option>
-                  </select>
-                  <span class="cp-select-arrow">▾</span>
-                </div>
-              </div>
-
-              <!-- Grupo: Campanha -->
-              <div class="cp-group-label">Campanha &amp; Público</div>
-
-              <div class="cp-field">
-                <label class="cp-label" for="cf-focus">Foco da Campanha</label>
-                <div class="cp-select-wrap">
-                  <select id="cf-focus" class="cp-select">
-                    <option value="whatsapp">Mensagem de WhatsApp</option>
-                    <option value="conversion">Conversão Direta</option>
-                    <option value="awareness">Reconhecimento de Marca</option>
-                  </select>
-                  <span class="cp-select-arrow">▾</span>
-                </div>
-              </div>
-
-              <div class="cp-field">
-                <label class="cp-label" for="cf-nicho">Público / Nicho</label>
-                <input type="text" id="cf-nicho" class="cp-input"
-                  placeholder="Ex: Mulheres 30+, Donos de oficina, Donos de lojas de pedras...">
-              </div>
-
-              <!-- Botão principal -->
-              <div class="cp-btn-row" style="grid-template-columns: 1fr;">
-                <button id="cf-generate-btn" class="cp-btn-primary">
-                  <span class="cp-btn-icon">✦</span>
-                  <span class="cp-btn-text">Gerar 5 Variações de Alto CTR</span>
-                </button>
-              </div>
-
-              <p class="cs-hint">Ao clicar, o Jake roda texto (Claude/GPT) + imagem (Flux/Imagen) em paralelo.</p>
-
-              <div id="cf-status" class="cs-status"></div>
-
-            </div><!-- /.cp-form -->
-          </aside>
-
-          <!-- ── Painel Direito: Resultado ─────────────── -->
-          <div class="cp-result-panel">
-
-            <div class="cp-result-topbar">
-              <span class="cp-result-label">Criativos Gerados</span>
-              <div class="cp-badges" id="cf-badges"></div>
             </div>
 
-            <div class="cp-output-area" id="cf-output-area">
-
-              <!-- Estado vazio inicial -->
-              <div class="cp-empty" id="cf-empty">
-                <div class="cp-empty-icon">⚙️</div>
-                <p class="cp-empty-text">Defina o modo, o nicho e o foco da campanha ao lado e clique em<br><strong>Gerar 5 Variações de Alto CTR</strong>.</p>
+            <!-- Modelos -->
+            <div>
+              <span class="cri-label" id="cri-modelos-label">Modelo de imagem</span>
+              <div class="cri-modelos-grid" id="cri-modelos-grid">
+                <!-- preenchido pelo JS -->
               </div>
-
-              <!-- Animação de carregamento -->
-              <div class="cp-loading hidden" id="cf-loading">
-                <div class="cp-loading-dots">
-                  <span></span><span></span><span></span>
-                </div>
-                <p class="cp-loading-text">Forjando criativos na nuvem...</p>
-              </div>
-
-              <!-- Grid de cards -->
-              <div class="cf-grid hidden" id="cf-grid">
-                <!-- populado por creative_factory.js -->
-              </div>
-
             </div>
 
-          </div><!-- /.cp-result-panel -->
+            <!-- Botão Gerar -->
+            <button class="cri-btn-gerar" id="cri-btn-gerar">✦ Gerar Criativo</button>
 
-        </div><!-- /.cp-layout -->
+          </div>
+
+          <!-- ── Painel Direito — Resultado + Histórico ── -->
+          <div class="cri-resultado">
+
+            <!-- Abas -->
+            <div class="cri-abas">
+              <div class="cri-aba active" data-aba="resultado" id="cri-aba-resultado">Resultado</div>
+              <div class="cri-aba" data-aba="historico" id="cri-aba-historico">Histórico</div>
+            </div>
+
+            <!-- Aba Resultado -->
+            <div class="cri-resultado-content" id="cri-painel-resultado">
+              <div class="cri-empty" id="cri-empty">
+                <div class="cri-empty-icon">✦</div>
+                <div class="cri-empty-text">Configure e gere seu criativo</div>
+              </div>
+              <div class="hidden" id="cri-loading-wrap">
+                <div class="cri-loading-overlay">
+                  <div class="cri-spinner-lg"></div>
+                  <div class="cri-loading-text" id="cri-loading-text">Expandindo prompt...</div>
+                  <div class="cri-progress-bar"><div class="cri-progress-fill" id="cri-progress-fill"></div></div>
+                </div>
+              </div>
+              <div class="hidden" id="cri-preview-wrap">
+                <img id="cri-preview-img" class="cri-preview-img" src="" alt="criativo">
+                <video id="cri-preview-video" class="cri-preview-video hidden" controls></video>
+              </div>
+              <div class="cri-acoes hidden" id="cri-acoes">
+                <button class="cri-btn-sm-cyan" id="cri-btn-download">⬇ Download</button>
+                <button class="cri-btn-sm-cyan" id="cri-btn-enviar-anuncios">→ Subir Anúncios</button>
+                <button class="cri-btn-sm" id="cri-btn-salvar-historico">💾 Salvar</button>
+              </div>
+            </div>
+
+            <!-- Aba Histórico -->
+            <div class="cri-historico-content hidden" id="cri-painel-historico">
+              <div class="cri-historico-filtros">
+                <select class="cri-select-sm" id="cri-filtro-pasta"><option value="">Todas as pastas</option></select>
+                <select class="cri-select-sm" id="cri-filtro-tipo"><option value="">Todos os tipos</option><option value="imagem">Imagem</option><option value="video">Vídeo</option></select>
+                <button class="cri-btn-sm-cyan" id="cri-btn-nova-pasta">+ Pasta</button>
+                <button class="cri-btn-sm" id="cri-btn-del-pasta" title="Deletar pasta selecionada">🗑</button>
+              </div>
+              <div class="cri-historico-grid" id="cri-historico-grid">
+                <div class="cri-historico-empty">Nenhum criativo salvo ainda</div>
+              </div>
+              <div class="cri-paginacao" id="cri-paginacao">
+                <button class="cri-pag-btn" id="cri-pag-anterior">←</button>
+                <span class="cri-pag-info" id="cri-pag-info">1 / 1</span>
+                <button class="cri-pag-btn" id="cri-pag-proximo">→</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Modal Salvar no Histórico -->
+        <div class="anu-modal-overlay hidden" id="cri-modal-salvar">
+          <div class="anu-modal">
+            <h3 class="anu-modal-title">💾 Salvar no Histórico</h3>
+            <div style="margin-bottom:1rem">
+              <label class="cri-label">Pasta (opcional)</label>
+              <select class="cri-select-sm" id="cri-modal-pasta" style="width:100%;padding:.5rem"></select>
+            </div>
+            <div class="anu-modal-actions">
+              <button class="anu-btn-secondary" id="cri-modal-salvar-cancelar">Cancelar</button>
+              <button class="anu-btn-primary" id="cri-modal-salvar-confirmar">Salvar</button>
+            </div>
+          </div>
+        </div>
+
       </section>
 
       <!-- 5. ENVIO DE RELATÓRIOS ──────────────────────── -->
@@ -1444,6 +1442,7 @@
   <script src="{{ url_for('static', filename='js/copys.js') }}"></script>
   <script src="{{ url_for('static', filename='js/creative_factory.js') }}"></script>
   <script src="{{ url_for('static', filename='js/anuncios.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/criativos.js') }}"></script>
   <script src="{{ url_for('static', filename='js/financeiro.js') }}"></script>
 </body>
 </html>
