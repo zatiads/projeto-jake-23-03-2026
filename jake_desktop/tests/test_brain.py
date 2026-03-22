@@ -221,18 +221,24 @@ def test_contexto_vault_inexistente():
 
 
 def test_contexto_exclui_template(tmp_path):
-    """Arquivos em _Template/ são ignorados"""
+    """Arquivos em _Template/ são ignorados mesmo quando o slug faria match"""
     clientes_dir = tmp_path / "Clientes"
     template_dir = clientes_dir / "_Template"
     template_dir.mkdir(parents=True)
-    (template_dir / "briefing.md").write_text("Template genérico", encoding="utf-8")
-    (clientes_dir / "piloti.md").write_text("Briefing real", encoding="utf-8")
+    # Este arquivo FARIA match se não fosse excluído
+    (template_dir / "clinica.md").write_text("Template genérico de clínica", encoding="utf-8")
+    # Este é o arquivo real que deve ser encontrado
+    (clientes_dir / "piloti.md").write_text("Briefing real do piloti", encoding="utf-8")
 
     with patch("brain.VAULT_ROOT", str(tmp_path)):
-        # "briefing" está apenas no _Template — não deve ser encontrado
-        resultado = brain.contexto("briefing")
+        # "clinica" só existe no _Template — não deve ser encontrado
+        resultado = brain.contexto("clinica")
 
     assert resultado == ""
+    # Confirma que piloti ainda é encontrado normalmente
+    with patch("brain.VAULT_ROOT", str(tmp_path)):
+        resultado_piloti = brain.contexto("piloti")
+    assert "Briefing real do piloti" in resultado_piloti
 
 
 def test_contexto_retorna_conteudo(tmp_path):

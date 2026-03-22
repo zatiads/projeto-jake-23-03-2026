@@ -66,7 +66,7 @@ def salvar(modulo: str, titulo: str, inputs: dict, output: str, model: str) -> N
         if not titulo:
             logging.warning("brain.salvar: titulo vazio, ignorando.")
             return
-        if not os.path.isdir("/root/jake-brain"):
+        if not os.path.isdir(VAULT_ROOT):
             logging.warning("brain.salvar: vault /root/jake-brain não encontrado.")
             return
 
@@ -120,6 +120,7 @@ def contexto(cliente: str) -> str:
 
         clientes_dir = os.path.join(VAULT_ROOT, "Clientes")
         if not os.path.isdir(clientes_dir):
+            logging.warning(f"brain.contexto: diretório {clientes_dir} não encontrado.")
             return ""
 
         slug_cliente = _slug(cliente)
