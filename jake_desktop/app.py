@@ -1242,6 +1242,126 @@ Seja específico com os números. Dê pelo menos 1 recomendação prática."""
     return jsonify({"analise": analise})
 
 
+# ── Financeiro: CRUD Transações ──────────────────────────────────────────────
+
+@app.route("/api/financeiro/transacoes", methods=["GET"])
+@login_required
+def financeiro_listar_transacoes():
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute(
+            "SELECT id, descricao, valor, tipo, categoria, recorrente, data::text "
+            "FROM fin_transacoes ORDER BY data DESC"
+        )
+        rows = cur.fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/transacoes", methods=["POST"])
+@login_required
+def financeiro_criar_transacao():
+    d = request.get_json() or {}
+    for campo in ["descricao", "valor", "tipo", "categoria", "data"]:
+        if not d.get(campo):
+            return jsonify({"error": f"Campo obrigatório: {campo}"}), 400
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute(
+            "INSERT INTO fin_transacoes (descricao,valor,tipo,categoria,recorrente,data) "
+            "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
+            (d["descricao"], d["valor"], d["tipo"], d["categoria"],
+             d.get("recorrente", False), d["data"])
+        )
+        novo_id = cur.fetchone()["id"]
+        conn.commit()
+        conn.close()
+        return jsonify({"id": novo_id, "ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/transacoes/<int:tid>", methods=["PUT"])
+@login_required
+def financeiro_atualizar_transacao(tid):
+    d = request.get_json() or {}
+    campos_validos = ["descricao", "valor", "tipo", "categoria", "recorrente", "data"]
+    campos = {k: v for k, v in d.items() if k in campos_validos}
+    if not campos:
+        return jsonify({"error": "Nenhum campo válido"}), 400
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        sets   = ", ".join(f"{k} = %s" for k in campos)
+        valores = list(campos.values()) + [tid]
+        cur.execute(f"UPDATE fin_transacoes SET {sets} WHERE id = %s", valores)
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/transacoes/<int:tid>", methods=["DELETE"])
+@login_required
+def financeiro_deletar_transacao(tid):
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute("DELETE FROM fin_transacoes WHERE id = %s", (tid,))
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ── Financeiro: CRUD Raio-X ──────────────────────────────────────────────────
+
+@app.route("/api/financeiro/raiox", methods=["GET"])
+@login_required
+def financeiro_get_raiox():
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute("SELECT id, nome, grupo, valores FROM fin_raiox ORDER BY grupo, id")
+        rows = cur.fetchall()
+        conn.close()
+        resultado = {"entradas": [], "fixas": [], "variaveis": []}
+        for r in rows:
+            resultado[r["grupo"]].append({
+                "id": r["id"], "nome": r["nome"], "valores": r["valores"]
+            })
+        return jsonify(resultado)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/raiox", methods=["PUT"])
+@login_required
+def financeiro_salvar_raiox():
+    d = request.get_json() or {}
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute("DELETE FROM fin_raiox")
+        for grupo in ["entradas", "fixas", "variaveis"]:
+            for item in d.get(grupo, []):
+                cur.execute(
+                    "INSERT INTO fin_raiox (nome, grupo, valores) VALUES (%s, %s, %s)",
+                    (item["nome"], grupo, json.dumps(item["valores"]))
+                )
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ── API: Site Architect — geração de landing page ─────────────────────────────
 
 _SITE_ARCH_SYSTEM = """\
