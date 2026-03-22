@@ -15,7 +15,7 @@
 | Arquivo | Mudança |
 |---|---|
 | `jake_desktop/brain.py` | Adicionar função `contexto(cliente: str) -> str` |
-| `jake_desktop/tests/test_brain.py` | Adicionar 8 novos testes para `contexto()` |
+| `jake_desktop/tests/test_brain.py` | Adicionar 9 novos testes para `contexto()` |
 | `jake_desktop/app.py` | Wiring em 4 rotas (linhas ~339-345, ~509-515, ~1856-1880, ~1455-1462) |
 
 ---
@@ -124,6 +124,19 @@ def test_contexto_exclui_template(tmp_path):
         resultado = brain.contexto("briefing")
 
     assert resultado == ""
+
+
+def test_contexto_retorna_conteudo(tmp_path):
+    """Verifica que o conteúdo completo da nota é retornado corretamente"""
+    clientes_dir = tmp_path / "Clientes"
+    clientes_dir.mkdir(parents=True)
+    conteudo_esperado = "# Piloti\n\nTom: jovem e urbano\nProduto: camisetas premium\nPublico: 18-35 anos"
+    (clientes_dir / "piloti.md").write_text(conteudo_esperado, encoding="utf-8")
+
+    with patch("brain.VAULT_ROOT", str(tmp_path)):
+        resultado = brain.contexto("piloti")
+
+    assert resultado == conteudo_esperado
 ```
 
 - [ ] **Step 2: Rodar os testes para confirmar que falham**
@@ -254,10 +267,12 @@ Imediatamente antes da linha `msg = client.messages.create(`, adicionar:
 
 ```python
         ctx = brain.contexto(theme)
-        _sys = _CAROUSEL_SYSTEM + f"\n\n## Briefing do Cliente\n{ctx}" if ctx else _CAROUSEL_SYSTEM
+        system_prompt = _CAROUSEL_SYSTEM
+        if ctx:
+            system_prompt = system_prompt + f"\n\n## Briefing do Cliente\n{ctx}"
 ```
 
-Substituir `system=_CAROUSEL_SYSTEM,` por `system=_sys,`
+Substituir `system=_CAROUSEL_SYSTEM,` por `system=system_prompt,`
 
 - [ ] **Step 3: Verificar sintaxe**
 
@@ -288,10 +303,12 @@ Imediatamente antes de `msg = client.messages.create(` (linha ~510), adicionar:
 
 ```python
         ctx = brain.contexto(nicho)
-        _sys = _COPYS_SYSTEM + f"\n\n## Briefing do Cliente\n{ctx}" if ctx else _COPYS_SYSTEM
+        system_prompt = _COPYS_SYSTEM
+        if ctx:
+            system_prompt = system_prompt + f"\n\n## Briefing do Cliente\n{ctx}"
 ```
 
-Substituir `system=_COPYS_SYSTEM,` por `system=_sys,`
+Substituir `system=_COPYS_SYSTEM,` por `system=system_prompt,`
 
 - [ ] **Step 6: Verificar sintaxe**
 
@@ -355,10 +372,12 @@ Imediatamente antes de `msg = client.messages.create(` (linha ~1456), adicionar:
 
 ```python
         ctx = brain.contexto(contexto[:80])
-        _sys = _SITE_ARCH_SYSTEM + f"\n\n## Briefing do Cliente\n{ctx}" if ctx else _SITE_ARCH_SYSTEM
+        system_prompt = _SITE_ARCH_SYSTEM
+        if ctx:
+            system_prompt = system_prompt + f"\n\n## Briefing do Cliente\n{ctx}"
 ```
 
-Substituir `system=_SITE_ARCH_SYSTEM,` por `system=_sys,`
+Substituir `system=_SITE_ARCH_SYSTEM,` por `system=system_prompt,`
 
 **Nota:** A segunda chamada ao `_SITE_ARCH_SYSTEM` é `/api/site-architect/refine` — essa rota NÃO tem campo de cliente identificável, então NÃO injetar contexto nela.
 
