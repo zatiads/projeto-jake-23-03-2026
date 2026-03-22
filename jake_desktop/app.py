@@ -382,6 +382,7 @@ def api_carousel_copy():
             },
             output=slides_texto,
             model="claude-sonnet-4-5",
+            cliente=theme,
         )
         return jsonify({"slides": slides, "theme": theme, "tone": tone})
     except Exception as exc:
@@ -540,6 +541,7 @@ def api_copys_gerar():
             },
             output=copy_text,
             model="claude-sonnet-4-6",
+            cliente=nicho,
         )
         return jsonify({"copy": copy_text, "variacao": variacao})
     except Exception as exc:
@@ -1478,6 +1480,7 @@ def api_site_arch_generate():
             inputs={"business_context": contexto, "hero_copy": hero_copy, "template_kind": template_kind},
             output=html,
             model="claude-sonnet-4-6",
+            cliente=contexto[:80],
         )
         return jsonify({"html": html})
     except Exception as exc:
@@ -1915,6 +1918,7 @@ def anuncios_gerar_copy():
             inputs={"cliente_nome": cliente_nome, "camp_tipo": camp_tipo, "segmento": segmento},
             output=f"Título: {resultado.get('titulo')}\n\nTexto: {resultado.get('texto')}\n\nCTA: {resultado.get('cta')}",
             model="claude-sonnet-4-6",
+            cliente=cliente_nome,
         )
         return jsonify(resultado)
     except json.JSONDecodeError:
