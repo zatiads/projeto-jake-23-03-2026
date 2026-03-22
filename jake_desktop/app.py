@@ -373,7 +373,7 @@ def api_carousel_copy():
             inputs={
                 "tema": theme,
                 "tom": tone,
-                "awareness": awareness,
+                "nivel_consciencia": awareness,
                 "gatilho": trigger,
             },
             output=slides_texto,
