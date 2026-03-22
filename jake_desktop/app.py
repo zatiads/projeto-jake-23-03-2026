@@ -2137,7 +2137,15 @@ def criativos_expandir_prompt():
             system=system + tipo_hint,
             messages=[{"role": "user", "content": f"Expand this prompt: {prompt}"}],
         )
-        return jsonify({"prompt_expandido": msg.content[0].text.strip()})
+        prompt_expandido = msg.content[0].text.strip()
+        brain.salvar(
+            modulo="Criativos",
+            titulo=f"Prompt expandido {modo} {tipo}",
+            inputs={"prompt": prompt, "modo": modo, "tipo": tipo},
+            output=prompt_expandido,
+            model="claude-sonnet-4-6",
+        )
+        return jsonify({"prompt_expandido": prompt_expandido})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2217,6 +2225,13 @@ def criativos_gerar_imagem():
         if pred.get("status") == "succeeded":
             out = pred.get("output")
             url = out[0] if isinstance(out, list) else out
+            brain.salvar(
+                modulo="Criativos",
+                titulo=f"Imagem gerada {modelo}",
+                inputs={"modelo": modelo, "prompt": prompt},
+                output=url,
+                model=modelo,
+            )
             return jsonify({"url": url, "ok": True})
         # Fallback polling (raro) — usa time já importado no topo do arquivo
         get_url = (pred.get("urls") or {}).get("get", "")
@@ -2226,7 +2241,15 @@ def criativos_gerar_imagem():
             p = requests.get(get_url, headers=hdrs, timeout=15).json()
             if p.get("status") == "succeeded":
                 out = p.get("output")
-                return jsonify({"url": (out[0] if isinstance(out, list) else out), "ok": True})
+                url = out[0] if isinstance(out, list) else out
+                brain.salvar(
+                    modulo="Criativos",
+                    titulo=f"Imagem gerada {modelo}",
+                    inputs={"modelo": modelo, "prompt": prompt},
+                    output=url,
+                    model=modelo,
+                )
+                return jsonify({"url": url, "ok": True})
             if p.get("status") == "failed":
                 return jsonify({"error": p.get("error", "Geração falhou")}), 500
         return jsonify({"error": "Timeout na geração de imagem"}), 500
@@ -2267,7 +2290,15 @@ def criativos_gerar_video():
         if not resp.ok:
             return jsonify({"error": f"Replicate {resp.status_code}: {resp.text[:300]}"}), 500
         pred = resp.json()
-        return jsonify({"prediction_id": pred.get("id"), "ok": True})
+        prediction_id = pred.get("id")
+        brain.salvar(
+            modulo="Criativos",
+            titulo=f"Vídeo iniciado {modelo}",
+            inputs={"modelo": modelo, "prompt": prompt},
+            output=f"prediction_id: {prediction_id}",
+            model=modelo,
+        )
+        return jsonify({"prediction_id": prediction_id, "ok": True})
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 500
     except Exception as e:
