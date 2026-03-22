@@ -1348,6 +1348,8 @@ def financeiro_salvar_raiox():
     try:
         conn = _get_db()
         cur  = conn.cursor()
+        if not d:
+            return jsonify({"error": "Payload vazio"}), 400
         cur.execute("DELETE FROM fin_raiox")
         for grupo in ["entradas", "fixas", "variaveis"]:
             for item in d.get(grupo, []):
