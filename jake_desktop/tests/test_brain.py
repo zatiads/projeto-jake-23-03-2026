@@ -149,3 +149,100 @@ def test_salvar_frontmatter_completo(tmp_path):
     assert "## Inputs\n" in conteudo
     assert "## Output\n" in conteudo
     assert "## Observações" in conteudo
+
+
+# --- contexto ---
+
+def test_contexto_match_exato(tmp_path):
+    """'clinica' encontra clinica-cliente.md (slug cliente in slug arquivo)"""
+    clientes_dir = tmp_path / "Clientes"
+    clientes_dir.mkdir(parents=True)
+    nota = clientes_dir / "clinica-cliente.md"
+    nota.write_text("# Clínica\nTom: sofisticado", encoding="utf-8")
+
+    with patch("brain.VAULT_ROOT", str(tmp_path)):
+        resultado = brain.contexto("clinica")
+
+    assert "Clínica" in resultado
+    assert "sofisticado" in resultado
+
+
+def test_contexto_match_parcial(tmp_path):
+    """'academia' encontra academia-fitness.md (slug cliente in slug arquivo)"""
+    clientes_dir = tmp_path / "Clientes"
+    clientes_dir.mkdir(parents=True)
+    (clientes_dir / "academia-fitness.md").write_text("Briefing academia", encoding="utf-8")
+
+    with patch("brain.VAULT_ROOT", str(tmp_path)):
+        resultado = brain.contexto("academia")
+
+    assert "Briefing academia" in resultado
+
+
+def test_contexto_match_inverso(tmp_path):
+    """'clinica-aline-estetica' encontra clinica.md (slug arquivo in slug cliente)"""
+    clientes_dir = tmp_path / "Clientes"
+    clientes_dir.mkdir(parents=True)
+    (clientes_dir / "clinica.md").write_text("Briefing clinica curto", encoding="utf-8")
+
+    with patch("brain.VAULT_ROOT", str(tmp_path)):
+        resultado = brain.contexto("clinica-aline-estetica")
+
+    assert "Briefing clinica curto" in resultado
+
+
+def test_contexto_sem_match(tmp_path):
+    """Nenhum arquivo faz match → retorna string vazia"""
+    clientes_dir = tmp_path / "Clientes"
+    clientes_dir.mkdir(parents=True)
+    (clientes_dir / "piloti.md").write_text("Briefing piloti", encoding="utf-8")
+
+    with patch("brain.VAULT_ROOT", str(tmp_path)):
+        resultado = brain.contexto("xyz-inexistente")
+
+    assert resultado == ""
+
+
+def test_contexto_cliente_vazio():
+    """cliente='' retorna '' sem tocar filesystem"""
+    assert brain.contexto("") == ""
+
+
+def test_contexto_cliente_none():
+    """cliente=None retorna '' sem tocar filesystem"""
+    assert brain.contexto(None) == ""
+
+
+def test_contexto_vault_inexistente():
+    """Vault inexistente → retorna '' sem propagar exceção"""
+    with patch("brain.VAULT_ROOT", "/caminho/que/nao/existe"):
+        resultado = brain.contexto("qualquer")
+    assert resultado == ""
+
+
+def test_contexto_exclui_template(tmp_path):
+    """Arquivos em _Template/ são ignorados"""
+    clientes_dir = tmp_path / "Clientes"
+    template_dir = clientes_dir / "_Template"
+    template_dir.mkdir(parents=True)
+    (template_dir / "briefing.md").write_text("Template genérico", encoding="utf-8")
+    (clientes_dir / "piloti.md").write_text("Briefing real", encoding="utf-8")
+
+    with patch("brain.VAULT_ROOT", str(tmp_path)):
+        # "briefing" está apenas no _Template — não deve ser encontrado
+        resultado = brain.contexto("briefing")
+
+    assert resultado == ""
+
+
+def test_contexto_retorna_conteudo(tmp_path):
+    """Verifica que o conteúdo completo da nota é retornado corretamente"""
+    clientes_dir = tmp_path / "Clientes"
+    clientes_dir.mkdir(parents=True)
+    conteudo_esperado = "# Piloti\n\nTom: jovem e urbano\nProduto: camisetas premium\nPublico: 18-35 anos"
+    (clientes_dir / "piloti.md").write_text(conteudo_esperado, encoding="utf-8")
+
+    with patch("brain.VAULT_ROOT", str(tmp_path)):
+        resultado = brain.contexto("piloti")
+
+    assert resultado == conteudo_esperado
