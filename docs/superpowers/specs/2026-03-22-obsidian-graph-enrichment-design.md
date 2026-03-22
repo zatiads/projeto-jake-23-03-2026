@@ -135,7 +135,9 @@ tags: [output, {modulo_tag}]
 
 Onde:
 - `{cliente_linha}` = `f"cliente: {_slug(cliente)}\n"` ou `""`
-- `{links_section}` = `f"## Links\n- [[{stem}]]\n"` ou `""`
+- `{links_section}` = `f"\n## Links\n- [[{stem}]]\n"` ou `""` (inclui `\n` inicial para separar da seção Observações)
+
+**Nota sobre o TEMPLATE Python:** O TEMPLATE atual termina com `\n` após o comentário de Observações. O `{links_section}` é o último campo do TEMPLATE — quando vazio, o arquivo termina normalmente com `\n`; quando preenchido, a seção `## Links` aparece após uma linha em branco.
 
 ### Wiring em `app.py`
 
@@ -154,7 +156,7 @@ As demais 7 chamadas existentes ficam sem `cliente=` — retrocompatível.
 
 ## Melhoria 3: Mais wikilinks nas notas retroativas
 
-Edição de conteúdo nas 17 notas em `jake-brain/`. Meta: **mínimo 5 wikilinks por nota**, adicionados na seção `## Links Relacionados` existente em cada nota.
+Edição de conteúdo nas 20 notas do vault (15 em `Jake OS/`, 1 em `Projetos/`, 2 em `Clientes/`, 1 `Arquitetura.md`). Meta: **mínimo 5 wikilinks por nota**, adicionados na seção `## Links Relacionados` existente em cada nota.
 
 ### Mapa de links esperados (mínimo)
 
@@ -170,15 +172,19 @@ Edição de conteúdo nas 17 notas em `jake-brain/`. Meta: **mínimo 5 wikilinks
 | `Core/utilitarios.md` | `[[banco-de-dados]]`, `[[sync-planilha]]`, `[[App-Rotas]]` |
 | `Meta Ads/overview.md` | `[[App-Rotas]]`, `[[jake-principal]]`, `[[vps-scripts]]`, `[[banco-de-dados]]` |
 | `App-Rotas.md` | `[[banco-de-dados]]`, `[[Frontend]]`, `[[Meta Ads/overview]]`, `[[jake-principal]]`, `[[vps-scripts]]` |
-| `Frontend.md` | `[[App-Rotas]]`, `[[vps-scripts]]` |
-| `Infraestrutura/vps-scripts.md` | `[[App-Rotas]]`, `[[jake-principal]]`, `[[banco-de-dados]]`, `[[vps-scripts]]` |
+| `Frontend.md` | Substituir `[[Jake OS App (Rotas)]]` por `[[App-Rotas]]` (padronização), adicionar `[[vps-scripts]]` |
+| `Infraestrutura/vps-scripts.md` | `[[App-Rotas]]`, `[[docs-existentes]]` (os demais já existem: `[[jake-principal]]`, `[[banco-de-dados]]`, `[[migrations]]`) |
 | `Infraestrutura/migrations.md` | `[[banco-de-dados]]`, `[[App-Rotas]]`, `[[vps-scripts]]` |
-| `Infraestrutura/docs-existentes.md` | `[[App-Rotas]]`, `[[jake-principal]]`, `[[Arquitetura]]` |
-| `Projetos/carousel-engine.md` | `[[App-Rotas]]`, `[[Frontend]]`, `[[banco-de-dados]]` |
+| `Infraestrutura/docs-existentes.md` | `[[jake-principal]]`, `[[Arquitetura]]`, `[[vps-scripts]]`, substituir `[[Jake OS App (Rotas)]]` por `[[App-Rotas]]` se presente |
+| `Projetos/carousel-engine.md` | `[[banco-de-dados]]`, `[[vps-scripts]]`, substituir `[[Jake OS App (Rotas)]]` por `[[App-Rotas]]` se presente, `[[Frontend]]` |
 | `Clientes/clinica-cliente.md` | `[[App-Rotas]]`, `[[Frontend]]` |
 | `Clientes/camila-piercer.md` | `[[App-Rotas]]`, `[[Frontend]]` |
 
-**Regra:** links são adicionados à seção `## Links Relacionados` existente. Não duplicar links já presentes. Não remover links existentes.
+**Regras:**
+- Links são adicionados à seção `## Links Relacionados` existente
+- Não duplicar links já presentes
+- Não remover links existentes
+- **Padronização de alias:** qualquer `[[Jake OS App (Rotas)]]` encontrado deve ser substituído por `[[App-Rotas]]` (mesmo destino, wikilink padronizado)
 
 ---
 
@@ -192,7 +198,7 @@ Arquivo: `jake_desktop/tests/test_brain.py`
 | `test_salvar_modulo_tag_com_espaco` | `"Site Architect"` → `tags: [output, site-architect]` |
 | `test_salvar_cliente_no_frontmatter` | Com `cliente="academia"` → frontmatter tem `cliente: academia` |
 | `test_salvar_sem_cliente_sem_campo` | Sem `cliente=` → frontmatter não tem linha `cliente:` |
-| `test_salvar_links_section_com_cliente` | Com cliente matching → nota tem `## Links\n- [[stem]]` |
+| `test_salvar_links_section_com_cliente` | Com cliente matching → nota tem `## Links\n- [[stem]]`. Setup: criar `tmp_path/Clientes/clinica-cliente.md` e patchar `brain.VAULT_ROOT` para `tmp_path`; passar `cliente="clinica"` para `salvar()`. Verificar que o arquivo gerado contém `[[clinica-cliente]]`. |
 | `test_salvar_sem_links_section_sem_cliente` | Sem cliente → nota não tem `## Links` |
 | `test_find_cliente_nota_match` | `_find_cliente_nota("clinica")` retorna `"clinica-cliente"` |
 | `test_find_cliente_nota_sem_match` | `_find_cliente_nota("xyz")` retorna `""` |
