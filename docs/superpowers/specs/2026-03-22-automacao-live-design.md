@@ -22,20 +22,47 @@ Módulo utilitário com uma única função pública:
 def salvar(modulo: str, titulo: str, inputs: dict, output: str, model: str) -> None
 ```
 
-Responsabilidades:
-1. Montar o caminho de destino: `/root/jake-brain/Jake OS/Outputs/<Modulo>/YYYY-MM-DD-HH-MM-<titulo-slug>.md`
-2. Criar diretório se não existir (`os.makedirs(..., exist_ok=True)`)
-3. Renderizar o template de nota
-4. Escrever o arquivo no disco
-5. Logar erros silenciosamente — jamais propagar exceção para a rota
+**Parâmetros:**
+- `modulo` — nome legível da seção do vault (ex: `"Copys"`, `"Carrossel"`, `"Criativos"`, `"Anuncios"`, `"Site Architect"`, `"Financeiro"`)
+- `titulo` — título descritivo da nota (ex: `"Copy Instagram AIDA — academia"`)
+- `inputs` — dict com campos relevantes da request (sem base64, sem file content — apenas strings/números simples)
+- `output` — conteúdo gerado, sempre como `str` (texto, HTML, JSON formatado como string)
+- `model` — modelo de IA usado (ex: `"claude-sonnet-4-6"`)
+
+**Algoritmo de nome de arquivo:**
+
+```python
+import re, unicodedata
+
+def _slug(texto: str) -> str:
+    # Normaliza acentos → ASCII, lowercase, troca espaços/pontuação por hífens, max 60 chars
+    texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+    texto = re.sub(r"[^\w\s-]", "", texto).strip().lower()
+    texto = re.sub(r"[\s_-]+", "-", texto)
+    return texto[:60].strip("-")
+
+# Nome final: YYYY-MM-DD-HH-MM-<slug>.md
+# Colisão (mesmo minuto, mesmo slug): append -2, -3, etc.
+```
+
+**Caminho de destino:**
+```
+/root/jake-brain/Jake OS/Outputs/<Modulo>/<YYYY-MM-DD-HH-MM-slug>.md
+```
+
+**Comportamento de erro:**
+- Qualquer exceção dentro de `salvar()` → capturada com `try/except Exception`
+- Logar com `import logging; logging.warning(f"brain.salvar falhou: {e}")`
+- Nunca propagar a exceção — a rota continua funcionando normalmente
+- Se `/root/jake-brain/` não existir → logar e retornar silenciosamente
 
 ### Modificação: `jake_desktop/app.py`
 
-Importar `brain` e adicionar `brain.salvar(...)` no final de cada rota elegível, antes do `return jsonify(...)`.
+Adicionar `import brain` no topo. Chamar `brain.salvar(...)` no final de cada rota elegível, imediatamente antes do `return jsonify(...)`.
 
 ### Infraestrutura (sem mudanças)
 
-O cron existente (`*/5 * * * *` → `jake_brain_push.sh`) continua fazendo o git add/commit/push. Nenhuma mudança de infra necessária.
+O cron existente (`*/5 * * * *` → `jake_brain_push.sh`) continua fazendo o git push. Nenhuma mudança de infra.
 
 ---
 
@@ -43,9 +70,9 @@ O cron existente (`*/5 * * * *` → `jake_brain_push.sh`) continua fazendo o git
 
 ```markdown
 ---
-modulo: {Modulo}
+modulo: {modulo}
 modelo: {model}
-gerado_em: YYYY-MM-DD HH:MM
+gerado_em: 2026-03-22 15:43
 ---
 
 # {titulo}
@@ -55,7 +82,7 @@ gerado_em: YYYY-MM-DD HH:MM
 - **Campo:** valor
 
 ## Output
-{conteúdo gerado}
+{output}
 
 ## Modelo
 {model}
@@ -64,33 +91,39 @@ gerado_em: YYYY-MM-DD HH:MM
 <!-- espaço para anotar no Obsidian depois -->
 ```
 
-**Regras do template:**
-- `modulo` = nome legível (ex: `Copys`, `Carrossel`, `Site Architect`)
-- `titulo` = gerado pela rota com contexto (ex: `Copy — Instagram AIDA`)
-- `inputs` = somente campos relevantes por módulo (não todo o request body)
-- `output` = conteúdo principal em texto limpo (não o JSON completo)
-- Para outputs muito longos (HTML de landing page): salvar completo mas indicar no frontmatter `tipo: html`
+**Regras:**
+- `gerado_em` usa formato `YYYY-MM-DD HH:MM` (sem segundos) — o mesmo usado no nome do arquivo com hífens
+- `inputs` é renderizado como lista markdown: `- **Chave:** valor` para cada par do dict
+- `output` é inserido como texto puro (sem bloco de código adicional — o conteúdo já tem formatação adequada)
+- Campos com valor `None` ou string vazia são omitidos do `inputs`
 
 ---
 
 ## Rotas Elegíveis
 
-| Módulo | Rota | inputs relevantes | output salvo |
+| Módulo (vault) | Rota | inputs a passar | output a salvar |
 |---|---|---|---|
-| Copys | `POST /api/copys/gerar` | plataforma, framework, nicho, oferta, tom | copy gerado |
-| Carrossel | `POST /api/carousel/copy` | tema, tom, nível de consciência, gatilho | slides (texto formatado) |
-| Criativos v2 | `POST /api/criativos/gerar` | modo, tipo, prompt | prompt expandido + URL resultado |
-| Criativos v2 | `POST /api/criativos/expandir-prompt` | prompt, modo, tipo | prompt expandido |
-| Anúncios | `POST /api/anuncios/copy` | cliente, tipo campanha, segmento | título + texto + CTA |
-| Site Architect | `POST /api/site-architect/generate` | contexto negócio, hero copy, template | HTML completo |
-| Site Architect | `POST /api/site-architect/refine` | instrução de refinamento | HTML refinado |
-| Financeiro | `POST /api/financeiro/analise` | mês, receita, despesas, saldo | análise completa |
+| `Copys` | `POST /api/copys/gerar` | plataforma, framework, nicho, oferta, tom, gatilho | `resultado["copy"]` |
+| `Carrossel` | `POST /api/carousel/copy` | tema, tom, nivel_consciencia, gatilho | slides formatados como texto (um por linha) |
+| `Criativos` | `POST /api/criativos/expandir-prompt` | prompt (truncado em 200 chars), modo, tipo | `resultado["prompt_expandido"]` |
+| `Criativos` | `POST /api/criativos/gerar-imagem` | modelo, prompt (truncado em 200 chars) | `resultado["url"]` |
+| `Criativos` | `POST /api/criativos/gerar-video` | modelo, prompt (truncado em 200 chars) | URL ou prediction_id |
+| `Anuncios` | `POST /api/anuncios/copy` | cliente_nome, campaign_type, segmento | `f"Título: {titulo}\n\nTexto: {texto}\n\nCTA: {cta}"` |
+| `Site Architect` | `POST /api/site-architect/generate` | business_context, hero_copy, template_kind | HTML completo |
+| `Site Architect` | `POST /api/site-architect/refine` | instrucao (primeiros 300 chars) | HTML refinado |
+| `Financeiro` | `POST /api/financeiro/analise` | mes, receita, despesas, saldo | `resultado["analise"]` |
 
-**Fora do escopo** (intermediários/utilitários, não geram conteúdo final):
-- `POST /api/criativos/analisar-referencia`
-- `GET /api/criativos/pastas`
-- `GET /api/criativos/historico`
-- `POST /api/carousel/generate-image` (resultado é imagem base64, não texto)
+**Regras de input filtering:**
+- **Nunca** incluir campos com base64 (imagens, áudios) — omitir silenciosamente
+- **Nunca** incluir file objects ou binary data
+- Strings muito longas (>300 chars): truncar com `[:300] + "..."`
+- Campos numéricos: manter como-é
+
+**Fora do escopo** (não geram conteúdo final ou retornam apenas imagem binária):
+- `POST /api/criativos/analisar-referencia` (análise intermediária)
+- `POST /api/carousel/generate-image` (retorna base64, não texto)
+- `POST /api/generate-creative` (factory legado — substituído pelos criativos v2)
+- Todas as rotas GET, DELETE, PATCH
 
 ---
 
@@ -101,11 +134,12 @@ jake-brain/
 └── Jake OS/
     └── Outputs/
         ├── Copys/
-        │   └── 2026-03-22-15-43-copy-instagram-aida.md
+        │   └── 2026-03-22-15-43-copy-instagram-aida-academia.md
         ├── Carrossel/
-        │   └── 2026-03-22-16-00-carrossel-academia.md
+        │   └── 2026-03-22-16-00-carrossel-academia-awareness.md
         ├── Criativos/
-        │   └── 2026-03-22-16-10-criativo-flux-anuncio.md
+        │   ├── 2026-03-22-16-10-expandir-flux-anuncio.md
+        │   └── 2026-03-22-16-11-gerar-imagem-flux-1-1-pro.md
         ├── Anuncios/
         │   └── 2026-03-22-16-20-copy-piloti-stories.md
         ├── Site Architect/
@@ -116,11 +150,15 @@ jake-brain/
 
 ---
 
-## Tratamento de Erros
+## Edge Cases
 
-- `brain.salvar()` nunca lança exceção — usa `try/except` global internamente
-- Erros são logados com `app.logger.warning(f"brain.salvar falhou: {e}")`
-- A rota continua funcionando normalmente mesmo que o save falhe
+| Situação | Comportamento |
+|---|---|
+| Mesmo slug gerado no mesmo minuto | Append `-2`, `-3`, etc. ao nome |
+| `titulo` vazio ou None | `salvar()` retorna sem criar arquivo, loga warning |
+| `/root/jake-brain/` não existe | Loga warning, retorna silenciosamente |
+| Output muito longo (HTML > 100KB) | Salvar completo — Obsidian suporta arquivos grandes |
+| Vault read-only | `try/except` captura `PermissionError`, loga, não propaga |
 
 ---
 
@@ -129,6 +167,7 @@ jake-brain/
 - [ ] `jake_desktop/brain.py` existe e `salvar()` funciona standalone
 - [ ] Ao chamar `/api/copys/gerar`, um `.md` aparece em `Jake OS/Outputs/Copys/`
 - [ ] Ao chamar `/api/carousel/copy`, um `.md` aparece em `Jake OS/Outputs/Carrossel/`
-- [ ] Todas as 8 rotas elegíveis geram nota no vault
-- [ ] Erros em `brain.salvar()` não quebram nenhuma rota
-- [ ] Após 5 min, nota aparece no Obsidian Windows via cron
+- [ ] Todas as 9 rotas elegíveis geram nota no vault
+- [ ] Erros em `brain.salvar()` não quebram nenhuma rota (testar com vault path inválido)
+- [ ] Colisão de nomes gera sufixo `-2` corretamente
+- [ ] Após ≤5 min, nota aparece no Obsidian Windows via cron
