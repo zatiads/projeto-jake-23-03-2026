@@ -1465,7 +1465,7 @@ def api_site_arch_generate():
             titulo=f"Landing Page — {template_kind or 'custom'}",
             inputs={"business_context": contexto, "hero_copy": hero_copy, "template_kind": template_kind},
             output=html,
-            model="claude-sonnet-4-5",
+            model="claude-sonnet-4-6",
         )
         return jsonify({"html": html})
     except Exception as exc:
@@ -1509,10 +1509,10 @@ def api_site_arch_refine():
         new_html = (msg.content[0].text or "").strip()
         brain.salvar(
             modulo="Site Architect",
-            titulo="Refinamento Site Architect",
+            titulo=f"Refinamento — {instruction[:50]}",
             inputs={"instrucao": instruction[:300] if instruction else ""},
             output=new_html,
-            model="claude-sonnet-4-5",
+            model="claude-sonnet-4-6",
         )
         return jsonify(
             {
