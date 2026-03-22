@@ -1870,9 +1870,6 @@ def anuncios_gerar_copy():
         "Crie copies curtas, diretas e persuasivas em português brasileiro. "
         "Retorne APENAS um JSON válido, sem markdown ou texto adicional."
     )
-    ctx = brain.contexto(cliente_nome)
-    if ctx:
-        system = system + f"\n\n## Briefing do Cliente\n{ctx}"
     prompt = (
         f"Analise este criativo de anúncio para '{cliente_nome}'"
         + (f" (segmento: {segmento})" if segmento else "")
@@ -1889,6 +1886,9 @@ def anuncios_gerar_copy():
         return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
 
     try:
+        ctx = brain.contexto(cliente_nome)
+        if ctx:
+            system = system + f"\n\n## Briefing do Cliente\n{ctx}"
         content = []
         if imagem_b64:
             content.append({
