@@ -166,11 +166,13 @@
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(campos)
-    }).catch(function(e) { console.error('Erro ao editar transação:', e); });
+    }).then(function(r){ if(!r.ok) console.error('Erro ao editar transação: HTTP '+r.status); })
+      .catch(function(e) { console.error('Erro ao editar transação:', e); });
   }
 
   function deletarTransacao(id) {
     fetch('/api/financeiro/transacoes/' + id, { method: 'DELETE' })
+      .then(function(r){ if(!r.ok) console.error('Erro ao deletar transação: HTTP '+r.status); })
       .catch(function(e) { console.error('Erro ao deletar transação:', e); });
   }
 
@@ -180,8 +182,8 @@
     if (container) container.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--cyan)">Carregando...</p>';
 
     Promise.all([
-      fetch('/api/financeiro/transacoes').then(function(r){ return r.json(); }),
-      fetch('/api/financeiro/raiox').then(function(r){ return r.json(); })
+      fetch('/api/financeiro/transacoes').then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }),
+      fetch('/api/financeiro/raiox').then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
     ]).then(function(resultados) {
       TRANSACOES = resultados[0];
       var raiox   = resultados[1];
