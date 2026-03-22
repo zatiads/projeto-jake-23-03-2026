@@ -349,3 +349,17 @@ def test_find_cliente_nota_sem_match(tmp_path):
 def test_find_cliente_nota_vazio():
     """_find_cliente_nota('') retorna '' sem tocar filesystem"""
     assert brain._find_cliente_nota("") == ""
+
+
+def test_salvar_cliente_sem_match_tem_campo_sem_links(tmp_path):
+    """cliente= fornecido mas sem arquivo matching → cliente: no frontmatter, sem ## Links"""
+    vault_outputs = tmp_path / "Jake OS" / "Outputs"
+    clientes_dir = tmp_path / "Clientes"
+    clientes_dir.mkdir(parents=True)
+    (clientes_dir / "piloti.md").write_text("briefing piloti", encoding="utf-8")
+    with patch("brain.VAULT", str(vault_outputs)), patch("brain.VAULT_ROOT", str(tmp_path)):
+        brain.salvar("Copys", "Copy xyz", {}, "output", "model", cliente="xyz-inexistente")
+    arquivo = list((vault_outputs / "Copys").glob("*.md"))[0]
+    conteudo = arquivo.read_text(encoding="utf-8")
+    assert "cliente: xyz-inexistente" in conteudo
+    assert "## Links" not in conteudo
