@@ -35,6 +35,7 @@ import anthropic as _anthropic
 import sys as _sys
 _sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import meta.meta_api as _meta_api
+import brain
 
 _VALID_TOKEN_KEYS = {"META_TOKEN_PILOTI", "META_TOKEN_DENTTO", "META_ACCESS_TOKEN"}
 
@@ -363,6 +364,21 @@ def api_carousel_copy():
         slides = parsed.get("slides", [])
         if len(slides) != 7:
             raise ValueError(f"Esperava 7 slides, recebi {len(slides)}")
+        slides_texto = "\n\n".join(
+            f"**Slide {i+1}:** {str(s)}" for i, s in enumerate(slides)
+        )
+        brain.salvar(
+            modulo="Carrossel",
+            titulo=f"Carrossel {theme}",
+            inputs={
+                "tema": theme,
+                "tom": tone,
+                "awareness": awareness,
+                "gatilho": trigger,
+            },
+            output=slides_texto,
+            model="claude-sonnet-4-5",
+        )
         return jsonify({"slides": slides, "theme": theme, "tone": tone})
     except Exception as exc:
         return jsonify({"error": str(exc), "slides": _carousel_fallback(theme, tone)}), 500
@@ -500,6 +516,23 @@ def api_copys_gerar():
         copy_text = (msg.content[0].text or "").strip()
         if not copy_text:
             return jsonify({"error": "A IA retornou uma resposta vazia."}), 500
+        brain.salvar(
+            modulo="Copys",
+            titulo=f"Copy {plataforma} {framework}",
+            inputs={
+                "plataforma": plataforma,
+                "framework": framework,
+                "tom": tom,
+                "nicho": nicho,
+                "oferta": oferta,
+                "profissao": profissao,
+                "nivel_consciencia": nivel_consciencia,
+                "gatilho": gatilho,
+                "tamanho": tamanho,
+            },
+            output=copy_text,
+            model="claude-sonnet-4-6",
+        )
         return jsonify({"copy": copy_text, "variacao": variacao})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
@@ -1142,6 +1175,20 @@ Seja específico com os números. Dê pelo menos 1 recomendação prática."""
                 messages=[{"role": "user", "content": prompt}]
             )
             analise = msg.content[0].text
+            brain.salvar(
+                modulo="Financeiro",
+                titulo=f"Análise financeira {mes}",
+                inputs={
+                    "mes": mes,
+                    "receita": receita,
+                    "despesas": despesas,
+                    "saldo": saldo,
+                    "receita_anterior": receita_ant,
+                    "despesas_anteriores": desp_ant,
+                },
+                output=analise,
+                model="claude-sonnet-4-5",
+            )
             return jsonify({"analise": analise})
         except Exception as e:
             pass
@@ -1155,6 +1202,20 @@ Seja específico com os números. Dê pelo menos 1 recomendação prática."""
                 max_tokens=512,
             )
             analise = resp.choices[0].message.content
+            brain.salvar(
+                modulo="Financeiro",
+                titulo=f"Análise financeira {mes}",
+                inputs={
+                    "mes": mes,
+                    "receita": receita,
+                    "despesas": despesas,
+                    "saldo": saldo,
+                    "receita_anterior": receita_ant,
+                    "despesas_anteriores": desp_ant,
+                },
+                output=analise,
+                model="gpt-4o",
+            )
             return jsonify({"analise": analise})
         except Exception as e:
             pass
