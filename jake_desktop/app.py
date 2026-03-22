@@ -1460,6 +1460,13 @@ def api_site_arch_generate():
             messages=[{"role": "user", "content": user_instructions}],
         )
         html = (msg.content[0].text or "").strip()
+        brain.salvar(
+            modulo="Site Architect",
+            titulo=f"Landing Page — {template_kind or 'custom'}",
+            inputs={"ref_url": ref_url, "hero_copy": hero_copy, "template_kind": template_kind},
+            output=html,
+            model="claude-sonnet-4-5",
+        )
         return jsonify({"html": html})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
@@ -1500,6 +1507,13 @@ def api_site_arch_refine():
             messages=[{"role": "user", "content": refine_prompt}],
         )
         new_html = (msg.content[0].text or "").strip()
+        brain.salvar(
+            modulo="Site Architect",
+            titulo="Refinamento Site Architect",
+            inputs={"instrucao": instruction[:300] if instruction else ""},
+            output=new_html,
+            model="claude-sonnet-4-5",
+        )
         return jsonify(
             {
                 "html": new_html,
@@ -1880,6 +1894,13 @@ def anuncios_gerar_copy():
             if raw.startswith("json\n"):
                 raw = raw[5:]
         resultado = json.loads(raw)
+        brain.salvar(
+            modulo="Anuncios",
+            titulo=f"Copy {cliente_nome} — {camp_tipo}",
+            inputs={"cliente_nome": cliente_nome, "camp_tipo": camp_tipo, "segmento": segmento},
+            output=f"Título: {resultado.get('titulo')}\n\nTexto: {resultado.get('texto')}\n\nCTA: {resultado.get('cta')}",
+            model="claude-sonnet-4-6",
+        )
         return jsonify(resultado)
     except json.JSONDecodeError:
         return jsonify({"error": "IA retornou formato inválido"}), 500
