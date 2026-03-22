@@ -18,23 +18,25 @@ Documentar todos os componentes existentes em `/root` no vault Obsidian (`/root/
 
 ## Componentes a Documentar
 
-| Componente | Caminho | Tipo |
+| Componente | Arquivos canônicos | Nota no vault |
 |---|---|---|
-| Bot Principal | `/root/jake_telegram.py` + `/root/bot/` | Bots Telegram |
-| Bot Pessoal | `/root/bot/jake_pessoal.py` | Bot Telegram |
-| Bot Viagem | `/root/bot/jake_viagem.py` | Bot Telegram |
-| Gerador de Agentes | `/root/bot/gerar_agente.py` | Meta-agente |
-| Banco de Dados | `/root/core/db.py` | Core |
-| Sync Planilha | `/root/core/sync_planilha.py` | Core |
-| Tarefas | `/root/core/tarefas.py` | Core |
-| Meta Ads | `/root/meta/` | Integração |
-| Jake OS App | `/root/jake_desktop/app.py` | Flask SPA |
-| Jake OS Frontend | `/root/jake_desktop/static/js/` | Frontend |
-| Scripts | `/root/scripts/` | Infraestrutura |
-| Carousel Engine | `/root/carousel-engine/` | Projeto Next.js |
-| Clínica Cliente | `/root/clinica-cliente/` | Site de cliente |
-| Camila Piercer | `/root/camila_piercerr_2.html` | Site de cliente |
-| Utilitários | `/root/leitor_planilha.py`, `/root/listar_ids.py` | Scripts avulsos |
+| Bot Principal | `/root/jake_telegram.py` + `/root/bot/base_bot.py` | `Jake OS/Bots/jake-principal.md` |
+| Bot Pessoal | `/root/bot/jake_pessoal.py` + `bot/prompt_pessoal.txt` | `Jake OS/Bots/jake-pessoal.md` |
+| Bot Viagem | `/root/bot/jake_viagem.py` + `bot/prompt_viagem.txt` | `Jake OS/Bots/jake-viagem.md` |
+| Gerador de Agentes | `/root/bot/gerar_agente.py` | `Jake OS/Bots/gerar-agente.md` |
+| Banco de Dados | `/root/core/db.py` | `Jake OS/Core/banco-de-dados.md` |
+| Sync Planilha | `/root/core/sync_planilha.py` | `Jake OS/Core/sync-planilha.md` |
+| Tarefas | `/root/core/tarefas.py` | `Jake OS/Core/tarefas.md` |
+| Meta Ads | `/root/meta/` (3 arquivos) | `Jake OS/Meta Ads/overview.md` |
+| Jake OS App | `/root/jake_desktop/app.py` | `Jake OS/App-Rotas.md` |
+| Jake OS Frontend | `/root/jake_desktop/static/js/` | `Jake OS/Frontend.md` |
+| Scripts e Infraestrutura | `/root/scripts/` (todos) | `Jake OS/Infraestrutura/vps-scripts.md` |
+| Migrations | `scripts/migrar_anuncios.py` + `scripts/migrar_criativos.py` | `Jake OS/Infraestrutura/migrations.md` |
+| Docs existentes | `/root/docs/*.md` | `Jake OS/Infraestrutura/docs-existentes.md` |
+| Carousel Engine | `/root/carousel-engine/` | `Projetos/carousel-engine.md` |
+| Clínica Cliente | `/root/clinica-cliente/` (index.html + sitealine.html) | `Clientes/clinica-cliente.md` |
+| Camila Piercer | `/root/camila_piercerr_2.html` | `Clientes/camila-piercer.md` |
+| Utilitários | `/root/leitor_planilha.py` + `/root/listar_ids.py` | `Jake OS/Core/utilitarios.md` |
 
 ---
 
@@ -43,13 +45,16 @@ Documentar todos os componentes existentes em `/root` no vault Obsidian (`/root/
 ```
 jake-brain/
 ├── Clientes/
-│   ├── _Template/          (já existe)
+│   ├── _Template/              (já existe)
 │   ├── clinica-cliente.md
 │   └── camila-piercer.md
+├── Decisoes/                   (já existe — não tocar)
+│   ├── _Template.md
+│   └── 2026-03-22-obsidian-vault-foundation.md
 ├── Jake OS/
-│   ├── Arquitetura.md      (já existe)
-│   ├── App-Rotas.md        (todas as rotas do app.py)
-│   ├── Frontend.md         (módulos JS, CSS, estrutura)
+│   ├── Arquitetura.md          (já existe)
+│   ├── App-Rotas.md
+│   ├── Frontend.md
 │   ├── Bots/
 │   │   ├── jake-principal.md
 │   │   ├── jake-pessoal.md
@@ -58,46 +63,62 @@ jake-brain/
 │   ├── Core/
 │   │   ├── banco-de-dados.md
 │   │   ├── sync-planilha.md
-│   │   └── tarefas.md
+│   │   ├── tarefas.md
+│   │   └── utilitarios.md
 │   ├── Meta Ads/
 │   │   └── overview.md
 │   └── Infraestrutura/
 │       ├── vps-scripts.md
-│       └── cron.md
-└── Projetos/
-    └── carousel-engine.md
+│       ├── migrations.md
+│       └── docs-existentes.md
+├── Projetos/
+│   └── carousel-engine.md
+├── README.md                   (já existe)
+└── Roadmap.md                  (já existe)
 ```
 
 ---
 
 ## Script de Varredura (`scripts/gerar_brain.py`)
 
+**Uso:**
+```bash
+cd /root && python3 scripts/gerar_brain.py
+```
+
 O script realiza as seguintes operações:
 
-1. Define lista de componentes com caminho, tipo e arquivos principais
-2. Para cada componente, cria o `.md` correspondente no vault com:
-   - **Frontmatter:** caminho, tipo, arquivos principais, data de geração
-   - **Seções com `[TODO]`:** O que faz, Como funciona, Variáveis de ambiente, Decisões, Próximos passos
-   - **Lista de arquivos** detectada automaticamente (excluindo venv, __pycache__, .git)
-3. Não sobrescreve arquivos que já têm conteúdo real (verifica se `[TODO]` foi removido)
+1. Define lista estática de componentes com caminho canônico e destino no vault
+2. Para cada componente, cria o `.md` correspondente com:
+   - **Frontmatter YAML:** tipo, caminho, arquivos, tags, data de geração
+   - **Lista de arquivos** detectada automaticamente (excluindo diretórios ignorados)
+   - **Seções com `[TODO]`:** O que faz, Como funciona, Variáveis de ambiente, Decisões, Próximos passos, Links relacionados
 
-**Diretórios ignorados pelo script:**
-- `venv/`, `.venv/`, `node_modules/`, `__pycache__/`, `.git/`, `.local/`, `.npm/`, `.cache/`
+**Regra de não-sobrescrita:**
+- Se o arquivo `.md` **não existe** → cria
+- Se o arquivo `.md` **já existe** → pula, independente do conteúdo (não sobrescreve nunca)
+- Claude preenche os `[TODO]` manualmente na etapa seguinte
+
+**Diretórios ignorados:**
+`venv/`, `.venv/`, `node_modules/`, `__pycache__/`, `.git/`, `.local/`, `.npm/`, `.cache/`, `jake-brain/`
 
 ---
 
 ## Template de Nota Gerada pelo Script
 
 ```markdown
+---
+tipo: [bot|core|integração|frontend|site|script|projeto]
+caminho: /root/caminho/
+tags: [jake, bot]
+gerado_em: YYYY-MM-DD
+---
+
 # [Nome do Componente]
 
-**Tipo:** [bot/core/integração/frontend/site/script]
-**Caminho:** `/root/caminho/`
-**Gerado em:** YYYY-MM-DD
-
 ## Arquivos
-- `arquivo1.py` — [TODO: descrever]
-- `arquivo2.py` — [TODO: descrever]
+- `arquivo1.py`
+- `arquivo2.py`
 
 ## O que faz
 [TODO]
@@ -127,16 +148,17 @@ O script realiza as seguintes operações:
 
 Após o script gerar a estrutura, Claude executa uma passagem por cada componente:
 
-1. Lê os arquivos principais (usando Grep/Read com ranges para arquivos grandes)
+1. Lê os arquivos canônicos (usando Grep/Read com ranges para arquivos grandes)
 2. Substitui cada `[TODO]` com conteúdo real
-3. Commita as notas preenchidas no vault (auto-push via cron em até 5 min)
+3. Adiciona pelo menos **um `[[wikilink]]`** para componente relacionado em "Links Relacionados"
+4. Commita as notas preenchidas no vault
 
 **Ordem de preenchimento (prioridade):**
-1. Core (db, sync_planilha, tarefas) — base de tudo
-2. Bots (jake_principal, jake_pessoal, jake_viagem, gerar_agente)
+1. Core (db, sync_planilha, tarefas, utilitários)
+2. Bots (jake-principal, jake-pessoal, jake-viagem, gerar-agente)
 3. Meta Ads
-4. Jake OS App (rotas) e Frontend
-5. Infraestrutura (scripts, cron)
+4. Jake OS App e Frontend
+5. Infraestrutura (scripts, migrations, docs existentes)
 6. Projetos (carousel-engine)
 7. Clientes (clinica-cliente, camila-piercer)
 
@@ -144,9 +166,9 @@ Após o script gerar a estrutura, Claude executa uma passagem por cada component
 
 ## Critérios de Sucesso
 
-- [ ] Script `gerar_brain.py` roda sem erros e cria todos os `.md`
+- [ ] `python3 scripts/gerar_brain.py` roda sem erros
+- [ ] Todos os 17 `.md` são criados no vault
 - [ ] Nenhum arquivo existente no vault é sobrescrito
-- [ ] Todos os 15 componentes têm nota no vault
-- [ ] Cada nota tem conteúdo real (sem `[TODO]` remanescente)
+- [ ] Todos os `[TODO]` foram substituídos por conteúdo real
+- [ ] Cada nota tem pelo menos um `[[wikilink]]` para componente relacionado
 - [ ] Notas aparecem no Obsidian Windows após pull
-- [ ] Links entre componentes relacionados estão presentes nas notas
