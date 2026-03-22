@@ -1463,7 +1463,7 @@ def api_site_arch_generate():
         brain.salvar(
             modulo="Site Architect",
             titulo=f"Landing Page — {template_kind or 'custom'}",
-            inputs={"ref_url": ref_url, "hero_copy": hero_copy, "template_kind": template_kind},
+            inputs={"business_context": contexto, "hero_copy": hero_copy, "template_kind": template_kind},
             output=html,
             model="claude-sonnet-4-5",
         )
