@@ -604,6 +604,8 @@ Substituições a fazer:
 - Linha ~400: `RAIOX[sec][idx].v[mes]` → `RAIOX[sec][idx].valores[mes]`
 - Linha ~417: `item.v.reduce` → `item.valores.reduce`
 - Linha ~424: `item.v.forEach` → `item.valores.forEach`
+- Linha ~648: `item.v[mesIdx]` → `item.valores[mesIdx]` (dentro de `RAIOX.fixas.forEach` em `renderDonut`)
+- Linha ~652: `item.v[mesIdx]` → `item.valores[mesIdx]` (dentro de `RAIOX.variaveis.forEach` em `renderDonut`)
 
 Também atualizar `RAIOX_PADRAO` (linhas 62-89): todas as chaves `v:` → `valores:` (5 entradas + 16 fixas + 2 variaveis = 23 ocorrências).
 
