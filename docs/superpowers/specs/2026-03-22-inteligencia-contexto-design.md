@@ -40,6 +40,7 @@ def contexto(cliente: str) -> str
 |---|---|---|---|---|---|
 | `"clinica"` | `"clinica"` | `clinica-cliente.md` | `"clinica-cliente"` | ✅ | cliente in arquivo |
 | `"academia top"` | `"academia-top"` | `academia.md` | `"academia"` | ✅ | arquivo in cliente |
+| `"academia"` | `"academia"` | `academia-fitness.md` | `"academia-fitness"` | ✅ | cliente in arquivo |
 | `"academia top"` | `"academia-top"` | `academia-fitness.md` | `"academia-fitness"` | ❌ | nenhuma direção |
 | `"piloti"` | `"piloti"` | `piloti-agencia.md` | `"piloti-agencia"` | ✅ | cliente in arquivo |
 
