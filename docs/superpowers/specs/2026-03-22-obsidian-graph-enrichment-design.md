@@ -9,7 +9,7 @@
 ## Contexto
 
 O vault tem:
-- 17 notas retroativas em `Jake OS/` com tags e ~2-3 wikilinks cada
+- 18 notas no vault (15 em `Jake OS/`, 1 em `Projetos/`, 2 em `Clientes/`) com tags e ~2-3 wikilinks cada
 - Notas de output geradas por `brain.salvar()` sem tags e sem links
 - Notas de cliente em `Clientes/` sem ligação com os outputs que as referenciam
 
@@ -156,7 +156,7 @@ As demais 7 chamadas existentes ficam sem `cliente=` — retrocompatível.
 
 ## Melhoria 3: Mais wikilinks nas notas retroativas
 
-Edição de conteúdo nas 20 notas do vault (15 em `Jake OS/`, 1 em `Projetos/`, 2 em `Clientes/`, 1 `Arquitetura.md`). Meta: **mínimo 5 wikilinks por nota**, adicionados na seção `## Links Relacionados` existente em cada nota.
+Edição de conteúdo nas **18 notas** do vault (15 em `Jake OS/` incluindo `Arquitetura.md`, 1 em `Projetos/`, 2 em `Clientes/`). Meta: **mínimo 5 wikilinks por nota**, adicionados na seção `## Links Relacionados` existente em cada nota.
 
 ### Mapa de links esperados (mínimo)
 
@@ -177,6 +177,7 @@ Edição de conteúdo nas 20 notas do vault (15 em `Jake OS/`, 1 em `Projetos/`,
 | `Infraestrutura/migrations.md` | `[[banco-de-dados]]`, `[[App-Rotas]]`, `[[vps-scripts]]` |
 | `Infraestrutura/docs-existentes.md` | `[[jake-principal]]`, `[[Arquitetura]]`, `[[vps-scripts]]`, substituir `[[Jake OS App (Rotas)]]` por `[[App-Rotas]]` se presente |
 | `Projetos/carousel-engine.md` | `[[banco-de-dados]]`, `[[vps-scripts]]`, substituir `[[Jake OS App (Rotas)]]` por `[[App-Rotas]]` se presente, `[[Frontend]]` |
+| `Arquitetura.md` | `[[App-Rotas]]`, `[[Frontend]]`, `[[banco-de-dados]]`, `[[jake-principal]]`, `[[vps-scripts]]` |
 | `Clientes/clinica-cliente.md` | `[[App-Rotas]]`, `[[Frontend]]` |
 | `Clientes/camila-piercer.md` | `[[App-Rotas]]`, `[[Frontend]]` |
 
@@ -213,5 +214,5 @@ Arquivo: `jake_desktop/tests/test_brain.py`
 - [ ] 4 rotas elegíveis passam `cliente=` para `brain.salvar()`
 - [ ] 11 chamadas existentes sem `cliente=` continuam funcionando (retrocompatível)
 - [ ] Todos os testes passam (24 existentes + 9 novos = 33)
-- [ ] As 17 notas retroativas têm ≥5 wikilinks cada em `## Links Relacionados`
+- [ ] As 18 notas do vault têm ≥5 wikilinks cada em `## Links Relacionados`
 - [ ] O grafo do Obsidian mostra clusters visíveis por tag e conexões cliente→output
