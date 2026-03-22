@@ -252,3 +252,100 @@ def test_contexto_retorna_conteudo(tmp_path):
         resultado = brain.contexto("piloti")
 
     assert resultado == conteudo_esperado
+
+
+# --- graph enrichment: tags, cliente, links ---
+
+def test_salvar_tags_no_frontmatter(tmp_path):
+    """Nota gerada contém tags: [output, copys]"""
+    vault_outputs = tmp_path / "Jake OS" / "Outputs"
+    with patch("brain.VAULT", str(vault_outputs)):
+        with patch("brain.os.path.isdir", return_value=True):
+            brain.salvar("Copys", "Copy teste", {}, "output", "model")
+    arquivo = list((vault_outputs / "Copys").glob("*.md"))[0]
+    conteudo = arquivo.read_text(encoding="utf-8")
+    assert "tags: [output, copys]" in conteudo
+
+
+def test_salvar_modulo_tag_com_espaco(tmp_path):
+    """'Site Architect' → tags: [output, site-architect]"""
+    vault_outputs = tmp_path / "Jake OS" / "Outputs"
+    with patch("brain.VAULT", str(vault_outputs)):
+        with patch("brain.os.path.isdir", return_value=True):
+            brain.salvar("Site Architect", "Landing teste", {}, "html", "model")
+    arquivo = list((vault_outputs / "Site Architect").glob("*.md"))[0]
+    conteudo = arquivo.read_text(encoding="utf-8")
+    assert "tags: [output, site-architect]" in conteudo
+
+
+def test_salvar_cliente_no_frontmatter(tmp_path):
+    """Com cliente='academia' → frontmatter tem cliente: academia"""
+    vault_outputs = tmp_path / "Jake OS" / "Outputs"
+    # Patchar VAULT (onde escreve) E VAULT_ROOT (onde _find_cliente_nota procura Clientes/)
+    with patch("brain.VAULT", str(vault_outputs)), patch("brain.VAULT_ROOT", str(tmp_path)):
+        brain.salvar("Copys", "Copy academia", {}, "output", "model", cliente="academia")
+    arquivo = list((vault_outputs / "Copys").glob("*.md"))[0]
+    conteudo = arquivo.read_text(encoding="utf-8")
+    assert "cliente: academia" in conteudo
+
+
+def test_salvar_sem_cliente_sem_campo(tmp_path):
+    """Sem cliente= → frontmatter NÃO tem linha 'cliente:'"""
+    vault_outputs = tmp_path / "Jake OS" / "Outputs"
+    with patch("brain.VAULT", str(vault_outputs)):
+        with patch("brain.os.path.isdir", return_value=True):
+            brain.salvar("Copys", "Copy sem cliente", {}, "output", "model")
+    arquivo = list((vault_outputs / "Copys").glob("*.md"))[0]
+    conteudo = arquivo.read_text(encoding="utf-8")
+    assert "cliente:" not in conteudo
+
+
+def test_salvar_links_section_com_cliente(tmp_path):
+    """Com cliente matching → nota tem ## Links com [[stem]]"""
+    vault_outputs = tmp_path / "Jake OS" / "Outputs"
+    clientes_dir = tmp_path / "Clientes"
+    clientes_dir.mkdir(parents=True)
+    (clientes_dir / "clinica-cliente.md").write_text("Briefing clínica", encoding="utf-8")
+    with patch("brain.VAULT", str(vault_outputs)):
+        with patch("brain.VAULT_ROOT", str(tmp_path)):
+            brain.salvar("Copys", "Copy clínica", {}, "output", "model", cliente="clinica")
+    arquivo = list((vault_outputs / "Copys").glob("*.md"))[0]
+    conteudo = arquivo.read_text(encoding="utf-8")
+    assert "## Links" in conteudo
+    assert "[[clinica-cliente]]" in conteudo
+
+
+def test_salvar_sem_links_section_sem_cliente(tmp_path):
+    """Sem cliente → nota NÃO tem seção ## Links"""
+    vault_outputs = tmp_path / "Jake OS" / "Outputs"
+    with patch("brain.VAULT", str(vault_outputs)):
+        with patch("brain.os.path.isdir", return_value=True):
+            brain.salvar("Copys", "Copy sem link", {}, "output", "model")
+    arquivo = list((vault_outputs / "Copys").glob("*.md"))[0]
+    conteudo = arquivo.read_text(encoding="utf-8")
+    assert "## Links" not in conteudo
+
+
+def test_find_cliente_nota_match(tmp_path):
+    """_find_cliente_nota('clinica') retorna 'clinica-cliente'"""
+    clientes_dir = tmp_path / "Clientes"
+    clientes_dir.mkdir(parents=True)
+    (clientes_dir / "clinica-cliente.md").write_text("briefing", encoding="utf-8")
+    with patch("brain.VAULT_ROOT", str(tmp_path)):
+        resultado = brain._find_cliente_nota("clinica")
+    assert resultado == "clinica-cliente"
+
+
+def test_find_cliente_nota_sem_match(tmp_path):
+    """_find_cliente_nota('xyz') retorna ''"""
+    clientes_dir = tmp_path / "Clientes"
+    clientes_dir.mkdir(parents=True)
+    (clientes_dir / "piloti.md").write_text("briefing", encoding="utf-8")
+    with patch("brain.VAULT_ROOT", str(tmp_path)):
+        resultado = brain._find_cliente_nota("xyz-inexistente")
+    assert resultado == ""
+
+
+def test_find_cliente_nota_vazio():
+    """_find_cliente_nota('') retorna '' sem tocar filesystem"""
+    assert brain._find_cliente_nota("") == ""

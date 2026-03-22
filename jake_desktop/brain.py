@@ -16,7 +16,8 @@ TEMPLATE = """\
 modulo: {modulo}
 modelo: {model}
 gerado_em: {gerado_em}
----
+tags: [output, {modulo_tag}]
+{cliente_linha}---
 
 # {titulo}
 
@@ -31,7 +32,7 @@ gerado_em: {gerado_em}
 
 ## Observações
 <!-- espaço para anotar no Obsidian depois -->
-"""
+{links_section}"""
 
 
 def _slug(texto: str) -> str:
@@ -57,7 +58,36 @@ def _inputs_md(inputs: dict) -> str:
     return "\n".join(linhas) if linhas else "- (sem inputs registrados)"
 
 
-def salvar(modulo: str, titulo: str, inputs: dict, output: str, model: str) -> None:
+def _find_cliente_nota(cliente: str) -> str:
+    """Retorna stem do arquivo de briefing do cliente ou '' se não encontrar."""
+    try:
+        if not cliente:
+            return ""
+        if not os.path.isdir(VAULT_ROOT):
+            return ""
+        clientes_dir = os.path.join(VAULT_ROOT, "Clientes")
+        if not os.path.isdir(clientes_dir):
+            return ""
+        slug_cliente = _slug(cliente)
+        candidatos = []
+        for raiz, dirs, arquivos in os.walk(clientes_dir):
+            dirs[:] = [d for d in dirs if d != "_Template"]
+            for nome in arquivos:
+                if nome.endswith(".md"):
+                    candidatos.append(os.path.join(raiz, nome))
+        candidatos.sort(key=lambda p: os.path.basename(p))
+        for caminho in candidatos:
+            stem = os.path.splitext(os.path.basename(caminho))[0]
+            slug_arquivo = _slug(stem)
+            if slug_cliente in slug_arquivo or slug_arquivo in slug_cliente:
+                return stem
+        return ""
+    except Exception as e:
+        logging.warning(f"brain._find_cliente_nota falhou: {e}")
+        return ""
+
+
+def salvar(modulo: str, titulo: str, inputs: dict, output: str, model: str, cliente: str = "") -> None:
     """
     Salva um output gerado pelo Jake OS como nota .md no vault Obsidian.
     Silencioso em caso de erro — nunca propaga exceção.
@@ -87,6 +117,11 @@ def salvar(modulo: str, titulo: str, inputs: dict, output: str, model: str) -> N
             destino = os.path.join(destino_dir, f"{nome_base}-{contador}.md")
             contador += 1
 
+        modulo_tag = _slug(modulo)
+        cliente_linha = f"cliente: {_slug(cliente)}\n" if cliente else ""
+        stem = _find_cliente_nota(cliente) if cliente else ""
+        links_section = f"\n## Links\n- [[{stem}]]\n" if stem else ""
+
         conteudo = TEMPLATE.format(
             modulo=modulo,
             model=model,
@@ -94,6 +129,9 @@ def salvar(modulo: str, titulo: str, inputs: dict, output: str, model: str) -> N
             titulo=titulo,
             inputs_md=_inputs_md(inputs or {}),
             output=output or "(sem output)",
+            modulo_tag=modulo_tag,
+            cliente_linha=cliente_linha,
+            links_section=links_section,
         )
 
         with open(destino, "w", encoding="utf-8") as f:
