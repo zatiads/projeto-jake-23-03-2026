@@ -24,7 +24,7 @@
 
 **Files:**
 - Modify: `jake_desktop/brain.py` (adicionar função após `salvar()`)
-- Modify: `jake_desktop/tests/test_brain.py` (adicionar 8 testes)
+- Modify: `jake_desktop/tests/test_brain.py` (adicionar 9 testes)
 
 **Contexto para o implementador:**
 - `brain.py` já tem `_slug()` (normaliza texto para slug) — reusar aqui
@@ -209,7 +209,7 @@ def contexto(cliente: str) -> str:
 cd /root/jake_desktop && /root/jake_desktop/venv/bin/python -m pytest tests/test_brain.py -v
 ```
 
-Esperado: **23 passed** (15 existentes + 8 novos)
+Esperado: **24 passed** (15 existentes + 9 novos)
 
 - [ ] **Step 5: Commit**
 
@@ -395,7 +395,7 @@ cd /root/jake_desktop && /root/jake_desktop/venv/bin/python -c "import app" 2>&1
 cd /root/jake_desktop && /root/jake_desktop/venv/bin/python -m pytest tests/test_brain.py -v
 ```
 
-Esperado: **23 passed**
+Esperado: **24 passed**
 
 - [ ] **Step 14: Contar injeções para confirmar**
 
@@ -422,7 +422,7 @@ Após as duas tasks:
 ```bash
 # 1. Todos os testes passam
 cd /root/jake_desktop && /root/jake_desktop/venv/bin/python -m pytest tests/test_brain.py -v
-# Esperado: 23 passed
+# Esperado: 24 passed
 
 # 2. Sintaxe ok
 cd /root/jake_desktop && /root/jake_desktop/venv/bin/python -c "import app; print('OK')" 2>&1
