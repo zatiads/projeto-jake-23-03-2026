@@ -337,10 +337,14 @@ def api_carousel_copy():
         return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
 
     try:
+        ctx = brain.contexto(theme)
+        system_prompt = _CAROUSEL_SYSTEM
+        if ctx:
+            system_prompt = system_prompt + f"\n\n## Briefing do Cliente\n{ctx}"
         msg = client.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=2048,
-            system=_CAROUSEL_SYSTEM,
+            system=system_prompt,
             messages=[{
                 "role": "user",
                 "content": "\n".join([
@@ -507,10 +511,14 @@ def api_copys_gerar():
         return jsonify({"error": "ANTHROPIC_API_KEY não configurada no servidor."}), 500
 
     try:
+        ctx = brain.contexto(nicho)
+        system_prompt = _COPYS_SYSTEM
+        if ctx:
+            system_prompt = system_prompt + f"\n\n## Briefing do Cliente\n{ctx}"
         msg = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=1500,
-            system=_COPYS_SYSTEM,
+            system=system_prompt,
             messages=[{"role": "user", "content": user_msg}],
         )
         copy_text = (msg.content[0].text or "").strip()
@@ -1453,10 +1461,14 @@ def api_site_arch_generate():
     )
 
     try:
+        ctx = brain.contexto(contexto[:80])
+        system_prompt = _SITE_ARCH_SYSTEM
+        if ctx:
+            system_prompt = system_prompt + f"\n\n## Briefing do Cliente\n{ctx}"
         msg = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=4000,
-            system=_SITE_ARCH_SYSTEM,
+            system=system_prompt,
             messages=[{"role": "user", "content": user_instructions}],
         )
         html = (msg.content[0].text or "").strip()
@@ -1858,6 +1870,9 @@ def anuncios_gerar_copy():
         "Crie copies curtas, diretas e persuasivas em português brasileiro. "
         "Retorne APENAS um JSON válido, sem markdown ou texto adicional."
     )
+    ctx = brain.contexto(cliente_nome)
+    if ctx:
+        system = system + f"\n\n## Briefing do Cliente\n{ctx}"
     prompt = (
         f"Analise este criativo de anúncio para '{cliente_nome}'"
         + (f" (segmento: {segmento})" if segmento else "")
