@@ -179,7 +179,11 @@
   // ── CARREGAR DADOS DA API ──────────────────────────────────────────────────
   function carregarDados() {
     var container = document.getElementById('fin-pane-visao-geral');
-    if (container) container.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--cyan)">Carregando...</p>';
+    var loading = document.createElement('p');
+    loading.id = 'fin-loading-msg';
+    loading.style.cssText = 'text-align:center;padding:2rem;color:var(--cyan)';
+    loading.textContent = 'Carregando...';
+    if (container) container.prepend(loading);
 
     Promise.all([
       fetch('/api/financeiro/transacoes').then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }),
@@ -188,12 +192,14 @@
       TRANSACOES = resultados[0];
       var raiox   = resultados[1];
       if (raiox && raiox.entradas) RAIOX = raiox;
-      if (container) container.innerHTML = '';
+      var msg = document.getElementById('fin-loading-msg');
+      if (msg) msg.remove();
       atualizarTudo();
       renderRaioX();
     }).catch(function(e) {
       console.error('Erro ao carregar dados financeiros:', e);
-      if (container) container.innerHTML = '<p style="text-align:center;padding:2rem;color:#ff6b6b">Erro ao carregar dados. Verifique conexão.</p>';
+      var msg = document.getElementById('fin-loading-msg');
+      if (msg) { msg.style.color = '#ff6b6b'; msg.textContent = 'Erro ao carregar dados. Verifique conexão.'; }
     });
   }
 
