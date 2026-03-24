@@ -299,15 +299,65 @@
 
       <!-- 2. ANÁLISE DE PERFORMANCE ───────────────────── -->
       <section class="page" id="page-performance">
-        <div class="placeholder-page">
-          <div class="placeholder-icon">◈</div>
-          <h2 class="placeholder-title">Análise de Performance</h2>
-          <p class="placeholder-sub">Em desenvolvimento — em breve aqui você terá gasto, CPL, ROAS e CPA por cliente.</p>
-          <div class="placeholder-grid">
-            <div class="ph-card"><span>Gasto Total</span><b>-- R$</b></div>
-            <div class="ph-card"><span>CPL</span><b>-- R$</b></div>
-            <div class="ph-card"><span>ROAS</span><b>--x</b></div>
-            <div class="ph-card"><span>CPA</span><b>-- R$</b></div>
+        <div class="perf-wrap">
+
+          <!-- Tabs agência -->
+          <div class="rel-tabs" style="margin-bottom:1.5rem;">
+            <button class="rel-tab active" data-agency="piloti">Piloti</button>
+            <button class="rel-tab" data-agency="dentto">Dentto</button>
+          </div>
+
+          <!-- Cards globais -->
+          <div class="perf-cards" id="perf-cards">
+            <div class="perf-card">
+              <span class="perf-card-label">Gasto Total</span>
+              <b class="perf-card-val" id="perf-total-gasto">--</b>
+            </div>
+            <div class="perf-card" id="perf-card-saldo">
+              <span class="perf-card-label">Saldo (menor)</span>
+              <b class="perf-card-val" id="perf-total-saldo">--</b>
+            </div>
+            <div class="perf-card">
+              <span class="perf-card-label">CPL Médio</span>
+              <b class="perf-card-val" id="perf-total-cpl">--</b>
+            </div>
+            <div class="perf-card">
+              <span class="perf-card-label">Leads / Msgs</span>
+              <b class="perf-card-val" id="perf-total-leads">--</b>
+            </div>
+          </div>
+
+          <!-- Tabela de clientes -->
+          <div class="rel-table-wrap" style="margin-top:1.5rem;">
+            <table class="rel-table" style="width:100%;">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Gasto</th>
+                  <th>Saldo</th>
+                  <th>Leads / Msgs</th>
+                  <th>CPL</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="perf-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Toast -->
+        <div id="perf-toast" class="rel-toast"></div>
+
+        <!-- Drawer de detalhe -->
+        <div id="perf-drawer-overlay" class="perf-drawer-overlay" style="display:none;">
+          <div class="perf-drawer" id="perf-drawer">
+            <div class="perf-drawer-header">
+              <span id="perf-drawer-title">Cliente</span>
+              <button id="perf-drawer-close" class="perf-drawer-close">✕</button>
+            </div>
+            <div id="perf-drawer-body" class="perf-drawer-body">
+              <div class="perf-drawer-loading">Carregando dados...</div>
+            </div>
           </div>
         </div>
       </section>
@@ -1435,6 +1485,32 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   <script src="{{ url_for('static', filename='js/voice.js') }}"></script>
+  <style>
+    .perf-wrap { padding: 0 0.5rem; }
+    .perf-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+    @media (max-width: 700px) { .perf-cards { grid-template-columns: repeat(2, 1fr); } }
+    .perf-card { background: rgba(0,212,255,.06); border: 1px solid rgba(0,212,255,.15); border-radius: 10px; padding: 1rem 1.2rem; display:flex; flex-direction:column; gap:.4rem; }
+    .perf-card-label { font-size: .75rem; color: rgba(176,190,197,.6); text-transform: uppercase; letter-spacing:.06em; }
+    .perf-card-val { font-size: 1.4rem; color: #e0f7fa; }
+    .perf-card.alerta { border-color: rgba(255,80,80,.5); background: rgba(255,80,80,.07); }
+    .perf-card.alerta .perf-card-val { color: #ff6b6b; }
+    .perf-badge-alerta { color: #ff6b6b; font-size: .8rem; margin-left: .3rem; }
+    .perf-drawer-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:200; display:flex; align-items:flex-end; justify-content:flex-end; }
+    .perf-drawer { background:#0d1b2a; border-left:1px solid rgba(0,212,255,.2); width:420px; max-width:100vw; height:100vh; overflow-y:auto; padding:1.5rem; display:flex; flex-direction:column; gap:1rem; }
+    .perf-drawer-header { display:flex; justify-content:space-between; align-items:center; }
+    .perf-drawer-header span { font-size:1.1rem; color:#e0f7fa; font-weight:600; }
+    .perf-drawer-close { background:none; border:none; color:rgba(176,190,197,.6); font-size:1.2rem; cursor:pointer; }
+    .perf-drawer-loading { color:rgba(176,190,197,.5); font-size:.9rem; }
+    .perf-comparativo { width:100%; border-collapse:collapse; font-size:.85rem; }
+    .perf-comparativo th { color:rgba(176,190,197,.5); font-weight:500; padding:.4rem .6rem; text-align:left; border-bottom:1px solid rgba(255,255,255,.07); }
+    .perf-comparativo td { padding:.4rem .6rem; color:#cfd8dc; border-bottom:1px solid rgba(255,255,255,.04); }
+    .perf-delta-pos { color:#4ade80; }
+    .perf-delta-neg { color:#f87171; }
+    .perf-analise-box { background:rgba(0,212,255,.05); border:1px solid rgba(0,212,255,.12); border-radius:8px; padding:1rem; font-size:.88rem; color:#b0bec5; line-height:1.6; }
+    .perf-btn-ia { background:linear-gradient(135deg,rgba(0,212,255,.15),rgba(0,212,255,.05)); border:1px solid rgba(0,212,255,.3); color:#e0f7fa; padding:.6rem 1.2rem; border-radius:8px; cursor:pointer; font-size:.85rem; width:100%; }
+    .perf-btn-ia:hover { background:rgba(0,212,255,.2); }
+    .perf-btn-ia:disabled { opacity:.5; cursor:default; }
+  </style>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   <script src="{{ url_for('static', filename='js/architect.js') }}"></script>
   <script src="{{ url_for('static', filename='js/carousel.js') }}"></script>
@@ -1444,5 +1520,6 @@
   <script src="{{ url_for('static', filename='js/anuncios.js') }}"></script>
   <script src="{{ url_for('static', filename='js/criativos.js') }}"></script>
   <script src="{{ url_for('static', filename='js/financeiro.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/performance.js') }}"></script>
 </body>
 </html>
