@@ -108,3 +108,43 @@ def test_alerta_saldo_reenvia_apos_1h(client):
         d = r.get_json()
         assert d.get("dedup") is not True
         mock_tg.assert_called_once()
+
+
+# ── GET /api/performance/semana-anterior ────────────────────────────────────
+
+def _mock_insights_resp(spend="320.00", messaging=27):
+    resp = MagicMock()
+    resp.ok = True
+    resp.json.return_value = {"data": [{
+        "spend": spend,
+        "impressions": "50000",
+        "clicks": "800",
+        "reach": "18000",
+        "cpm": "6.40",
+        "ctr": "1.60",
+        "frequency": "2.78",
+        "actions": [{"action_type": "onsite_conversion.messaging_conversation_started_7d", "value": str(messaging)}],
+        "cost_per_action_type": [{"action_type": "onsite_conversion.messaging_conversation_started_7d", "value": str(float(spend)/messaging)}],
+    }]}
+    return resp
+
+
+def test_semana_anterior_retorna_atual_e_anterior(client):
+    with patch("app.requests.get", return_value=_mock_insights_resp()):
+        r = client.get("/api/performance/semana-anterior/piloti/act_123456789")
+        assert r.status_code == 200
+        d = r.get_json()
+        assert "atual" in d
+        assert "anterior" in d
+        assert "spend" in d["atual"]
+        assert "spend" in d["anterior"]
+
+
+def test_semana_anterior_account_id_invalido(client):
+    r = client.get("/api/performance/semana-anterior/piloti/invalido")
+    assert r.status_code == 400
+
+
+def test_semana_anterior_agencia_invalida(client):
+    r = client.get("/api/performance/semana-anterior/agencia_x/act_123456789")
+    assert r.status_code == 404

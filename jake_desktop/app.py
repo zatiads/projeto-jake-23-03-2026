@@ -872,6 +872,94 @@ def api_performance_alerta_saldo():
     return jsonify({"ok": ok, "detail": detail})
 
 
+# ── API: Performance — Semana Anterior ─────────────────────────────────────
+
+def _extract_insights_row(row: dict) -> dict:
+    """Extrai métricas de uma linha de insights da Meta API."""
+    actions = row.get("actions") or []
+    costs   = row.get("cost_per_action_type") or []
+
+    def _fa(arr, *types):
+        for entry in (arr or []):
+            if entry.get("action_type") in types:
+                try:
+                    return float(entry.get("value", 0) or 0)
+                except Exception:
+                    return 0.0
+        return 0.0
+
+    leads     = int(_fa(actions, "lead"))
+    messaging = int(_fa(actions,
+        "onsite_conversion.messaging_conversation_started_7d",
+        "onsite_conversion.messaging_conversation_started"))
+    purchases = int(_fa(actions, "purchase", "omni_purchase"))
+    profile_visits = int(_fa(actions, "instagram_profile_visit"))
+    spend     = float(row.get("spend", 0) or 0)
+
+    return {
+        "spend":          round(spend, 2),
+        "impressions":    int(row.get("impressions", 0) or 0),
+        "clicks":         int(row.get("clicks", 0) or 0),
+        "reach":          int(row.get("reach", 0) or 0),
+        "cpm":            row.get("cpm", "0.00"),
+        "ctr":            row.get("ctr", "0.00"),
+        "frequency":      row.get("frequency", "1.00"),
+        "leads":          leads,
+        "messaging":      messaging,
+        "purchases":      purchases,
+        "profile_visits": profile_visits,
+    }
+
+
+def _fetch_meta_period(account_id: str, token: str, since: str, until: str) -> dict:
+    """Busca insights de um período específico (since/until em YYYY-MM-DD)."""
+    r = requests.get(
+        f"https://graph.facebook.com/v21.0/{account_id}/insights",
+        params={
+            "fields": "spend,impressions,clicks,reach,cpm,ctr,frequency,actions,cost_per_action_type",
+            "time_range": '{"since":"' + since + '","until":"' + until + '"}',
+            "access_token": token,
+        },
+        timeout=15,
+    )
+    if not r.ok:
+        return {}
+    data = r.json().get("data", [])
+    if not data:
+        return {"spend": 0, "impressions": 0, "clicks": 0, "reach": 0,
+                "leads": 0, "messaging": 0, "purchases": 0, "profile_visits": 0,
+                "cpm": "0.00", "ctr": "0.00", "frequency": "1.00"}
+    return _extract_insights_row(data[0])
+
+
+@app.route("/api/performance/semana-anterior/<agency>/<account_id>")
+@login_required
+def api_performance_semana_anterior(agency, account_id):
+    if not _re.match(r'^act_\d+$', account_id):
+        return jsonify({"error": "ID de conta inválido"}), 400
+
+    token_fn = _META_TOKENS.get(agency)
+    if not token_fn:
+        return jsonify({"error": "Agência não encontrada"}), 404
+    token = token_fn()
+    if not token:
+        return jsonify({"error": "Token da agência não configurado"}), 500
+
+    from datetime import date, timedelta
+    today          = date.today()
+    since_atual    = (today - timedelta(days=6)).isoformat()
+    until_atual    = today.isoformat()
+    since_anterior = (today - timedelta(days=13)).isoformat()
+    until_anterior = (today - timedelta(days=7)).isoformat()
+
+    try:
+        atual    = _fetch_meta_period(account_id, token, since_atual, until_atual)
+        anterior = _fetch_meta_period(account_id, token, since_anterior, until_anterior)
+        return jsonify({"atual": atual, "anterior": anterior})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 # ── API: Fábrica de Criativos (Texto + Imagem) ─────────────────────────────────
 
 def _parse_creative_variants(raw: str) -> list[dict]:
