@@ -35,7 +35,7 @@ A página `#performance` no Jake OS existe mas está vazia (placeholder). O obje
 ### Backend — 3 novas rotas em `app.py`
 
 #### `GET /api/performance/saldo/<agency>/<account_id>`
-- Usa `get_saldo_conta()` de `meta/meta_api.py` com token da agência (`META_TOKEN_PILOTI` / `META_TOKEN_DENTTO`)
+- **Não usar `get_saldo_conta()`** (hardcoded em `META_ACCESS_TOKEN`). Inlinear chamada Meta API com `_META_TOKENS[agency]()`, igual à rota de insights.
 - Cache em memória: 30 min (igual ao insights)
 - Retorna:
 ```json
