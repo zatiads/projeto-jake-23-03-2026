@@ -717,28 +717,20 @@
     });
 
     chain.then(function (dataUrls) {
-      if (btn) btn.textContent = 'Criando ZIP...';
-      var zip = new JSZip();
       dataUrls.forEach(function (dataUrl, i) {
-        var b64 = dataUrl.replace(/^data:image\/png;base64,/, '');
-        zip.file(String(i + 1).padStart(2, '0') + '.png', b64, { base64: true });
+        var a = document.createElement('a');
+        a.href     = dataUrl;
+        a.download = 'slide-' + String(i + 1).padStart(2, '0') + '.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       });
-      return zip.generateAsync({ type: 'blob' });
-    }).then(function (blob) {
-      var url = URL.createObjectURL(blob);
-      var a   = document.createElement('a');
-      a.href     = url;
-      a.download = 'carrossel.zip';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showStatus('✓ ' + slides.length + ' PNGs prontos para o Instagram!', 'ok');
+      showStatus('✓ ' + slides.length + ' PNGs baixados!', 'ok');
       setTimeout(hideStatus, 5000);
     }).catch(function (err) {
       showStatus('Erro ao exportar: ' + (err.message || err), 'error');
     }).finally(function () {
-      if (btn) { btn.disabled = false; btn.textContent = '↓ Baixar PNGs (ZIP)'; }
+      if (btn) { btn.disabled = false; btn.textContent = '↓ Baixar PNGs'; }
     });
   }
 
