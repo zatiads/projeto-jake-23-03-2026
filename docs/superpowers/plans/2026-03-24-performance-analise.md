@@ -1141,21 +1141,17 @@ Criar `jake_desktop/static/js/performance.js`:
   }
 
   // Rodar init quando a página de performance for ativada (SPA)
+  // NOTA: showPage() é local no IIFE de app.js — não exposta em window.
+  // Usamos MutationObserver para detectar quando #page-performance recebe a classe "active".
   document.addEventListener("DOMContentLoaded", function() {
-    // init imediato se já na página
-    if (window.location.hash === "#performance") init();
-    // Observar mudança de hash
-    window.addEventListener("hashchange", function() {
-      if (window.location.hash === "#performance") init();
-    });
-    // Compatibilidade com app.js que usa showPage()
-    var origShow = window.showPage;
-    if (typeof origShow === "function") {
-      window.showPage = function(page) {
-        origShow(page);
-        if (page === "performance") init();
-      };
-    }
+    var perfPage = document.getElementById("page-performance");
+    if (!perfPage) return;
+    // init imediato se já ativa (ex: hash direto na URL)
+    if (perfPage.classList.contains("active")) init();
+    // Observar quando app.js adiciona classe "active" à seção
+    new MutationObserver(function() {
+      if (perfPage.classList.contains("active")) init();
+    }).observe(perfPage, { attributes: true, attributeFilter: ["class"] });
   });
 
 })();
