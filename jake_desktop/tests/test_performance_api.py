@@ -69,4 +69,4 @@ def test_saldo_account_id_invalido(client):
 
 def test_saldo_agencia_invalida(client):
     r = client.get("/api/performance/saldo/agencia_inexistente/act_123456789")
-    assert r.status_code == 500
+    assert r.status_code == 404

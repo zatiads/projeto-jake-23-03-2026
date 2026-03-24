@@ -806,10 +806,7 @@ def api_performance_saldo(agency, account_id):
 
     token_fn = _META_TOKENS.get(agency)
     if not token_fn:
-        return jsonify({"error": f"Agência '{agency}' não configurada"}), 500
-    token = token_fn()
-    if not token:
-        return jsonify({"error": f"Token da agência '{agency}' não configurado"}), 500
+        return jsonify({"error": "Agência não encontrada"}), 404
 
     cache_key = f"saldo:{agency}:{account_id}"
     now = time.time()
@@ -817,6 +814,10 @@ def api_performance_saldo(agency, account_id):
         cached = _perf_saldo_cache[cache_key]
         if now - cached["ts"] < _PERF_SALDO_TTL:
             return jsonify(cached["data"])
+
+    token = token_fn()
+    if not token:
+        return jsonify({"error": "Token da agência não configurado"}), 500
 
     try:
         r = requests.get(
