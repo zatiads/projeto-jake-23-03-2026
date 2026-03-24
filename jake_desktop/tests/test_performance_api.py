@@ -148,3 +148,52 @@ def test_semana_anterior_account_id_invalido(client):
 def test_semana_anterior_agencia_invalida(client):
     r = client.get("/api/performance/semana-anterior/agencia_x/act_123456789")
     assert r.status_code == 404
+
+
+# ── /api/relatorios/analise enriquecida ─────────────────────────────────────
+
+def test_analise_aceita_delta_no_payload(client):
+    mock_msg = MagicMock()
+    mock_msg.content = [MagicMock(text="Boa performance esta semana.")]
+    with patch("app._anthropic_client") as mock_client_fn, \
+         patch("os.path.isdir", return_value=False), \
+         patch("os.makedirs"), \
+         patch("builtins.open", mock_open(read_data="")):
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_msg
+        mock_client_fn.return_value = mock_client
+        r = client.post("/api/relatorios/analise", json={
+            "nome": "HiperClin",
+            "metricas": {"Gasto": "R$ 320,00", "Leads": 27},
+            "metricas_anterior": {"Gasto": "R$ 290,00", "Leads": 22},
+            "delta": {"Gasto": "+10,3%", "Leads": "+22,7%"},
+        })
+        assert r.status_code == 200
+        d = r.get_json()
+        assert "analise" in d
+        assert len(d["analise"]) > 0
+        call_args = mock_client.messages.create.call_args
+        prompt_text = call_args[1]["messages"][0]["content"]
+        assert any(word in prompt_text.lower() for word in ["anterior", "variação", "delta", "comparação"])
+
+
+def test_analise_salva_snapshot_no_vault(client):
+    mock_msg = MagicMock()
+    mock_msg.content = [MagicMock(text="Análise gerada.")]
+    m = mock_open()
+    with patch("app._anthropic_client") as mock_client_fn, \
+         patch("os.path.isdir", return_value=False), \
+         patch("os.makedirs") as mock_mkdir, \
+         patch("builtins.open", m):
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_msg
+        mock_client_fn.return_value = mock_client
+        r = client.post("/api/relatorios/analise", json={
+            "nome": "HiperClin",
+            "metricas": {"Gasto": "R$ 320,00"},
+            "metricas_anterior": {"Gasto": "R$ 290,00"},
+            "delta": {"Gasto": "+10,3%"},
+        })
+        assert r.status_code == 200
+        mock_mkdir.assert_called()
+        m.assert_called()

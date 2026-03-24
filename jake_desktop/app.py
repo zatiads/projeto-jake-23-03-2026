@@ -761,34 +761,117 @@ def api_relatorios_debug(agency, account_id):
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
+# ── Vault Obsidian — helpers ────────────────────────────────────────────────
+
+import unicodedata as _unicodedata
+
+def _slug(name: str) -> str:
+    """Normaliza nome para uso como path: lowercase, sem acentos, espaços→hífens."""
+    n = _unicodedata.normalize("NFD", name)
+    n = "".join(c for c in n if _unicodedata.category(c) != "Mn")
+    return _re.sub(r"[^a-z0-9]+", "-", n.lower()).strip("-")
+
+_VAULT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "jake-brain", "Clientes")
+
+def _vault_ler_contexto(nome: str) -> str:
+    """Lê o .md mais recente de jake-brain/Clientes/<slug>/Performance/"""
+    slug = _slug(nome)
+    pasta = os.path.join(_VAULT_ROOT, slug, "Performance")
+    if not os.path.isdir(pasta):
+        return ""
+    arquivos = sorted([f for f in os.listdir(pasta) if f.endswith(".md")], reverse=True)
+    if not arquivos:
+        return ""
+    try:
+        with open(os.path.join(pasta, arquivos[0]), encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        return ""
+
+def _vault_salvar_snapshot(nome: str, metricas: dict, metricas_anterior: dict, delta: dict, analise: str):
+    """Salva snapshot semanal em jake-brain/Clientes/<slug>/Performance/YYYY-WXX.md"""
+    from datetime import date
+    slug  = _slug(nome)
+    pasta = os.path.join(_VAULT_ROOT, slug, "Performance")
+    os.makedirs(pasta, exist_ok=True)
+    hoje   = date.today()
+    semana = hoje.strftime("%Y-W%W")
+    path   = os.path.join(pasta, f"{semana}.md")
+    linhas_met = "\n".join(
+        f"| {k} | {v} | {metricas_anterior.get(k,'--')} | {delta.get(k,'--')} |"
+        for k, v in metricas.items()
+    )
+    conteudo = f"""# Performance — {nome} — {semana}
+
+**Data de análise:** {hoje.isoformat()}
+
+## Métricas
+| Métrica | Atual | Anterior | Delta |
+|---|---|---|---|
+{linhas_met}
+
+## Análise IA
+{analise}
+"""
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(conteudo)
+    except Exception as e:
+        print(f"[Jake vault] erro ao salvar snapshot: {e}")
+
 # ── API: Análise IA para Relatórios ──────────────────────────────────────────
 @app.route("/api/relatorios/analise", methods=["POST"])
 @login_required
 def api_relatorios_analise():
-    data    = request.get_json() or {}
-    nome    = (data.get("nome") or "").strip()
-    metricas = data.get("metricas") or {}
+    data              = request.get_json() or {}
+    nome              = (data.get("nome") or "").strip()
+    metricas          = data.get("metricas") or {}
+    metricas_anterior = data.get("metricas_anterior") or {}
+    delta             = data.get("delta") or {}
 
     client = _anthropic_client()
     if not client:
         return jsonify({"analise": ""})
 
     metricas_str = "\n".join(f"- {k}: {v}" for k, v in metricas.items())
+
+    # Contexto histórico do vault Obsidian
+    contexto_vault = _vault_ler_contexto(nome)
+    bloco_vault = (
+        f"\n\nContexto histórico do cliente (semanas anteriores):\n{contexto_vault[:800]}"
+        if contexto_vault else ""
+    )
+
+    # Comparação com semana anterior
+    bloco_anterior = ""
+    if metricas_anterior:
+        ant_str   = "\n".join(f"- {k}: {v}" for k, v in metricas_anterior.items())
+        delta_str = "\n".join(f"- {k}: {v}" for k, v in delta.items()) if delta else ""
+        bloco_anterior = (
+            f"\n\nSemana anterior:\n{ant_str}"
+            + (f"\n\nVariação (atual vs anterior):\n{delta_str}" if delta_str else "")
+        )
+
     prompt = (
-        f"Você é analista de tráfego pago. Gere uma análise BREVE (2-3 frases, máximo 120 palavras) "
+        f"Você é analista de tráfego pago. Gere uma análise BREVE (2-3 frases, máximo 140 palavras) "
         f"sobre os resultados das campanhas Meta Ads de '{nome}' nos últimos 7 dias.\n\n"
-        f"Dados:\n{metricas_str}\n\n"
+        f"Dados atuais:\n{metricas_str}"
+        f"{bloco_anterior}"
+        f"{bloco_vault}\n\n"
         f"Seja direto, profissional, em português brasileiro. "
-        f"Destaque o principal resultado e dê UMA recomendação prática. "
+        f"Destaque o principal resultado, compare com semana anterior se disponível, e dê UMA recomendação prática. "
         f"NÃO use markdown, asteriscos, negrito ou formatação. Apenas texto corrido simples."
     )
     try:
         msg = client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=220,
+            model="claude-sonnet-4-6",
+            max_tokens=250,
             messages=[{"role": "user", "content": prompt}],
         )
-        return jsonify({"analise": (msg.content[0].text or "").strip()})
+        analise = (msg.content[0].text or "").strip()
+        if metricas:
+            _vault_salvar_snapshot(nome, metricas, metricas_anterior, delta, analise)
+        return jsonify({"analise": analise})
     except Exception as exc:
         return jsonify({"analise": "", "error": str(exc)})
 
