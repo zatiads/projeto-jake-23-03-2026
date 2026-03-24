@@ -793,6 +793,59 @@ def api_relatorios_analise():
         return jsonify({"analise": "", "error": str(exc)})
 
 
+# ── API: Performance — Saldo ────────────────────────────────────────────────
+
+_perf_saldo_cache: dict = {}
+_PERF_SALDO_TTL = 1800  # 30 min
+
+@app.route("/api/performance/saldo/<agency>/<account_id>")
+@login_required
+def api_performance_saldo(agency, account_id):
+    if not _re.match(r'^act_\d+$', account_id):
+        return jsonify({"error": "ID de conta inválido"}), 400
+
+    token_fn = _META_TOKENS.get(agency)
+    if not token_fn:
+        return jsonify({"error": f"Agência '{agency}' não configurada"}), 500
+    token = token_fn()
+    if not token:
+        return jsonify({"error": f"Token da agência '{agency}' não configurado"}), 500
+
+    cache_key = f"saldo:{agency}:{account_id}"
+    now = time.time()
+    if cache_key in _perf_saldo_cache:
+        cached = _perf_saldo_cache[cache_key]
+        if now - cached["ts"] < _PERF_SALDO_TTL:
+            return jsonify(cached["data"])
+
+    try:
+        r = requests.get(
+            f"https://graph.facebook.com/v21.0/{account_id}",
+            params={"fields": "amount_spent,balance,spend_cap,currency", "access_token": token},
+            timeout=15,
+        )
+        if not r.ok:
+            err = r.json().get("error", {})
+            return jsonify({"error": err.get("message", f"Meta API {r.status_code}")}), 502
+        data = r.json()
+        amount_spent = float(data.get("amount_spent", 0) or 0) / 100
+        balance      = float(data.get("balance", 0) or 0) / 100
+        spend_cap    = float(data.get("spend_cap", 0) or 0) / 100
+        remaining    = max(0.0, spend_cap - amount_spent) if spend_cap else balance
+        result = {
+            "amount_spent": round(amount_spent, 2),
+            "balance":      round(balance, 2),
+            "spend_cap":    round(spend_cap, 2),
+            "remaining":    round(remaining, 2),
+            "currency":     data.get("currency", "BRL"),
+            "alerta":       remaining < 150.0,
+        }
+        _perf_saldo_cache[cache_key] = {"ts": now, "data": result}
+        return jsonify(result)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 # ── API: Fábrica de Criativos (Texto + Imagem) ─────────────────────────────────
 
 def _parse_creative_variants(raw: str) -> list[dict]:
