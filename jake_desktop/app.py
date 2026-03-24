@@ -847,6 +847,31 @@ def api_performance_saldo(agency, account_id):
         return jsonify({"error": str(exc)}), 500
 
 
+# ── API: Performance — Alerta de Saldo ─────────────────────────────────────
+
+_alerta_sent_cache: dict = {}  # account_id -> timestamp último envio
+_ALERTA_TTL = 3600  # 1 hora
+
+@app.route("/api/performance/alerta-saldo", methods=["POST"])
+@login_required
+def api_performance_alerta_saldo():
+    data       = request.get_json() or {}
+    account_id = (data.get("account_id") or "").strip()
+    nome       = (data.get("nome") or "conta").strip()
+    agency     = (data.get("agency") or "").strip()
+    saldo      = data.get("saldo", 0)
+
+    now = time.time()
+    last = _alerta_sent_cache.get(account_id, 0)
+    if now - last < _ALERTA_TTL:
+        return jsonify({"ok": True, "dedup": True})
+
+    msg = f"⚠️ Patrão, saldo baixo em {nome} ({agency}): R$ {float(saldo):,.2f}"
+    ok, detail = _send_telegram(msg)
+    _alerta_sent_cache[account_id] = now
+    return jsonify({"ok": ok, "detail": detail})
+
+
 # ── API: Fábrica de Criativos (Texto + Imagem) ─────────────────────────────────
 
 def _parse_creative_variants(raw: str) -> list[dict]:

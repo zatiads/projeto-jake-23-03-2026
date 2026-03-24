@@ -70,3 +70,41 @@ def test_saldo_account_id_invalido(client):
 def test_saldo_agencia_invalida(client):
     r = client.get("/api/performance/saldo/agencia_inexistente/act_123456789")
     assert r.status_code == 404
+
+
+# ── POST /api/performance/alerta-saldo ──────────────────────────────────────
+
+def test_alerta_saldo_envia_telegram(client):
+    with patch("app._send_telegram", return_value=(True, "Enviado")) as mock_tg:
+        import app as flask_app
+        flask_app._alerta_sent_cache.clear()
+        r = client.post("/api/performance/alerta-saldo",
+                        json={"agency": "piloti", "account_id": "act_111", "nome": "TestClient", "saldo": 80.0})
+        assert r.status_code == 200
+        d = r.get_json()
+        assert d["ok"] is True
+        assert d.get("dedup") is not True
+        mock_tg.assert_called_once()
+
+
+def test_alerta_saldo_deduplica_dentro_de_1h(client):
+    import app as flask_app, time as _t
+    flask_app._alerta_sent_cache["act_222"] = _t.time()  # simula envio recente
+    with patch("app._send_telegram") as mock_tg:
+        r = client.post("/api/performance/alerta-saldo",
+                        json={"agency": "piloti", "account_id": "act_222", "nome": "TestClient", "saldo": 80.0})
+        assert r.status_code == 200
+        d = r.get_json()
+        assert d.get("dedup") is True
+        mock_tg.assert_not_called()
+
+
+def test_alerta_saldo_reenvia_apos_1h(client):
+    import app as flask_app, time as _t
+    flask_app._alerta_sent_cache["act_333"] = _t.time() - 3700  # 1h atrás
+    with patch("app._send_telegram", return_value=(True, "Enviado")) as mock_tg:
+        r = client.post("/api/performance/alerta-saldo",
+                        json={"agency": "piloti", "account_id": "act_333", "nome": "TestClient", "saldo": 80.0})
+        d = r.get_json()
+        assert d.get("dedup") is not True
+        mock_tg.assert_called_once()
