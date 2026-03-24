@@ -183,7 +183,7 @@
       '<div style="position:relative;width:100%;aspect-ratio:4/5;overflow:hidden;container-type:inline-size;background:' + bg + ';color:' + textMain + ';font-family:Inter,Rajdhani,sans-serif;border-radius:inherit;">' +
         '<div style="position:absolute;inset:0;display:flex;flex-direction:column;padding:7%;">' +
           '<div style="display:flex;align-items:center;justify-content:space-between;font-size:2.1cqw;margin-bottom:4%;color:' + textMeta + ';font-weight:500;">' +
-            '<span>' + username + '</span><span>Fevereiro 2026 &#174;</span>' +
+            '<span>' + username + '</span><span>' + (function(){ var d=new Date(); return d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); })() + ' \u00AE</span>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:3%;margin-bottom:3%;flex-shrink:0;">' +
             '<div style="width:7cqw;height:2px;background:' + accent + ';border-radius:9999px;flex-shrink:0;"></div>' +
@@ -555,7 +555,7 @@
       ctx.textAlign = 'left';
       ctx.fillText(username_, PAD, PAD + 24);
       ctx.textAlign = 'right';
-      ctx.fillText('Fevereiro 2026 \u00ae', SLIDE_W - PAD, PAD + 24);
+      ctx.fillText(new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}) + ' \u00ae', SLIDE_W - PAD, PAD + 24);
       ctx.textAlign = 'left';
 
       var curY = PAD + 62;
