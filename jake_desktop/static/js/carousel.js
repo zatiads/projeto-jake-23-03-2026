@@ -1044,12 +1044,14 @@
 
         if (status) { status.textContent = ''; genImgBtn.disabled = true; genImgBtn.textContent = 'Gerando…'; }
 
-        var styleEl  = document.getElementById('cs-img-style');
-        var mixEl    = document.getElementById('cs-img-mix');
+        var styleEl   = document.getElementById('cs-img-style');
+        var mixEl     = document.getElementById('cs-img-mix');
         var paletteEl = document.getElementById('cs-img-palette');
+        var modelEl   = document.getElementById('cs-img-model');
         var style_visual = styleEl   ? styleEl.value   : '';
         var mix_reality  = mixEl     ? mixEl.value     : '';
-        var palette     = paletteEl ? paletteEl.value : '';
+        var palette      = paletteEl ? paletteEl.value : '';
+        var modelo       = modelEl   ? modelEl.value   : 'flux-1.1-pro';
 
         // Processa as imagens de forma SEQUENCIAL para respeitar o burst=1 da Replicate
         var index = 0;
@@ -1062,18 +1064,25 @@
             return;
           }
           var s = targets[index++];
-          if (status) status.textContent = 'Gerando imagem para slide ' + s.id + ' (' + index + '/' + total + ')...';
+          if (status) status.textContent = 'Gerando prompt para slide ' + s.id + ' (' + index + '/' + total + ')...';
           fetch('/api/carousel/generate-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              prompt: s.imagePrompt,
+              headline:    s.headline    || '',
+              subheadline: s.subheadline || '',
+              tag:         s.tag        || '',
+              prompt:      (s.imagePrompt && s.imagePrompt.trim().length > 4) ? s.imagePrompt : '',
               style_visual: style_visual,
-              mix_reality: mix_reality,
-              palette: palette
+              mix_reality:  mix_reality,
+              palette:      palette,
+              modelo:       modelo
             }),
           })
-          .then(function (r) { return r.json(); })
+          .then(function (r) {
+            if (status) status.textContent = 'Gerando imagem para slide ' + s.id + ' (' + index + '/' + total + ')...';
+            return r.json();
+          })
           .then(function (data) {
             var cell = imgMap[s.id];
             if (!cell) return;

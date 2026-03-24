@@ -1371,24 +1371,92 @@ def _generate_flux(prompt: str, token: str, style_suffix: str | None = None) -> 
 @app.route("/api/carousel/generate-image", methods=["POST"])
 @login_required
 def api_carousel_generate_image():
-    data   = request.get_json() or {}
-    prompt = (data.get("prompt") or "").strip()
+    data         = request.get_json() or {}
+    prompt       = (data.get("prompt") or "").strip()
+    headline     = (data.get("headline") or "").strip()
+    subheadline  = (data.get("subheadline") or "").strip()
+    tag          = (data.get("tag") or "").strip()
     style_visual = (data.get("style_visual") or "").strip() or None
     mix_reality  = (data.get("mix_reality") or "").strip() or None
     palette      = (data.get("palette") or "").strip() or None
-
-    if len(prompt) < 5:
-        return jsonify({"error": "Prompt muito curto."}), 400
+    modelo       = (data.get("modelo") or "flux-1.1-pro").strip()
 
     replicate_token = os.environ.get("REPLICATE_API_TOKEN", "").strip()
     if not replicate_token:
         return jsonify({"error": "Configure REPLICATE_API_TOKEN no .env para gerar imagens."}), 500
 
+    # Gerar prompt via Claude se tiver contexto do slide
+    if headline and not prompt:
+        client = _anthropic_client()
+        if client:
+            try:
+                ctx = f"Headline: {headline}"
+                if subheadline: ctx += f"\nSubheadline: {subheadline}"
+                if tag:         ctx += f"\nTag/seção: {tag}"
+                style_hint = style_visual or "editorial realista"
+                msg = client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=150,
+                    messages=[{"role": "user", "content":
+                        f"Crie um prompt de imagem em inglês para um slide de carrossel do Instagram com este conteúdo:\n{ctx}\n\n"
+                        f"Estilo visual: {style_hint}. Paleta: {palette or 'neutro'}.\n"
+                        f"Regras: sem texto na imagem, foco em composição visual impactante, "
+                        f"fotorrealista ou semi-realista, formato quadrado (1:1). "
+                        f"Retorne APENAS o prompt em inglês, sem explicações."
+                    }],
+                )
+                prompt = (msg.content[0].text or "").strip()
+            except Exception:
+                pass
+
+    if not prompt and headline:
+        prompt = headline + (". " + subheadline if subheadline else "")
+
+    if len(prompt) < 5:
+        return jsonify({"error": "Prompt muito curto."}), 400
+
     style_suffix = _carousel_image_style_suffix(style_visual, mix_reality, palette)
+    full_prompt  = (prompt + " " + style_suffix).strip()
+
     try:
-        image_url = _generate_flux(prompt, replicate_token, style_suffix=style_suffix)
-        data_url  = _url_to_data_url(image_url)
-        return jsonify({"dataUrl": data_url, "prompt": prompt, "model": "flux-1.1-pro"})
+        if modelo in _CRIATIVOS_MODELOS_IMAGEM:
+            slug    = _CRIATIVOS_MODELOS_IMAGEM[modelo]
+            headers = _replicate_headers()
+            headers["Prefer"] = "wait=60"
+            resp = requests.post(
+                f"{_REPLICATE_BASE}/models/{slug}/predictions",
+                headers=headers,
+                json={"input": {"prompt": full_prompt, "aspect_ratio": "1:1",
+                                "output_format": "webp", "output_quality": 90}},
+                timeout=90,
+            )
+            if not resp.ok:
+                return jsonify({"error": f"Replicate {resp.status_code}: {resp.text[:300]}"}), 500
+            pred = resp.json()
+            if pred.get("status") == "succeeded":
+                out = pred.get("output")
+                image_url = out[0] if isinstance(out, list) else out
+            else:
+                # polling
+                get_url = (pred.get("urls") or {}).get("get", "")
+                hdrs = {"Authorization": headers["Authorization"]}
+                image_url = None
+                for _ in range(20):
+                    time.sleep(3)
+                    p = requests.get(get_url, headers=hdrs, timeout=15).json()
+                    if p.get("status") == "succeeded":
+                        out = p.get("output")
+                        image_url = out[0] if isinstance(out, list) else out
+                        break
+                    if p.get("status") == "failed":
+                        return jsonify({"error": "Replicate: geração falhou"}), 500
+                if not image_url:
+                    return jsonify({"error": "Timeout na geração da imagem"}), 500
+        else:
+            image_url = _generate_flux(full_prompt, replicate_token)
+
+        data_url = _url_to_data_url(image_url)
+        return jsonify({"dataUrl": data_url, "prompt": prompt, "model": modelo})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
