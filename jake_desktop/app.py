@@ -324,8 +324,9 @@ def api_carousel_copy():
     data  = request.get_json() or {}
     theme = (data.get("theme") or "").strip()
     tone  = data.get("tone", "elegante")
-    awareness = data.get("awareness") or "problema"
-    trigger   = data.get("trigger") or "prova"
+    awareness  = data.get("awareness") or "problema"
+    trigger    = data.get("trigger") or "prova"
+    num_slides = max(3, min(10, int(data.get("num_slides") or 7)))
     if len(theme) < 3:
         return jsonify({"error": "Tema muito curto (mínimo 3 caracteres)."}), 400
     tone_hint = _CAROUSEL_TONE.get(tone, _CAROUSEL_TONE["elegante"])
@@ -352,9 +353,9 @@ def api_carousel_copy():
                     f"Tom solicitado: {tone}. {tone_hint}",
                     f"Nível de consciência do público: {awareness_hint}",
                     f"Gatilho mental a priorizar: {trigger_hint}",
-                    "Gere os 7 slides com profundidade real de conteúdo.",
+                    f"Gere exatamente {num_slides} slides com profundidade real de conteúdo.",
                     "Cada subheadline deve ensinar algo específico, com dados ou exemplos concretos.",
-                    'Retorne SOMENTE o JSON: {"slides":[...7 itens...]}',
+                    f"Retorne SOMENTE o JSON: {{\"slides\":[...{num_slides} itens...]}}",
                 ]),
             }],
         )
@@ -366,8 +367,8 @@ def api_carousel_copy():
             raise ValueError("JSON não encontrado na resposta")
         parsed = json.loads(raw[start:end])
         slides = parsed.get("slides", [])
-        if len(slides) != 7:
-            raise ValueError(f"Esperava 7 slides, recebi {len(slides)}")
+        if len(slides) != num_slides:
+            raise ValueError(f"Esperava {num_slides} slides, recebi {len(slides)}")
         slides_texto = "\n\n".join(
             f"**Slide {i+1}:** {str(s)}" for i, s in enumerate(slides)
         )
