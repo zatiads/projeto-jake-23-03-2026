@@ -183,11 +183,69 @@ Conteúdo do snapshot:
 
 ## Dependências
 
-- `meta/meta_api.py` → `get_saldo_conta()` já existe
+- `meta/meta_api.py` → `get_saldo_conta()` **não pode ser usada diretamente** — ela usa `META_ACCESS_TOKEN` fixo. A rota `/api/performance/saldo` deve inlinear a chamada à Meta API usando `_META_TOKENS[agency]()`, igual ao que a rota de insights já faz.
 - `/api/relatorios/insights` → já existe, reutilizado
-- `/api/relatorios/analise` → já existe, será enriquecida
-- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALERT_CHAT_ID` → já no `.env`
-- `jake-brain/Clientes/` → diretórios piloti e dentto já existem
+- `/api/relatorios/analise` → já existe, será enriquecida (ver payload abaixo)
+- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALERT_CHAT_ID` → já no `.env`. Fallback: `AUTHORIZED_ID` (comportamento existente em `_send_telegram()`)
+- `jake-brain/Clientes/` → contém arquivos `.md` flat (ex: `dentto.md`, `piloti.md`), **não subdiretórios**. A implementação deve criar `os.makedirs(..., exist_ok=True)` ao salvar snapshots.
+
+## Config de clientes
+
+O mapeamento agência → lista de clientes (mesmo dict do `relatorios.js`) fica definido no `performance.js`:
+
+```js
+var AGENCIES = {
+  piloti: [
+    { id: "act_712297048202295",  name: "61 eventos"       },
+    { id: "act_2162454744176337", name: "Amanda"           },
+    { id: "act_1006820257491698", name: "Calixta"          },
+    { id: "act_1095710212746155", name: "Daniele Taveira"  },
+    { id: "act_5684689948235819", name: "HiperClin"        },
+    { id: "act_1006436427517079", name: "IOB"              },
+    { id: "act_126503999415274",  name: "Isac Academia"    },
+    { id: "act_812220691454430",  name: "Maíra Castaldi"   },
+    { id: "act_1693935704869895", name: "Marcus"           },
+    { id: "act_507545471090485",  name: "Odonto Uberaba"   },
+    { id: "act_323137203122197",  name: "Queen Poltronas"  },
+    { id: "act_840594572249284",  name: "RD Contabilidade" },
+    { id: "act_7838846752907408", name: "Realize Sorrisos" },
+    { id: "act_510054631964792",  name: "RunWay"           }
+  ],
+  dentto: []
+};
+```
+
+## Payload enriquecido para `/api/relatorios/analise`
+
+```json
+{
+  "nome": "HiperClin",
+  "metricas": { "Gasto": "R$ 320,00", "Leads": 27, "CPL": "R$ 11,85", "Alcance": 8420 },
+  "metricas_anterior": { "Gasto": "R$ 290,00", "Leads": 22, "CPL": "R$ 13,18", "Alcance": 7100 },
+  "delta": { "Gasto": "+10,3%", "Leads": "+22,7%", "CPL": "-10,1%", "Alcance": "+18,6%" }
+}
+```
+
+O backend formata no prompt:
+```
+Semana atual: Gasto R$320, Leads 27, CPL R$11,85...
+Semana anterior: Gasto R$290, Leads 22, CPL R$13,18...
+Variação: Leads +22,7%, CPL -10,1% (melhora)...
+```
+
+## Normalização de nomes para vault
+
+Regra: lowercase, sem acentos, espaços → hífens, caracteres especiais removidos.
+Exemplos: `"HiperClin"` → `hiperclin`, `"Maíra Castaldi"` → `maira-castaldi`, `"61 eventos"` → `61-eventos`
+
+Função Python:
+```python
+import re, unicodedata
+def _slug(name):
+    n = unicodedata.normalize("NFD", name)
+    n = "".join(c for c in n if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9]+", "-", n.lower()).strip("-")
+```
 
 ---
 
