@@ -7,6 +7,8 @@
 
 URL_FILE=/root/jake_desktop/tunnel_url.txt
 LOG_FILE=/root/jake_desktop/tunnel.log
+NOTIF_FILE=/root/jake_desktop/tunnel_last_notif.txt  # persiste entre reinícios
+COOLDOWN=1800  # 30 minutos entre notificações
 
 # Lê variáveis do .env para o Telegram
 set -a
@@ -29,25 +31,43 @@ send_telegram() {
   fi
 }
 
+# Retorna 0 (pode notificar) se URL mudou OU cooldown expirou
+pode_notificar() {
+  local url="$1"
+  local now
+  now=$(date +%s)
+  if [ -f "$NOTIF_FILE" ]; then
+    local last_ts last_url
+    last_ts=$(cut -d'|' -f1 "$NOTIF_FILE" 2>/dev/null)
+    last_url=$(cut -d'|' -f2 "$NOTIF_FILE" 2>/dev/null)
+    local elapsed=$(( now - last_ts ))
+    # Mesma URL e cooldown não expirou → silencia
+    if [ "$last_url" = "$url" ] && [ "$elapsed" -lt "$COOLDOWN" ]; then
+      return 1
+    fi
+  fi
+  # Salva timestamp|url para a próxima checagem
+  echo "${now}|${url}" > "$NOTIF_FILE"
+  return 0
+}
+
 echo "" > "$LOG_FILE"
-_FLAG=$(mktemp)
 
 # ── ngrok ────────────────────────────────────────────────
 ngrok http 5050 --log=stdout 2>&1 | tee -a "$LOG_FILE" | while IFS= read -r line; do
   echo "$line"
-  # Detecta URL ngrok (https://xxx.ngrok-free.app ou xxx.ngrok.io) — envia só uma vez
-  if [ ! -s "$_FLAG" ] && echo "$line" | grep -qE 'https://[a-z0-9-]+\.ngrok'; then
+  if echo "$line" | grep -qE 'https://[a-z0-9-]+\.ngrok'; then
     URL=$(echo "$line" | grep -oE 'https://[a-z0-9-]+\.ngrok[^"[:space:]]*' | head -1)
     if [ -n "$URL" ]; then
-      echo "$URL" > "$_FLAG"
       echo "$URL" > "$URL_FILE"
       echo ""
       echo "  ✓ Jake IA online! (ngrok)"
       echo "  Link público: $URL"
       echo ""
-      send_telegram "🟢 Jake IA online!
+      if pode_notificar "$URL"; then
+        send_telegram "🟢 Jake IA online!
 Link: $URL"
+      fi
     fi
   fi
 done
-rm -f "$_FLAG"
