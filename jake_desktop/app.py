@@ -294,6 +294,12 @@ _CAROUSEL_AWARENESS = {
     "oferta":   "Público consciente da OFERTA: pronto para decidir. Remova objeções, destaque urgência/escassez e facilite a ação.",
 }
 
+_CAROUSEL_COMPLEXITY = {
+    "simples":  "NÍVEL DE LINGUAGEM: Muito simples. Frases curtas. Palavras do dia a dia. Como se estivesse explicando pra alguém sem formação técnica. Sem jargões, sem palavras difíceis. Se usar um conceito, explique com uma analogia concreta.",
+    "medio":    "NÍVEL DE LINGUAGEM: Equilibrado. Direto, claro, sem ser básico demais nem técnico demais.",
+    "avancado": "NÍVEL DE LINGUAGEM: Avançado. Público que já domina o assunto. Use termos técnicos, conceitos elaborados, referências de mercado, nuances. Profundidade máxima.",
+}
+
 _CAROUSEL_TRIGGER = {
     "prova":       "Gatilho principal: PROVA SOCIAL — números, depoimentos, resultados de quem aplicou.",
     "urgencia":    "Gatilho principal: URGÊNCIA — prazo real, decisão agora ou perde.",
@@ -326,7 +332,8 @@ def api_carousel_copy():
     tone  = data.get("tone", "elegante")
     awareness  = data.get("awareness") or "problema"
     trigger    = data.get("trigger") or "prova"
-    num_slides = max(3, min(10, int(data.get("num_slides") or 7)))
+    num_slides   = max(3, min(10, int(data.get("num_slides") or 7)))
+    complexidade = data.get("complexidade") or "medio"
     if len(theme) < 3:
         return jsonify({"error": "Tema muito curto (mínimo 3 caracteres)."}), 400
     tone_hint = _CAROUSEL_TONE.get(tone, _CAROUSEL_TONE["elegante"])
@@ -353,6 +360,7 @@ def api_carousel_copy():
                     f"Tom solicitado: {tone}. {tone_hint}",
                     f"Nível de consciência do público: {awareness_hint}",
                     f"Gatilho mental a priorizar: {trigger_hint}",
+                    _CAROUSEL_COMPLEXITY.get(complexidade, _CAROUSEL_COMPLEXITY["medio"]),
                     f"Gere exatamente {num_slides} slides com profundidade real de conteúdo.",
                     "Cada subheadline deve ensinar algo específico, com dados ou exemplos concretos.",
                     f"Retorne SOMENTE o JSON: {{\"slides\":[...{num_slides} itens...]}}",

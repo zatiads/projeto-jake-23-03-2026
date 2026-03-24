@@ -397,14 +397,16 @@
     if (btn) { btn.disabled = true; btn.innerHTML = '<span>⟳</span> Gerando...'; }
     showStatus('Gerando copy com IA, aguarde...', 'loading');
 
-    var numSlidesEl = document.getElementById('cs-num-slides');
-    var numSlides = numSlidesEl ? parseInt(numSlidesEl.value, 10) : 7;
-    var defaultSlides = makeDefaultSlides();
+    var numSlidesEl     = document.getElementById('cs-num-slides');
+    var complexidadeEl  = document.getElementById('cs-complexidade');
+    var numSlides       = numSlidesEl    ? parseInt(numSlidesEl.value, 10) : 7;
+    var complexidade    = complexidadeEl ? complexidadeEl.value : 'medio';
+    var defaultSlides   = makeDefaultSlides();
 
     fetch('/api/carousel/copy', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ theme: theme, tone: tone, awareness: awareness, trigger: trigger, num_slides: numSlides }),
+      body:    JSON.stringify({ theme: theme, tone: tone, awareness: awareness, trigger: trigger, num_slides: numSlides, complexidade: complexidade }),
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -1006,43 +1008,8 @@
     var genImgBtn = document.getElementById('cs-gen-images-btn');
     if (genImgBtn) {
       genImgBtn.addEventListener('click', function () {
-        // Use slides que têm imagem (exclui bullets e closing que não usam imagem de fundo)
-        // Se imagePrompt não estiver definido, usa headline + subheadline como fallback
-        var targets = slides
-          .filter(function (s) { return s.variant !== 'bullets'; })
-          .map(function (s) {
-            var prompt = (s.imagePrompt && s.imagePrompt.trim().length > 4)
-              ? s.imagePrompt
-              : s.headline + (s.subheadline ? '. ' + s.subheadline : '');
-            return Object.assign({}, s, { imagePrompt: prompt });
-          });
-        if (targets.length === 0) {
-          alert('Nenhum slide com imagem encontrado.');
-          return;
-        }
-
-        var lib = document.getElementById('cs-image-library');
-        var grid = document.getElementById('cs-image-lib-grid');
-        var status = document.getElementById('cs-image-lib-status');
-        if (!lib || !grid) return;
-
-        lib.classList.remove('hidden');
-        grid.innerHTML = '';
-
-        // Create placeholders
-        var imgMap = {};
-        targets.forEach(function (s) {
-          var cell = document.createElement('div');
-          cell.className = 'cs-img-lib-cell';
-          cell.id = 'cs-lib-cell-' + s.id;
-          cell.innerHTML =
-            '<div class="cs-img-lib-thumb"><div class="cs-img-lib-spinner"></div></div>' +
-            '<div class="cs-img-lib-label">Slide ' + s.id + '</div>';
-          grid.appendChild(cell);
-          imgMap[s.id] = cell;
-        });
-
-        if (status) { status.textContent = ''; genImgBtn.disabled = true; genImgBtn.textContent = 'Gerando…'; }
+        var s = getActive();
+        if (!s) return;
 
         var styleEl   = document.getElementById('cs-img-style');
         var mixEl     = document.getElementById('cs-img-mix');
@@ -1053,87 +1020,46 @@
         var palette      = paletteEl ? paletteEl.value : '';
         var modelo       = modelEl   ? modelEl.value   : 'flux-1.1-pro';
 
-        // Processa as imagens de forma SEQUENCIAL para respeitar o burst=1 da Replicate
-        var index = 0;
-        var total = targets.length;
+        genImgBtn.disabled = true;
+        genImgBtn.textContent = 'Lendo slide...';
+        showStatus('Gerando prompt para slide ' + s.id + '...', 'loading');
 
-        function processNext() {
-          if (index >= total) {
-            genImgBtn.disabled = false;
-            genImgBtn.textContent = 'Gerar Imagens IA';
-            return;
+        fetch('/api/carousel/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            headline:    s.headline    || '',
+            subheadline: s.subheadline || '',
+            tag:         s.tag        || '',
+            prompt:      (s.imagePrompt && s.imagePrompt.trim().length > 4) ? s.imagePrompt : '',
+            style_visual: style_visual,
+            mix_reality:  mix_reality,
+            palette:      palette,
+            modelo:       modelo
+          }),
+        })
+        .then(function (r) {
+          genImgBtn.textContent = 'Gerando imagem...';
+          showStatus('Gerando imagem com ' + modelo + '...', 'loading');
+          return r.json();
+        })
+        .then(function (data) {
+          if (data.dataUrl) {
+            updateSlide(s.id, 'backgroundImage', data.dataUrl);
+            renderAll();
+            showStatus('✓ Imagem aplicada no slide ' + s.id + '!', 'ok');
+            setTimeout(hideStatus, 3000);
+          } else {
+            showStatus('Erro: ' + (data.error || 'falha na geração'), 'error');
           }
-          var s = targets[index++];
-          if (status) status.textContent = 'Gerando prompt para slide ' + s.id + ' (' + index + '/' + total + ')...';
-          fetch('/api/carousel/generate-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              headline:    s.headline    || '',
-              subheadline: s.subheadline || '',
-              tag:         s.tag        || '',
-              prompt:      (s.imagePrompt && s.imagePrompt.trim().length > 4) ? s.imagePrompt : '',
-              style_visual: style_visual,
-              mix_reality:  mix_reality,
-              palette:      palette,
-              modelo:       modelo
-            }),
-          })
-          .then(function (r) {
-            if (status) status.textContent = 'Gerando imagem para slide ' + s.id + ' (' + index + '/' + total + ')...';
-            return r.json();
-          })
-          .then(function (data) {
-            var cell = imgMap[s.id];
-            if (!cell) return;
-            if (data.dataUrl) {
-              var thumb = cell.querySelector('.cs-img-lib-thumb');
-              thumb.innerHTML =
-                '<img src="' + data.dataUrl + '" class="cs-img-lib-img" />' +
-                '<div class="cs-img-lib-overlay">' +
-                  '<button class="cs-img-lib-assign" data-slide="' + s.id + '" data-src="' + data.dataUrl + '" data-target="own">→ Slide ' + s.id + '</button>' +
-                  '<button class="cs-img-lib-assign cs-img-lib-assign-active" data-slide="' + s.id + '" data-src="' + data.dataUrl + '" data-target="active">→ Slide atual</button>' +
-                  '<button class="cs-img-lib-save" data-src="' + data.dataUrl + '" data-slide="' + s.id + '">↓ Salvar PNG</button>' +
-                '</div>';
-              thumb.querySelectorAll('.cs-img-lib-assign').forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                  var slideId = btn.dataset.target === 'active' ? activeSlide : btn.dataset.slide;
-                  updateSlide(slideId, 'backgroundImage', btn.dataset.src);
-                  renderAll();
-                });
-              });
-              var saveBtn = thumb.querySelector('.cs-img-lib-save');
-              if (saveBtn) {
-                saveBtn.addEventListener('click', function () {
-                  var src = saveBtn.dataset.src;
-                  var slideId = saveBtn.dataset.slide || s.id;
-                  var a = document.createElement('a');
-                  a.href = src;
-                  a.download = 'carrossel-slide-' + String(slideId).padStart(2, '0') + '.png';
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                });
-              }
-            } else {
-              var cell = imgMap[s.id];
-              if (cell) {
-                cell.querySelector('.cs-img-lib-thumb').innerHTML =
-                  '<span class="cs-img-lib-error">' + (data.error || 'Erro') + '</span>';
-              }
-            }
-          })
-          .catch(function () {
-            var cell = imgMap[s.id];
-            if (cell) cell.querySelector('.cs-img-lib-thumb').innerHTML = '<span class="cs-img-lib-error">Falha</span>';
-          })
-          .finally(function () {
-            // Pequeno intervalo para evitar bater em limites muito agressivos
-            setTimeout(processNext, 250);
-          });
-        }
-
-        processNext();
+        })
+        .catch(function () {
+          showStatus('Erro de conexão ao gerar imagem.', 'error');
+        })
+        .finally(function () {
+          genImgBtn.disabled = false;
+          genImgBtn.textContent = '✦ Gerar Imagem do Slide Ativo';
+        });
       });
     }
 
