@@ -30,14 +30,16 @@ send_telegram() {
 }
 
 echo "" > "$LOG_FILE"
+_FLAG=$(mktemp)
 
 # ── ngrok ────────────────────────────────────────────────
 ngrok http 5050 --log=stdout 2>&1 | tee -a "$LOG_FILE" | while IFS= read -r line; do
   echo "$line"
-  # Detecta URL ngrok (https://xxx.ngrok-free.app ou xxx.ngrok.io)
-  if echo "$line" | grep -qE 'https://[a-z0-9-]+\.ngrok'; then
+  # Detecta URL ngrok (https://xxx.ngrok-free.app ou xxx.ngrok.io) — envia só uma vez
+  if [ ! -s "$_FLAG" ] && echo "$line" | grep -qE 'https://[a-z0-9-]+\.ngrok'; then
     URL=$(echo "$line" | grep -oE 'https://[a-z0-9-]+\.ngrok[^"[:space:]]*' | head -1)
     if [ -n "$URL" ]; then
+      echo "$URL" > "$_FLAG"
       echo "$URL" > "$URL_FILE"
       echo ""
       echo "  ✓ Jake IA online! (ngrok)"
@@ -48,3 +50,4 @@ Link: $URL"
     fi
   fi
 done
+rm -f "$_FLAG"
