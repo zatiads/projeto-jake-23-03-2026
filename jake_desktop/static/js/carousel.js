@@ -50,6 +50,29 @@
     ];
   }
 
+  // ── Persistência (localStorage) ──────────────────────────────────────────
+  var _LS_KEY = 'jake_carrossel_rascunho';
+
+  function salvarRascunho() {
+    try {
+      localStorage.setItem(_LS_KEY, JSON.stringify({ slides: slides, activeSlide: activeSlide }));
+    } catch(e) {}
+  }
+
+  function carregarRascunho() {
+    try {
+      var raw = localStorage.getItem(_LS_KEY);
+      if (!raw) return false;
+      var d = JSON.parse(raw);
+      if (d && Array.isArray(d.slides) && d.slides.length >= 3) {
+        slides      = d.slides;
+        activeSlide = d.activeSlide || d.slides[0].id;
+        return true;
+      }
+    } catch(e) {}
+    return false;
+  }
+
   // ── Estado global ────────────────────────────────────────────────────────
   var slides      = makeDefaultSlides();
   var activeSlide = '01';
@@ -306,6 +329,7 @@
     renderMiniGrid();
     renderActivePreview();
     syncEditor();
+    salvarRascunho();
   }
 
   // ── Compressão de imagem ─────────────────────────────────────────────────
@@ -1076,10 +1100,10 @@
   // ── Bootstrap ─────────────────────────────────────────────────────────────
   function init() {
     if (!document.getElementById('cs-mini-grid')) {
-      // Tenta de novo em 200ms (SPA ainda pode não ter renderizado)
       setTimeout(init, 200);
       return;
     }
+    carregarRascunho();
     bindEvents();
     renderAll();
   }

@@ -1435,7 +1435,7 @@ def api_carousel_generate_image():
                 f"{_REPLICATE_BASE}/models/{slug}/predictions",
                 headers=headers,
                 json={"input": {"prompt": full_prompt, "aspect_ratio": "1:1",
-                                "output_format": "webp", "output_quality": 90}},
+                                "output_format": "png"}},
                 timeout=90,
             )
             if not resp.ok:
