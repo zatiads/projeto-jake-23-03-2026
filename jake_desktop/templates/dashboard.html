@@ -60,6 +60,10 @@
           <span class="nav-icon">◫</span>
           <span class="nav-label">Gerador de Carrossel</span>
         </a>
+        <a class="nav-item" data-page="prompts" href="#">
+          <span class="nav-icon">🧠</span>
+          <span class="nav-label">Prompts</span>
+        </a>
       </nav>
 
       <div class="sidebar-footer">
@@ -1510,6 +1514,48 @@
         </div><!-- /.fin-layout -->
       </section>
 
+      <!-- ENGENHEIRO DE PROMPTS ──────────────────────────── -->
+      <section class="page" id="page-prompts">
+        <div class="pe-layout">
+
+          <!-- Sidebar de sessões -->
+          <aside class="pe-sidebar" id="peSidebar">
+            <div class="pe-sidebar-header">
+              <span class="pe-sidebar-title">🧠 Conversas</span>
+              <button class="pe-new-btn" id="peNewBtn" title="Nova conversa">＋</button>
+            </div>
+            <div class="pe-session-list" id="peSessionList">
+              <!-- preenchido por JS -->
+            </div>
+          </aside>
+
+          <!-- Área de chat -->
+          <div class="pe-chat-wrap">
+
+            <!-- Toggle sidebar mobile -->
+            <button class="pe-sidebar-toggle" id="peSidebarToggle" title="Sessões">☰</button>
+
+            <!-- Mensagens -->
+            <div class="pe-chat-area" id="peChatArea">
+              <!-- preenchido por JS -->
+            </div>
+
+            <!-- Input -->
+            <div class="pe-input-area">
+              <textarea
+                id="peInput"
+                class="pe-textarea"
+                placeholder="Descreva sua ideia ou projeto..."
+                rows="1"
+              ></textarea>
+              <button class="pe-send-btn" id="peSendBtn">➤</button>
+            </div>
+            <p class="pe-hint">Enter para enviar · Shift+Enter para nova linha</p>
+
+          </div><!-- /.pe-chat-wrap -->
+        </div><!-- /.pe-layout -->
+      </section>
+
       <!-- ROTINAS & AGENDA ───────────────────────────── -->
     </main><!-- /.content -->
   </div><!-- /.layout -->
@@ -1554,5 +1600,6 @@
   <script src="{{ url_for('static', filename='js/criativos.js') }}"></script>
   <script src="{{ url_for('static', filename='js/financeiro.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/prompts.js') }}"></script>
 </body>
 </html>
