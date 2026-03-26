@@ -23,7 +23,7 @@ O usuário forneceu o HTML completo da interface de referência. A lógica visua
 
 ## Banco de Dados (Neon/PostgreSQL)
 
-Duas novas tabelas, criadas via `CREATE TABLE IF NOT EXISTS` no startup do `app.py`:
+Duas novas tabelas executadas **diretamente no Neon** antes do deploy (padrão do projeto — o app não roda DDL no startup):
 
 ```sql
 CREATE TABLE IF NOT EXISTS prompt_sessions (
@@ -46,14 +46,16 @@ CREATE TABLE IF NOT EXISTS prompt_messages (
 
 ## Rotas Flask (`app.py`)
 
+Todas as rotas levam `@login_required` (padrão do projeto).
+
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | `GET` | `/api/prompts/sessoes` | Lista sessões ordenadas por `atualizado_em DESC` |
-| `POST` | `/api/prompts/sessoes` | Cria nova sessão (título vazio) |
+| `POST` | `/api/prompts/sessoes` | Cria nova sessão (título `NULL`) |
 | `GET` | `/api/prompts/sessoes/<id>/mensagens` | Retorna todas as mensagens da sessão |
 | `POST` | `/api/prompts/sessoes/<id>/chat` | Envia mensagem, chama Claude, salva par user+assistant, retorna resposta |
-| `PATCH` | `/api/prompts/sessoes/<id>/titulo` | Atualiza título da sessão |
-| `DELETE` | `/api/prompts/sessoes/<id>` | Deleta sessão e mensagens em cascata |
+| `PATCH` | `/api/prompts/sessoes/<id>/titulo` | Atualiza título + `atualizado_em` |
+| `DELETE` | `/api/prompts/sessoes/<id>` | Deleta sessão (CASCADE nas mensagens) |
 
 ### POST `/api/prompts/sessoes/<id>/chat`
 - Recebe `{ "message": "texto do usuário" }`
@@ -62,11 +64,12 @@ CREATE TABLE IF NOT EXISTS prompt_messages (
 - Chama `claude-sonnet-4-6` com o `SYSTEM_PROMPT` do Engenheiro de Prompts
 - Salva mensagem do usuário + resposta do assistente no banco
 - Atualiza `atualizado_em` da sessão
-- Retorna `{ "reply": "...", "session_id": N }`
+- Em caso de erro da API Anthropic: retorna `{"error": "..."}` com status 500
+- Retorna `{ "reply": "..." }`
 
-### Geração de título (PATCH)
-- Chamado pelo JS quando Claude retorna um JSON `{"type":"prompt",...}` (prompt final gerado)
-- O JS extrai o campo `title` do JSON e faz PATCH com `{ "titulo": "..." }`
+### PATCH `/api/prompts/sessoes/<id>/titulo`
+- Recebe `{ "titulo": "..." }`
+- Atualiza `titulo` e `atualizado_em` da sessão
 
 ---
 
@@ -77,6 +80,7 @@ O `SYSTEM_PROMPT` instrui Claude a:
 2. **Etapa 2** — gerar o prompt final após respostas, retornando JSON: `{"type":"prompt","title":"...","prompt":"..."}`
 3. Nunca gerar o prompt direto sem perguntar antes
 4. Responder sempre em português brasileiro
+5. Fora dos JSONs, pode conversar normalmente (texto simples — renderizado como bubble normal)
 
 ---
 
@@ -85,36 +89,46 @@ O `SYSTEM_PROMPT` instrui Claude a:
 ### Arquivos modificados/criados
 - `static/js/prompts.js` — **reescrito completamente**
 - `templates/dashboard.html` — seção `#page-prompts` substituída pelo novo layout
-- `static/css/style.css` — variáveis e estilos específicos do módulo (prompt-box, sidebar de sessões)
+- `static/css/style.css` — estilos do módulo (prompt-box, sidebar de sessões)
 
 ### Layout: 2 colunas
 ```
 ┌──────────────┬────────────────────────────────────┐
 │  SIDEBAR     │  CHAT AREA                         │
-│              │                                    │
+│  240px       │                                    │
 │  + Nova      │  [mensagens do agente/usuário]      │
 │  ─────────   │                                    │
 │  23/03       │  [prompt-box verde ao final]        │
 │  Bot para... │  ──────────────────────────────── │
-│              │  [textarea]  [enviar →]             │
+│  🗑          │  [textarea]  [enviar →]             │
 └──────────────┴────────────────────────────────────┘
 ```
 
+**Responsivo (mobile, breakpoint ≤ 768px):**
+- Sidebar oculta por padrão
+- Botão hamburguer no topo-esquerdo da chat area toggle `sidebar.classList.toggle('open')`
+- Sidebar sobrepõe a chat area com `position: fixed`, `z-index` alto
+
 ### Comportamento do JS (`prompts.js`)
-1. **Init**: carrega lista de sessões via `GET /api/prompts/sessoes`, renderiza sidebar
-2. **Nova conversa**: `POST /api/prompts/sessoes` → cria sessão → exibe mensagem de boas-vindas do agente (sem chamar Claude — mensagem local)
-3. **Abrir sessão existente**: `GET /api/prompts/sessoes/<id>/mensagens` → renderiza histórico completo
+1. **Init**: `GET /api/prompts/sessoes` → renderiza sidebar; se lista vazia, exibe estado vazio com botão "Iniciar primeira conversa"
+2. **Nova conversa**: `POST /api/prompts/sessoes` → `currentSessionId = id` → limpa chat → exibe mensagem de boas-vindas local (sem chamar Claude)
+3. **Abrir sessão existente**: `GET /api/prompts/sessoes/<id>/mensagens` → `currentSessionId = id` → renderiza histórico completo; **não exibe mensagem de boas-vindas**
 4. **Enviar mensagem**: `POST /api/prompts/sessoes/<id>/chat` → mostra typing indicator → renderiza resposta
-5. **Parsing da resposta**: detecta JSON `{"type":"questions"}` ou `{"type":"prompt"}` para renderizar perguntas numeradas ou prompt-box verde
-6. **Geração de título**: quando detecta `{"type":"prompt","title":"..."}`, faz `PATCH /api/prompts/sessoes/<id>/titulo` e atualiza sidebar
-7. **Deletar sessão**: botão de lixeira na sidebar, `DELETE /api/prompts/sessoes/<id>`
+5. **Parsing da resposta Claude**:
+   - Tenta extrair JSON `{"type":"questions"|"prompt"}` da resposta
+   - Se `type === "questions"` → renderiza lista numerada de perguntas
+   - Se `type === "prompt"` → renderiza prompt-box verde com botão Copiar
+   - Se nenhum JSON detectado (texto simples ou erro de parsing) → renderiza como bubble normal de texto
+6. **Geração de título**: ao detectar `{"type":"prompt","title":"..."}` com campo `title` não-vazio → `PATCH /titulo`; se `title` ausente ou vazio → usa as primeiras 40 chars da primeira mensagem do usuário como fallback
+7. **Erro de API**: se `/chat` retornar `{"error":"..."}` → renderiza bubble de erro `⚠️ Erro ao processar. Tente novamente.`
+8. **Deletar sessão**: botão 🗑 na sidebar, `DELETE /api/prompts/sessoes/<id>` → remove da sidebar → se era a sessão ativa, limpa chat e exibe estado vazio
 
 ### Estilos
 - Sidebar: `width: 240px`, fundo `var(--surface)`, borda direita `var(--border)`
-- Sessão ativa: destaque com `var(--accent)` na borda esquerda
+- Sessão ativa: destaque com borda esquerda `3px solid var(--accent)`
 - Prompt-box: fundo `#0d1a14`, borda `var(--accent2)` (verde), fonte monospace
 - Perguntas: lista numerada com fundo `var(--surface2)`, fonte monospace
-- Responsivo: sidebar colapsa em mobile (toggle button)
+- Typing indicator: 3 dots animados (igual ao HTML de referência)
 
 ---
 
@@ -123,12 +137,12 @@ O `SYSTEM_PROMPT` instrui Claude a:
 ```
 Usuário abre #prompts
   → JS carrega sessões → renderiza sidebar
-  → Se nenhuma sessão ativa, mostra tela de boas-vindas
+  → Se nenhuma sessão: estado vazio ("Nenhuma conversa ainda")
 
 Usuário clica "+ Nova conversa"
   → POST /api/prompts/sessoes → session_id = 42
   → JS exibe mensagem de boas-vindas local
-  → Sessão 42 aparece na sidebar (sem título ainda)
+  → Sessão 42 aparece na sidebar sem título
 
 Usuário digita "Quero um prompt para um bot de vendas"
   → POST /api/prompts/sessoes/42/chat
@@ -139,8 +153,12 @@ Usuário responde todas as perguntas
   → POST /api/prompts/sessoes/42/chat
   → Claude retorna {"type":"prompt","title":"Bot de Vendas SaaS","prompt":"Você é..."}
   → JS renderiza prompt-box verde com botão Copiar
-  → JS faz PATCH /api/prompts/sessoes/42/titulo com "Bot de Vendas SaaS"
-  → Sidebar atualiza o título da sessão
+  → PATCH /titulo com "Bot de Vendas SaaS"
+  → Sidebar atualiza título da sessão
+
+Usuário fecha e reabre #prompts
+  → Sessão 42 aparece na sidebar com título "Bot de Vendas SaaS"
+  → Clicar carrega histórico completo (sem mensagem de boas-vindas)
 ```
 
 ---
