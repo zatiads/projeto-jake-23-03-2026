@@ -1,0 +1,50 @@
+#!/bin/bash
+# ──────────────────────────────────────────────────────────
+#  Jake IA — Quick Tunnel (HTTPS público automático)
+#  Inicia o túnel, salva a URL e envia pelo Telegram.
+# ──────────────────────────────────────────────────────────
+
+CF=/root/cloudflared
+URL_FILE=/root/jake_desktop/tunnel_url.txt
+LOG_FILE=/root/jake_desktop/tunnel.log
+
+# Lê variáveis do .env para o Telegram
+set -a
+[ -f /root/.env ] && source /root/.env
+set +a
+
+send_telegram() {
+  local text="$1"
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_ALERT_CHAT_ID" ]; then
+    curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+      -d chat_id="$TELEGRAM_ALERT_CHAT_ID" \
+      -d text="$text" \
+      -d disable_web_page_preview=true > /dev/null 2>&1
+  fi
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$AUTHORIZED_ID" ] && [ "$AUTHORIZED_ID" != "$TELEGRAM_ALERT_CHAT_ID" ]; then
+    curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+      -d chat_id="$AUTHORIZED_ID" \
+      -d text="$text" \
+      -d disable_web_page_preview=true > /dev/null 2>&1
+  fi
+}
+
+echo "" > "$LOG_FILE"
+
+# Inicia o túnel e captura a URL do output
+$CF tunnel --url http://localhost:5050 2>&1 | tee -a "$LOG_FILE" | while IFS= read -r line; do
+  echo "$line"
+  # Detecta quando a URL é gerada (padrão: https://xxx.trycloudflare.com)
+  if echo "$line" | grep -qE 'https://[a-z0-9-]+\.trycloudflare\.com'; then
+    URL=$(echo "$line" | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com')
+    echo "$URL" > "$URL_FILE"
+    echo ""
+    echo "  ✓ Jake IA online!"
+    echo "  Link público: $URL"
+    echo ""
+    # Aviso desativado: não enviar mais link de Cloudflare no Telegram.
+    # Se quiser reativar no futuro, descomente a linha abaixo.
+    # send_telegram "🟢 Jake IA está online!
+# Link: $URL"
+  fi
+done

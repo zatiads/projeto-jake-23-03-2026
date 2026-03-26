@@ -1,0 +1,633 @@
+"""
+Jake IA — Sistema de múltiplos agentes (roteador de comandos Telegram).
+Agentes: Analista Sênior (texto), Diretor de Copy (/copy), Operador de Tráfego (/subir).
+"""
+import os
+import re
+import tempfile
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import anthropic
+
+try:
+    import pdfplumber
+    _PDF_READ = True
+except ImportError:
+    _PDF_READ = False
+
+try:
+    from fpdf import FPDF
+    _PDF_WRITE = True
+except ImportError:
+    _PDF_WRITE = False
+
+try:
+    from dotenv import load_dotenv
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    load_dotenv(os.path.join(_root, ".env"))
+except ImportError:
+    pass
+
+try:
+    import psycopg2
+    import psycopg2.extras
+    _DB_URL = os.environ.get("DATABASE_URL", "").strip()
+    _db_conn = None
+
+    def _get_db():
+        global _db_conn
+        try:
+            if _db_conn is None or _db_conn.closed:
+                _db_conn = psycopg2.connect(_DB_URL)
+            else:
+                _db_conn.cursor().execute("SELECT 1")
+        except Exception:
+            _db_conn = psycopg2.connect(_DB_URL)
+        return _db_conn
+
+    def db_carregar_historico(chat_id: int, limite: int = 40) -> list:
+        """Carrega as últimas `limite` mensagens do banco para o chat_id."""
+        try:
+            conn = _get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT role, content FROM conversa WHERE chat_id=%s ORDER BY criado_em DESC LIMIT %s",
+                (chat_id, limite)
+            )
+            rows = cur.fetchall()
+            cur.close()
+            return [{"role": r, "content": c} for r, c in reversed(rows)]
+        except Exception as e:
+            print(f"[DB] Erro ao carregar histórico: {e}")
+            return []
+
+    def db_salvar_mensagem(chat_id: int, role: str, content: str):
+        """Salva uma mensagem no banco."""
+        try:
+            conn = _get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO conversa (chat_id, role, content) VALUES (%s, %s, %s)",
+                (chat_id, role, content)
+            )
+            conn.commit()
+            cur.close()
+        except Exception as e:
+            print(f"[DB] Erro ao salvar mensagem: {e}")
+
+    _DB_OK = True
+except ImportError:
+    _DB_OK = False
+    def db_carregar_historico(chat_id, limite=40): return []
+    def db_salvar_mensagem(chat_id, role, content): pass
+
+try:
+    from meta.meta_api import puxar_relatorio, criar_campanha, get_saldo_conta
+    from meta.config_meta import meta_configured, get_conta_for_cliente
+except ImportError:
+    puxar_relatorio = None
+    criar_campanha = None
+    get_saldo_conta = None
+    meta_configured = lambda: False
+    get_conta_for_cliente = lambda x: None
+
+try:
+    from leitor_planilha import buscar_clientes
+except ImportError:
+    buscar_clientes = None
+
+try:
+    from core.sync_planilha import sincronizar_planilha_para_db
+except ImportError:
+    sincronizar_planilha_para_db = None
+
+# --- Credenciais (somente via .env; nunca commitar .env) ---
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+AUTHORIZED_ID = int(os.environ.get("AUTHORIZED_ID", "0") or "0")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+if not AUTHORIZED_ID:
+    AUTHORIZED_ID = 8565220021  # fallback só para não quebrar; defina AUTHORIZED_ID no .env
+
+# --- Claude (Anthropic) ---
+client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+openai_client = None
+if OPENAI_API_KEY and OPENAI_API_KEY.strip():
+    try:
+        from openai import OpenAI
+        openai_client = OpenAI(api_key=OPENAI_API_KEY.strip())
+    except Exception:
+        openai_client = None
+
+# --- Prompts de sistema por agente (departamentos) ---
+# Você pode evoluir cada um depois em arquivos separados ou aqui mesmo.
+
+PROMPT_ANALISTA = """Você é Jake — a inteligência artificial mais avançada em marketing digital do Brasil. Você é o parceiro estratégico do Bruno, gestor de tráfego com carteira de clientes em educação, saúde e serviços.
+
+SUAS COMPETÊNCIAS (domínio absoluto):
+• Tráfego pago: Meta Ads, Google Ads, TikTok Ads — estrutura, otimização, escala
+• Análise de métricas: ROI, ROAS, CPA, CPL, CTR, frequência, saturação de público
+• Funis de vendas: topo, meio e fundo — diagnóstico e correção
+• Copywriting de alta conversão: anúncios, páginas, WhatsApp, e-mail
+• Lançamentos digitais: PLs, perpétuos, eventos online, simpósios, webinários
+• Estratégia de conteúdo: Instagram, YouTube, TikTok, WhatsApp
+• CRO (otimização de conversão): landing pages, criativos, ofertas
+• Posicionamento de marca e diferenciação competitiva
+• Psicologia do consumidor e gatilhos mentais
+• Gestão de agência: precificação, processos, retenção de clientes
+
+COMO VOCÊ RESPONDE:
+— Direto ao ponto. Sem enrolação, sem resposta genérica.
+— Quando receber métricas, diagnóstica o problema real e dá o próximo passo concreto.
+— Quando receber contexto de cliente, pensa como dono do negócio, não como executor.
+— Usa dados e referências reais quando possível.
+— Fala como um sócio inteligente, não como um assistente.
+— Quando a pergunta for estratégica, pensa em 3 camadas: o que fazer HOJE, essa SEMANA e esse MÊS.
+— NUNCA diz "depende" sem explicar de quê depende e qual a sua recomendação.
+— NUNCA use a palavra 'automação'.
+
+CAPACIDADES ESPECIAIS DESTE SISTEMA:
+— Você CONSEGUE gerar e enviar arquivos PDF. Quando o Patrão pedir algo em PDF, instrua-o a usar /pdf seguido do conteúdo, ou monte o conteúdo e diga que pode enviar como PDF.
+— Você CONSEGUE ler PDFs enviados pelo Patrão. Basta ele enviar o arquivo direto no chat.
+— NUNCA diga que não consegue gerar PDF. Você consegue sim.
+
+Sempre chame o Bruno de 'Patrão'."""
+
+PROMPT_COPY = """Você é o Diretor de Copy do Jake IA. Especialista em copywriting para Meta Ads e Google Ads, focado em conversão.
+Use frameworks como AIDA e PAS, com ganchos fortes nos 3 primeiros segundos.
+Sempre chame o Bruno de 'Patrão'.
+Entregue copy pronta para uso em anúncios (títulos, descrições, CTA)."""
+
+PROMPT_OPERADOR = """Você é o Operador de Tráfego do Jake IA. Responsável por estruturar os dados para subir campanhas no Meta Ads.
+Organize e valide: Nome da campanha, Orçamento, Público-alvo, Objetivo.
+Devolva um resumo de confirmação claro antes de executar. Sempre chame o Bruno de 'Patrão'."""
+
+PROMPT_LANCAMENTO = """Você é o Estrategista de Lançamentos do Jake IA — especialista em lançamentos digitais, eventos online e aquecimento de base para o mercado brasileiro.
+
+CONTEXTO DO PATRÃO:
+Bruno é gestor de tráfego com carteira de clientes em nichos de educação, saúde e serviços. Ele coordena lançamentos para esses clientes e precisa de um parceiro estratégico que pense junto com ele em cada etapa.
+
+SUA FUNÇÃO:
+Quando o Bruno trouxer um cliente/lançamento, você deve:
+1. Entender o produto, a data do evento, o público e o objetivo de venda final.
+2. Montar um CALENDÁRIO DE ATIVAÇÕES com datas, fases e temas — do dia atual até o evento.
+3. Para cada data, sugerir: canal (WhatsApp, Stories, Feed, Email), formato (vídeo, texto, enquete, reels) e o tema/gancho do conteúdo.
+4. Pensar nas ativações em 3 fases: ESQUENTAR (curiosidade e prova social) → CONSTRUIR (antecipação e autoridade) → CONVERTER (urgência e confirmação).
+5. Quando pedido, gerar o texto/copy pronto para cada ativação.
+
+REGRAS:
+- Sempre chame o Bruno de 'Patrão'.
+- Seja direto: entregue o calendário em formato de lista clara com datas reais.
+- Pense sempre no objetivo FINAL (o que o evento vai vender) e não apenas no evento em si.
+- Use gatilhos: prova social, antecipação, pertencimento, curiosidade e autoridade dos especialistas.
+- Quando o Patrão colar uma transcrição de áudio do cliente, extraia as informações-chave automaticamente (data, produto, público, professores, objetivo) e já monte a estratégia.
+
+EXEMPLO DE OUTPUT ESPERADO PARA CALENDÁRIO:
+📅 CALENDÁRIO DE ATIVAÇÕES — [Nome do Evento]
+Data do evento: XX/XX | Objetivo final: [produto a vender]
+
+FASE 1 — ESQUENTAR (dias 1 a X)
+• DD/MM | Canal | Formato | Tema/Gancho
+
+FASE 2 — CONSTRUIR (dias X a Y)
+• DD/MM | Canal | Formato | Tema/Gancho
+
+FASE 3 — CONVERTER (últimos 7 dias)
+• DD/MM | Canal | Formato | Tema/Gancho
+
+Sempre chame o Bruno de 'Patrão'."""
+
+
+def chamar_claude(prompt_sistema: str, texto_usuario: str, max_tokens: int = 1000,
+                  historico: list | None = None) -> str:
+    """Chamada genérica à API Anthropic. Retorna o texto da resposta ou levanta exceção."""
+    msgs = list(historico) if historico else []
+    msgs.append({"role": "user", "content": texto_usuario})
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=max_tokens,
+        system=prompt_sistema,
+        messages=msgs,
+    )
+    return (response.content[0].text or "").strip()
+
+
+def _so_autorizado(update: Update) -> bool:
+    return update.message.chat_id == AUTHORIZED_ID
+
+
+# --- Comandos básicos ---
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _so_autorizado(update):
+        return
+    await update.message.reply_text(
+        "Fala, Patrão! Jake IA com múltiplos agentes conectado. 🧠🚀\n\n"
+        "• Mensagem de texto → Analista Sênior (métricas, ROI, CPA, CTR)\n"
+        "• /lancamento [contexto] → Estrategista de Lançamentos (calendário + ativações)\n"
+        "• /copy [tema] → Diretor de Copy (copy para ads)\n"
+        "• /subir [dados] → Operador de Tráfego (estrutura campanha Meta)\n"
+        "• /relatorio carazinho 7 → relatório Meta\n"
+        "• /clientes → clientes ativos na planilha\n"
+        "• Áudio → transcrevo e respondo como Analista."
+    )
+
+
+async def cmd_relatorio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _so_autorizado(update):
+        return
+    args = (context.args or [])
+    cliente = (args[0] if len(args) > 0 else "").strip() or "carazinho"
+    try:
+        dias = int(args[1]) if len(args) > 1 else 7
+        dias = max(1, min(90, dias))
+    except (ValueError, IndexError):
+        dias = 7
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    if puxar_relatorio:
+        ok, msg = puxar_relatorio(cliente, dias=dias)
+        await update.message.reply_text(msg)
+    else:
+        await update.message.reply_text("Módulo Meta não disponível.")
+
+
+async def handle_clientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _so_autorizado(update):
+        return
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    if not buscar_clientes:
+        await update.message.reply_text("Patrão, o leitor da planilha não está disponível.")
+        return
+    # Sincroniza planilha → Neon antes de listar (cada uso de /clientes atualiza o banco)
+    if sincronizar_planilha_para_db:
+        try:
+            sincronizar_planilha_para_db()
+        except Exception:
+            pass  # segue e mostra da planilha mesmo se o sync falhar
+    try:
+        clientes = buscar_clientes()
+    except Exception as e:
+        await update.message.reply_text(f"Deu ruim ao ler a planilha, Patrão: {str(e)}")
+        return
+    if not clientes:
+        await update.message.reply_text("📋 Patrão, não encontrei nenhum cliente ativo na planilha.")
+        return
+    linhas = ["📋 Patrão, aqui estão os clientes ativos na planilha:\n"]
+    for r in clientes:
+        nome = r.get("Cliente") or r.get("Nome") or r.get("cliente") or r.get("nome") or "—"
+        modelo = r.get("Modelo de relatório") or r.get("Modelo") or r.get("modelo de relatório") or r.get("modelo") or "—"
+        linhas.append(f"• {nome} — {modelo}")
+    await update.message.reply_text("\n".join(linhas))
+
+
+async def cmd_criar_campanha(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _so_autorizado(update):
+        return
+    if criar_campanha:
+        _, msg = criar_campanha("", "", "", 0)
+        await update.message.reply_text(msg)
+    else:
+        await update.message.reply_text("Criação de campanha em construção.")
+
+
+# --- Agente 2: Diretor de Copy (/copy) ---
+
+async def cmd_lancamento(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Agente de lançamentos: recebe contexto e gera calendário de ativações."""
+    if not _so_autorizado(update):
+        return
+    texto = (" ".join(context.args or [])).strip()
+    if not texto:
+        await update.message.reply_text(
+            "Patrão, me manda o contexto do lançamento:\n\n"
+            "• Nome do cliente e evento\n"
+            "• Data do evento\n"
+            "• Público (base de alunos, leads frios, etc.)\n"
+            "• Objetivo final (o que vai vender depois do evento)\n"
+            "• Professores/figuras envolvidas (se houver)\n\n"
+            "Pode colar direto a transcrição do áudio do cliente que eu extraio tudo. 🎯"
+        )
+        return
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    try:
+        resposta = chamar_claude(PROMPT_LANCAMENTO, texto, max_tokens=2000)
+        # Telegram limita mensagens a 4096 chars — divide se necessário
+        if len(resposta) <= 4096:
+            await update.message.reply_text(resposta)
+        else:
+            for i in range(0, len(resposta), 4000):
+                await update.message.reply_text(resposta[i:i+4000])
+    except Exception:
+        await update.message.reply_text("Deu ruim na estratégia, Patrão. Tenta de novo.")
+
+
+async def cmd_copy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Pega o texto após /copy. Se vazio, pede o tema."""
+    if not _so_autorizado(update):
+        return
+    texto = (" ".join(context.args or [])).strip()
+    if not texto:
+        await update.message.reply_text("Patrão, manda o tema que eu monto a copy. Ex: /copy campanha Black Friday odonto")
+        return
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    try:
+        resposta = chamar_claude(PROMPT_COPY, texto)
+        await update.message.reply_text(resposta)
+    except Exception:
+        await update.message.reply_text(
+            "Deu ruim no copy, Patrão. Tenta de novo daqui a pouco."
+        )
+
+
+# --- Agente 3: Operador de Tráfego (/subir) ---
+
+async def cmd_subir(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Pega o texto após /subir. Se vazio, pede os dados da campanha."""
+    if not _so_autorizado(update):
+        return
+    texto = (" ".join(context.args or [])).strip()
+    if not texto:
+        await update.message.reply_text(
+            "Patrão, manda os dados da campanha. Ex: /subir Nome: Black Friday | Orçamento: R$ 50/dia | Público: 25-45 SP | Objetivo: conversões"
+        )
+        return
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    try:
+        resposta = chamar_claude(PROMPT_OPERADOR, texto)
+        await update.message.reply_text(resposta)
+    except Exception:
+        await update.message.reply_text(
+            "Deu ruim na estrutura, Patrão. Tenta de novo daqui a pouco."
+        )
+
+
+# --- Agente 1: Analista Sênior (mensagem normal de texto) ---
+
+def _pedido_saldo(texto):
+    t = (texto or "").strip().lower()
+    if not t:
+        return None
+    if "saldo" in t or ("quanto" in t and "conta" in t):
+        if "carazinho" in t or "conta" in t or "como" in t or "quanto" in t or "tá" in t or "ta " in t:
+            return "carazinho"
+    return None
+
+
+def _pedido_relatorio(texto):
+    t = (texto or "").strip().lower()
+    m = re.search(r"relat[oó]rio\s+(?:de\s+)?(\w+)(?:\s+ultimos?\s+(\d+)\s*dias?)?(?:\s+(\d+)\s*dias?)?", t)
+    if m:
+        cliente = m.group(1)
+        dias = int(m.group(2) or m.group(3) or "7")
+        return cliente, max(1, min(90, dias))
+    m = re.search(r"relat[oó]rio\s+(\w+)\s+(\d+)", t)
+    if m:
+        return m.group(1), max(1, min(90, int(m.group(2))))
+    return None
+
+
+async def processar_texto_analista(update: Update, context: ContextTypes.DEFAULT_TYPE, user_text: str):
+    """Roteia: saldo → Meta; relatório → Meta; senão → Analista (Claude)."""
+    # Saldo
+    cliente_saldo = _pedido_saldo(user_text)
+    if cliente_saldo and get_saldo_conta and meta_configured():
+        conta = get_conta_for_cliente(cliente_saldo)
+        if conta:
+            await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+            saldo = get_saldo_conta(conta)
+            if saldo is not None:
+                r, s = saldo.get("remaining", 0), saldo.get("amount_spent", 0)
+                nome = "Carazinho" if cliente_saldo == "carazinho" else cliente_saldo.title()
+                msg = f"💰 Saldo {nome}\n\nRestante: R$ {r:,.2f}\nJá gasto: R$ {s:,.2f}"
+                msg = msg.replace(",", "X").replace(".", ",").replace("X", ".")
+                await update.message.reply_text(msg)
+                return
+            await update.message.reply_text("Não consegui puxar o saldo agora, Patrão.")
+            return
+    # Relatório
+    pedido = _pedido_relatorio(user_text)
+    if pedido and puxar_relatorio:
+        cliente, dias = pedido
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+        ok, msg = puxar_relatorio(cliente, dias=dias)
+        await update.message.reply_text(msg)
+        return
+    # Analista Sênior (Claude) — com memória persistente no Neon
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    try:
+        chat_id = update.effective_chat.id
+        historico = db_carregar_historico(chat_id)
+        resposta = chamar_claude(PROMPT_ANALISTA, user_text, max_tokens=2000, historico=historico)
+        db_salvar_mensagem(chat_id, "user", user_text)
+        db_salvar_mensagem(chat_id, "assistant", resposta)
+        if len(resposta) <= 4096:
+            await update.message.reply_text(resposta)
+        else:
+            for i in range(0, len(resposta), 4000):
+                await update.message.reply_text(resposta[i:i+4000])
+    except Exception:
+        await update.message.reply_text(
+            "Deu ruim no cérebro, Patrão. Tenta de novo daqui a pouco."
+        )
+
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _so_autorizado(update):
+        return
+    user_text = (update.message.text or "").strip()
+    if not user_text:
+        return
+    await processar_texto_analista(update, context, user_text)
+
+
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _so_autorizado(update):
+        return
+    if not openai_client:
+        await update.message.reply_text("Áudio não disponível: configure OPENAI_API_KEY no .env.")
+        return
+    voice = update.message.voice
+    if not voice:
+        return
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    try:
+        tg_file = await context.bot.get_file(voice.file_id)
+        with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
+            await tg_file.download_to_drive(tmp.name)
+            path = tmp.name
+        try:
+            with open(path, "rb") as f:
+                transcript = openai_client.audio.transcriptions.create(model="whisper-1", file=f)
+            user_text = (transcript.text or "").strip()
+        finally:
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
+        if not user_text:
+            await update.message.reply_text("Não consegui entender o áudio, Patrão. Manda de novo ou escreve.")
+            return
+        await update.message.reply_text(f"🎤 _Transcrição:_ {user_text}", parse_mode="Markdown")
+        await processar_texto_analista(update, context, user_text)
+    except Exception:
+        await update.message.reply_text(
+            "Deu ruim no áudio, Patrão. Tenta de novo daqui a pouco."
+        )
+
+
+# --- PDF: leitura e geração ---
+
+def _extrair_texto_pdf(path: str) -> str:
+    """Extrai texto de um PDF usando pdfplumber."""
+    if not _PDF_READ:
+        return ""
+    try:
+        with pdfplumber.open(path) as pdf:
+            paginas = [p.extract_text() or "" for p in pdf.pages]
+        return "\n\n".join(paginas).strip()
+    except Exception as e:
+        return f"[Erro ao ler PDF: {e}]"
+
+
+def _gerar_pdf(titulo: str, conteudo: str) -> str:
+    """Gera um PDF formatado e retorna o caminho do arquivo."""
+    import re as _re
+
+    def _limpar(txt):
+        """Remove emojis e caracteres não suportados pela fonte."""
+        return _re.sub(r'[^\x00-\xFF\u00C0-\u024F]', '', txt).strip()
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_font("DejaVu", "", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+    pdf.add_font("DejaVu", "B", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+
+    # Título
+    pdf.set_font("DejaVu", "B", 16)
+    pdf.set_text_color(30, 30, 30)
+    pdf.multi_cell(0, 10, _limpar(titulo), align="C")
+    pdf.ln(6)
+
+    # Linha separadora
+    pdf.set_draw_color(100, 100, 100)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(6)
+
+    # Conteúdo — processa linha por linha
+    for linha in conteudo.split("\n"):
+        linha = _limpar(linha)
+        if not linha:
+            pdf.ln(4)
+            continue
+        if linha.endswith(":") and len(linha) < 80:
+            pdf.set_font("DejaVu", "B", 12)
+            pdf.set_text_color(20, 80, 160)
+            pdf.multi_cell(0, 8, linha)
+            pdf.set_text_color(30, 30, 30)
+        else:
+            pdf.set_font("DejaVu", "", 11)
+            pdf.multi_cell(0, 7, linha)
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+    pdf.output(tmp.name)
+    return tmp.name
+
+
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Recebe PDF, extrai texto e analisa com Claude."""
+    if not _so_autorizado(update):
+        return
+    doc = update.message.document
+    if not doc or not (doc.file_name or "").lower().endswith(".pdf"):
+        await update.message.reply_text("Patrão, só consigo processar arquivos PDF por enquanto.")
+        return
+    if not _PDF_READ:
+        await update.message.reply_text("Patrão, a biblioteca de PDF não está instalada no servidor.")
+        return
+
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    try:
+        tg_file = await context.bot.get_file(doc.file_id)
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            await tg_file.download_to_drive(tmp.name)
+            path = tmp.name
+
+        texto_pdf = _extrair_texto_pdf(path)
+        os.unlink(path)
+
+        if not texto_pdf or len(texto_pdf) < 20:
+            await update.message.reply_text("Patrão, não consegui extrair texto desse PDF. Pode ser que seja um PDF de imagem (escaneado).")
+            return
+
+        caption = (update.message.caption or "").strip()
+        instrucao = caption if caption else "Analise este documento e me dê um resumo estratégico dos pontos mais importantes."
+
+        prompt_usuario = f"INSTRUÇÃO DO PATRÃO: {instrucao}\n\nCONTEÚDO DO PDF:\n{texto_pdf[:12000]}"
+        await update.message.reply_text(f"📄 PDF recebido ({len(texto_pdf)} caracteres). Analisando...")
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+
+        resposta = chamar_claude(PROMPT_ANALISTA, prompt_usuario, max_tokens=2000)
+
+        # Se o usuário pediu PDF como resposta
+        if _PDF_WRITE and any(w in instrucao.lower() for w in ["pdf", "documento", "relatório", "relatorio", "formata"]):
+            pdf_path = _gerar_pdf(f"Análise — {doc.file_name}", resposta)
+            await update.message.reply_document(document=open(pdf_path, "rb"), filename="Jake_Analise.pdf")
+            os.unlink(pdf_path)
+        else:
+            if len(resposta) <= 4096:
+                await update.message.reply_text(resposta)
+            else:
+                for i in range(0, len(resposta), 4000):
+                    await update.message.reply_text(resposta[i:i+4000])
+
+    except Exception as e:
+        await update.message.reply_text(f"Deu ruim ao processar o PDF, Patrão: {e}")
+
+
+async def cmd_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gera um PDF com o conteúdo passado como argumento."""
+    if not _so_autorizado(update):
+        return
+    if not _PDF_WRITE:
+        await update.message.reply_text("Patrão, a biblioteca de geração de PDF não está disponível.")
+        return
+    texto = (" ".join(context.args or [])).strip()
+    if not texto:
+        await update.message.reply_text(
+            "Patrão, me manda o conteúdo que quer transformar em PDF.\n"
+            "Ex: /pdf Relatório semanal da conta X\n\n"
+            "Ou manda qualquer texto e diz 'gera em PDF' que eu faço."
+        )
+        return
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    resposta = chamar_claude(PROMPT_ANALISTA, f"Formate e estruture o seguinte conteúdo de forma profissional para um documento PDF:\n\n{texto}", max_tokens=2000)
+    pdf_path = _gerar_pdf("Documento — Jake IA", resposta)
+    await update.message.reply_document(document=open(pdf_path, "rb"), filename="Jake_Documento.pdf")
+    os.unlink(pdf_path)
+
+
+def main():
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("relatorio", cmd_relatorio))
+    app.add_handler(CommandHandler("criar_campanha", cmd_criar_campanha))
+    app.add_handler(CommandHandler("clientes", handle_clientes))
+    app.add_handler(CommandHandler("lancamento", cmd_lancamento))
+    app.add_handler(CommandHandler("copy", cmd_copy))
+    app.add_handler(CommandHandler("subir", cmd_subir))
+    app.add_handler(CommandHandler("pdf", cmd_pdf))
+    app.add_handler(MessageHandler(filters.Document.PDF, handle_document))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+    print(
+        "Jake IA (múltiplos agentes) online! 🧠🚀"
+        + (" Áudio: Whisper ativo." if openai_client else "")
+    )
+    # drop_pending_updates=True evita que, ao reiniciar o bot,
+    # ele responda em massa mensagens antigas/pendentes.
+    app.run_polling(drop_pending_updates=True)
+
+
+if __name__ == "__main__":
+    main()

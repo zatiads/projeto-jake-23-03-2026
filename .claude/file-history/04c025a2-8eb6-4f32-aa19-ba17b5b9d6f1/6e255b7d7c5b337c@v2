@@ -1,0 +1,21 @@
+---
+tags: [outputs, índice, gerado]
+---
+# Outputs — Gerados pelo Jake OS
+
+Arquivos criados automaticamente pelo [[brain-py]] ao usar os módulos do Jake OS.
+
+## Criativos
+Prompts expandidos e imagens geradas pelo [[Módulo Criativos]].
+→ Pasta: `Outputs/Criativos/`
+
+## Carrosséis
+Roteiros gerados pelo [[Módulo Carrossel]].
+→ Pasta: `Outputs/Carrossel/`
+
+## Sobre
+Estes arquivos são gerados automaticamente — não editar manualmente.
+Sincronizados via Git a cada 5min junto com o vault.
+
+## Links
+[[brain-py]] | [[Módulo Criativos]] | [[Módulo Carrossel]] | [[jake-brain]]

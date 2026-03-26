@@ -1,0 +1,737 @@
+Prompt de Implementação — Seção "Agenda" no Jake OS
+Implemente a seção **Agenda** no Jake OS. Siga rigorosamente o padrão arquitetural e visual do projeto.
+
+---
+
+## 1. CONTEXTO DO PROJETO
+
+**Backend:** Flask monolítico em `app.py`, autenticação por sessão, rotas com prefixo `/api/agenda/`
+**Frontend:** SPA com `dashboard.html`, roteamento por hash, JS modular em `static/js/`
+**Banco:** Neon (PostgreSQL) via `core/db.py`
+**Visual obrigatório:**
+- Background: `#050810`, cards: `rgba(10,18,32,.85)` com glassmorphism
+- Primária: `#00e5ff` (cyan neon), Verde: `#69f0ae`, Vermelho: `#ff5252`, Dourado: `#ffd740`
+- Fontes: Rajdhani (títulos h1-h3), Montserrat (corpo)
+- Scrollbar customizada neon, sem dependências externas (apenas emojis/unicode)
+
+---
+
+## 2. O QUE CONSTRUIR
+
+### Visão geral
+Uma seção completa de gestão de tempo pessoal com calendário visual, gestão de rotinas fixas e tarefas avulsas. Deve cobrir as visões **Dia**, **Semana** e **Mês**.
+
+---
+
+## 3. BANCO DE DADOS — Neon (PostgreSQL)
+
+Crie as tabelas via `core/db.py` ou migration inline no `app.py` na primeira execução:
+```sql
+-- Tarefas avulsas e eventos pontuais
+CREATE TABLE IF NOT EXISTS agenda_tarefas (
+    id SERIAL PRIMARY KEY,
+    titulo VARCHAR(200) NOT NULL,
+    descricao TEXT,
+    categoria VARCHAR(50) NOT NULL DEFAULT 'geral',
+    -- categorias: trabalho | pessoal | academia | casa | financeiro | viagem | saude | lazer
+    data DATE NOT NULL,
+    hora_inicio TIME,
+    hora_fim TIME,
+    concluida BOOLEAN DEFAULT FALSE,
+    prioridade VARCHAR(20) DEFAULT 'media', -- baixa | media | alta | urgente
+    criado_em TIMESTAMP DEFAULT NOW()
+);
+
+-- Rotinas fixas com recorrência
+CREATE TABLE IF NOT EXISTS agenda_rotinas (
+    id SERIAL PRIMARY KEY,
+    titulo VARCHAR(200) NOT NULL,
+    categoria VARCHAR(50) NOT NULL DEFAULT 'geral',
+    hora_inicio TIME NOT NULL,
+    hora_fim TIME,
+    dias_semana VARCHAR(20) NOT NULL,
+    -- formato: "1,3,5" (seg=1, ter=2, qua=3, qui=4, sex=5, sab=6, dom=7)
+    ativa BOOLEAN DEFAULT TRUE,
+    cor VARCHAR(7) DEFAULT '#00e5ff',
+    criado_em TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## 4. BACKEND — `app.py`
+
+Adicione as seguintes rotas Flask (todas protegidas por `@login_required`):
+```python
+# TAREFAS
+GET  /api/agenda/tarefas?data=YYYY-MM-DD          → tarefas do dia
+GET  /api/agenda/tarefas?mes=YYYY-MM              → tarefas do mês inteiro
+POST /api/agenda/tarefas                           → criar tarefa
+PUT  /api/agenda/tarefas/<id>                      → editar tarefa
+DELETE /api/agenda/tarefas/<id>                    → deletar tarefa
+PATCH /api/agenda/tarefas/<id>/concluir            → toggle concluída
+
+# ROTINAS
+GET  /api/agenda/rotinas                           → listar todas rotinas ativas
+POST /api/agenda/rotinas                           → criar rotina
+PUT  /api/agenda/rotinas/<id>                      → editar rotina
+DELETE /api/agenda/rotinas/<id>                    → deletar/desativar rotina
+
+# AGENDA COMBINADA — retorna rotinas + tarefas de uma semana
+GET  /api/agenda/semana?inicio=YYYY-MM-DD          → dados da semana (7 dias a partir da data)
+```
+
+Todos os endpoints retornam JSON `{"success": true, "data": [...]}` ou `{"success": false, "error": "..."}`.
+
+---
+
+## 5. FRONTEND — `static/js/agenda.js`
+
+### Estado global
+```javascript
+const AgendaState = {
+  view: 'semana',       // 'dia' | 'semana' | 'mes'
+  dataAtual: new Date(),
+  tarefas: [],
+  rotinas: [],
+  modalAberto: false
+}
+```
+
+### Funções obrigatórias
+- `initAgenda()` — inicializa a seção, carrega dados
+- `renderCalendarioMes(ano, mes)` — grid 7×6 com dias do mês
+- `renderSemana(dataInicio)` — grid 7 colunas com blocos de horário (06h–23h)
+- `renderDia(data)` — timeline vertical do dia com horários
+- `abrirModalTarefa(data, hora)` — modal para criar/editar tarefa
+- `abrirModalRotina()` — modal para criar/editar rotina
+- `toggleConcluida(id)` — marca tarefa como feita (sem reload)
+- `navegarPeriodo(direcao)` — anterior/próximo (−1 ou +1)
+- `getCorCategoria(categoria)` — retorna cor hex por categoria
+
+### Cores por categoria (hardcoded no JS)
+```javascript
+const CORES_CATEGORIA = {
+  trabalho:   '#00e5ff',  // cyan
+  pessoal:    '#ffd740',  // dourado
+  academia:   '#69f0ae',  // verde
+  casa:       '#ce93d8',  // lilás
+  financeiro: '#ff9800',  // laranja
+  viagem:     '#4fc3f7',  // azul claro
+  saude:      '#ff5252',  // vermelho
+  lazer:      '#f48fb1',  // rosa
+  geral:      '#90a4ae'   // cinza azulado
+}
+```
+
+---
+
+## 6. FRONTEND — HTML (`dashboard.html`)
+
+### Menu lateral — adicionar item
+```html
+<li class="menu-item" onclick="navigateTo('agenda')">
+  📅 Agenda
+</li>
+```
+
+### Nova página
+```html
+<div class="page" id="page-agenda">
+
+  <!-- HEADER DA SEÇÃO -->
+  <div class="agenda-header">
+    <h1 class="section-title">📅 Agenda</h1>
+    <div class="agenda-controles">
+      <!-- Toggle de visualização -->
+      <div class="view-toggle">
+        <button class="btn-view active" data-view="dia">Dia</button>
+        <button class="btn-view" data-view="semana">Semana</button>
+        <button class="btn-view" data-view="mes">Mês</button>
+      </div>
+      <!-- Navegação de período -->
+      <div class="periodo-nav">
+        <button onclick="navegarPeriodo(-1)">◀</button>
+        <span id="agenda-periodo-label">Março 2026</span>
+        <button onclick="navegarPeriodo(1)">▶</button>
+        <button onclick="irParaHoje()">Hoje</button>
+      </div>
+      <!-- Ações rápidas -->
+      <div class="agenda-acoes">
+        <button class="btn-neon" onclick="abrirModalTarefa()">+ Tarefa</button>
+        <button class="btn-outline" onclick="abrirModalRotina()">🔁 Rotina</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ÁREA DO CALENDÁRIO (renderizada por JS) -->
+  <div id="agenda-calendario-container">
+    <!-- Injetado dinamicamente -->
+  </div>
+
+  <!-- PANEL LATERAL — Tarefas do dia selecionado (visível em visão mês) -->
+  <div id="agenda-day-panel" class="agenda-day-panel hidden">
+    <h3 id="agenda-day-panel-title"></h3>
+    <div id="agenda-day-panel-lista"></div>
+  </div>
+
+  <!-- MODAL TAREFA -->
+  <div id="modal-tarefa" class="modal hidden">
+    <div class="modal-box">
+      <h2>Nova Tarefa</h2>
+      <input type="text" id="tarefa-titulo" placeholder="Título da tarefa" />
+      <textarea id="tarefa-descricao" placeholder="Descrição (opcional)"></textarea>
+      <div class="form-row">
+        <select id="tarefa-categoria">
+          <option value="trabalho">💼 Trabalho</option>
+          <option value="pessoal">⭐ Pessoal</option>
+          <option value="academia">💪 Academia</option>
+          <option value="casa">🏠 Casa</option>
+          <option value="financeiro">💰 Financeiro</option>
+          <option value="viagem">✈️ Viagem</option>
+          <option value="saude">❤️ Saúde</option>
+          <option value="lazer">🎮 Lazer</option>
+        </select>
+        <select id="tarefa-prioridade">
+          <option value="baixa">🟢 Baixa</option>
+          <option value="media" selected>🟡 Média</option>
+          <option value="alta">🔴 Alta</option>
+          <option value="urgente">🚨 Urgente</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <input type="date" id="tarefa-data" />
+        <input type="time" id="tarefa-hora-inicio" placeholder="Início" />
+        <input type="time" id="tarefa-hora-fim" placeholder="Fim" />
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-neon" onclick="salvarTarefa()">Salvar</button>
+        <button class="btn-outline" onclick="fecharModal('modal-tarefa')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ROTINA -->
+  <div id="modal-rotina" class="modal hidden">
+    <div class="modal-box">
+      <h2>Nova Rotina</h2>
+      <input type="text" id="rotina-titulo" placeholder="Ex: Academia, Reunião semanal..." />
+      <select id="rotina-categoria">
+        <!-- mesmas opções do modal de tarefa -->
+      </select>
+      <div class="form-row">
+        <input type="time" id="rotina-hora-inicio" placeholder="Início" />
+        <input type="time" id="rotina-hora-fim" placeholder="Fim" />
+      </div>
+      <!-- Seleção de dias da semana -->
+      <div class="dias-semana-selector">
+        <span class="dia-btn" data-dia="1">Seg</span>
+        <span class="dia-btn" data-dia="2">Ter</span>
+        <span class="dia-btn" data-dia="3">Qua</span>
+        <span class="dia-btn" data-dia="4">Qui</span>
+        <span class="dia-btn" data-dia="5">Sex</span>
+        <span class="dia-btn" data-dia="6">Sáb</span>
+        <span class="dia-btn" data-dia="7">Dom</span>
+      </div>
+      <div class="modal-acoes">
+        <button class="btn-neon" onclick="salvarRotina()">Salvar</button>
+        <button class="btn-outline" onclick="fecharModal('modal-rotina')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+```
+
+---
+
+## 7. CSS — estilos da seção Agenda
+
+Adicionar inline no `dashboard.html` dentro do `<style>` existente ou num bloco separado:
+```css
+/* ===== AGENDA ===== */
+.agenda-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.agenda-controles {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.view-toggle {
+  display: flex;
+  background: rgba(0,229,255,0.05);
+  border: 1px solid rgba(0,229,255,0.2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.btn-view {
+  background: none;
+  border: none;
+  color: #90a4ae;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.btn-view.active, .btn-view:hover {
+  background: rgba(0,229,255,0.15);
+  color: #00e5ff;
+}
+.periodo-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Rajdhani', sans-serif;
+  color: #00e5ff;
+}
+.periodo-nav button {
+  background: rgba(0,229,255,0.1);
+  border: 1px solid rgba(0,229,255,0.25);
+  color: #00e5ff;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.periodo-nav button:hover { background: rgba(0,229,255,0.2); }
+#agenda-periodo-label {
+  min-width: 160px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* CALENDÁRIO MÊS */
+.cal-mes-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.cal-mes-header-dia {
+  text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  color: #00e5ff;
+  padding: 6px 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.cal-dia-cell {
+  background: rgba(10,18,32,.85);
+  border: 1px solid rgba(0,229,255,0.1);
+  border-radius: 8px;
+  min-height: 90px;
+  padding: 6px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+}
+.cal-dia-cell:hover { border-color: rgba(0,229,255,0.4); background: rgba(0,229,255,0.05); }
+.cal-dia-cell.hoje { border-color: #00e5ff; box-shadow: 0 0 8px rgba(0,229,255,0.25); }
+.cal-dia-cell.outro-mes { opacity: 0.35; }
+.cal-dia-num {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #cfd8dc;
+  margin-bottom: 4px;
+}
+.cal-dia-cell.hoje .cal-dia-num {
+  color: #00e5ff;
+}
+.cal-evento-pill {
+  font-size: 10px;
+  font-family: 'Montserrat', sans-serif;
+  border-radius: 4px;
+  padding: 2px 5px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #050810;
+  font-weight: 600;
+}
+.cal-mais-eventos {
+  font-size: 10px;
+  color: #90a4ae;
+  padding: 1px 0;
+}
+
+/* CALENDÁRIO SEMANA */
+.cal-semana-wrapper {
+  display: flex;
+  gap: 0;
+  border: 1px solid rgba(0,229,255,0.15);
+  border-radiusna-hora-label {
+  height: 60px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  font-size: 10px;
+  color: #546e7a;
+  font-family: 'Montserrat', sans-serif;
+  padding-top: 4px;
+}
+.cal-semana-colunas {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.cal-semana-col {
+  border-right: 1px solid rgba(0,229,255,0.07);
+  position: relative;
+}
+.cal-semana-col:last-child { border-right: none; }
+.cal-semana-col-header {
+  height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid rgba(0,229,255,0.15);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  color: #90a4ae;
+  position: sticky;
+  top: 0;
+  background: rgba(10,18,32,.95);
+  z-index: 5;
+}
+.cal-semana-col-header.hoje { color: #00e5ff; }
+.cal-semana-col-header .dia-num {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+.cal-hora-slot {
+  height: 60px;
+  border-bottom: 1px solid rgba(0,229,255,0.05);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cal-hora-slot:hover { background: rgba(0,229,255,0.04); }
+.cal-hora-slot.meia-hora { border-bottom-style: dashed; }
+.cal-bloco-evento {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  border-radius: 5px;
+  padding: 3px 5px;
+  font-size: 10px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  color: #050810;
+  overflow: hidden;
+  cursor: pointer;
+  z-index: 2;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  transition: filter 0.15s;
+}
+.cal-bloco-evento:hover { filter: brightness(1.15); }
+.cal-bloco-evento.rotina { opacity: 0.75; border-left: 3px solid rgba(0,0,0,0.3); }
+
+/* CALENDÁRIO DIA */
+.cal-dia-wrapper {
+  display: flex;
+  gap: 0;
+  border: 1px solid rgba(0,229,255,0.15);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(10,18,32,.85);
+  max-width: 700px;
+  margin: 0 auto;
+}
+.cal-dia-timeline {
+  flex: 1;
+  position: relative;
+}
+.cal-dia-hora-row {
+  height: 64px;
+  display: flex;
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(0,229,255,0.06);
+  position: relative;
+}
+.cal-dia-hora-label {
+  width: 52px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #546e7a;
+  font-family: 'Montserrat', sans-serif;
+  padding: 4px 8px 0;
+}
+.cal-dia-slot {
+  flex: 1;
+  height: 100%;
+  border-left: 1px solid rgba(0,229,255,0.07);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s;
+}
+.cal-dia-slot:hover { background: rgba(0,229,255,0.04); }
+.cal-linha-agora {
+  position: absolute;
+  left: 52px;
+  right: 0;
+  height: 2px;
+  background: #ff5252;
+  z-index: 10;
+  box-shadow: 0 0 6px rgba(255,82,82,0.6);
+}
+.cal-linha-agora::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  background: #ff5252;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(255,82,82,0.8);
+}
+
+/* PANEL LATERAL TAREFAS DO DIA */
+.agenda-day-panel {
+  background: rgba(10,18,32,.9);
+  border: 1px solid rgba(0,229,255,0.15);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+}
+.agenda-day-panel h3 {
+  font-family: 'Rajdhani', sans-serif;
+  color: #00e5ff;
+  margin: 0 0 12px;
+}
+
+/* ITEM DE TAREFA */
+.tarefa-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(0,229,255,0.04);
+  border: 1px solid rgba(0,229,255,0.1);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  transition: border-color 0.2s;
+}
+.tarefa-item:hover { border-color: rgba(0,229,255,0.3); }
+.tarefa-item.concluida { opacity: 0.45; }
+.tarefa-item.concluida .tarefa-titulo { text-decoration: line-through; }
+.tarefa-check {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid rgba(0,229,255,0.4);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  font-size: 11px;
+}
+.tarefa-check.checked {
+  background: #00e5ff;
+  border-color: #00e5ff;
+  color: #050810;
+}
+.tarefa-info { flex: 1; min-width: 0; }
+.tarefa-titulo { font-family: 'Montserrat', sans-serif; font-size: 13px; color: #eceff1; }
+.tarefa-meta { font-size: 11px; color: #546e7a; margin-top: 2px; }
+.tarefa-cat-badge {
+  font-size: 10px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 2px 7px;
+  color: #050810;
+  flex-shrink: 0;
+}
+.tarefa-prioridade-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.prioridade-baixa   { background: #69f0ae; }
+.prioridade-media   { background: #ffd740; }
+.prioridade-alta    { background: #ff9800; }
+.prioridade-urgente { background: #ff5252; box-shadow: 0 0 6px rgba(255,82,82,0.6); }
+.tarefa-delete {
+  color: #ff5252;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  padding: 0 4px;
+}
+.tarefa-item:hover .tarefa-delete { opacity: 1; }
+
+/* DIAS DA SEMANA SELECTOR (modal rotina) */
+.dias-semana-selector {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.dia-btn {
+  padding: 6px 12px;
+  border: 1px solid rgba(0,229,255,0.2);
+  border-radius: 6px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  color: #90a4ae;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+.dia-btn.ativo {
+  background: rgba(0,229,255,0.15);
+  border-color: #00e5ff;
+  color: #00e5ff;
+}
+
+/* MODAL */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(5,8,16,0.8);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal.hidden { display: none; }
+.modal-box {
+  background: rgba(10,18,32,.97);
+  border: 1px solid rgba(0,229,255,0.3);
+  border-radius: 16px;
+  padding: 28px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 0 40px rgba(0,229,255,0.1);
+}
+.modal-box h2 {
+  font-family: 'Rajdhani', sans-serif;
+  color: #00e5ff;
+  font-size: 20px;
+  margin: 0 0 20px;
+}
+.modal-box input, .modal-box select, .modal-box textarea {
+  width: 100%;
+  background: rgba(0,229,255,0.05);
+  border: 1px solid rgba(0,229,255,0.2);
+  border-radius: 8px;
+  color: #eceff1;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.modal-box input:focus, .modal-box select:focus, .modal-box textarea:focus {
+  outline: none;
+  border-color: #00e5ff;
+}
+.modal-box textarea { min-height: 70px; resize: vertical; }
+.form-row {
+  display: flex;
+  gap: 10px;
+}
+.form-row input, .form-row select { flex: 1; }
+.modal-acoes {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+```
+
+---
+
+## 8. `app.js` — adicionar ao router
+```javascript
+'agenda': () => initAgenda(),
+```
+
+---
+
+## 9. COMPORTAMENTOS DETALHADOS
+
+### Visão Mês
+- Grid 7 colunas × 6 linhas com dias do mês atual + dias do mês anterior/seguinte (acinzentados)
+- Dia de hoje destacado com borda cyan + glow
+- Cada célula mostra até **3 eventos** como pills coloridas (cor da categoria)
+- Se houver mais de 3: mostrar "+N mais" clicável
+- Clicar num dia abre o **Day Panel** abaixo do calendário com a lista de tarefas daquele dia
+- Clicar num dia vazio abre o modal de nova tarefa com a data pré-preenchida
+
+### Visão Semana
+- 7 colunas (seg–dom) com header mostrando dia e data
+- Timeline de **06h às 23h** (17 horas) com slots de 60px cada
+- Rotinas aparecem automaticamente nos dias corretos com opacidade reduzida e borda esquerda para diferenciá-las
+- Tarefas com horário aparecem como blocos posicionados por `top` e `height` calculados a partir de `hora_inicio` e `hora_fim`
+- Tarefas sem horário aparecem no topo da coluna como pills pequenas
+- Clicar num slot vazio abre modal de nova tarefa com data e hora pré-preenchidas
+- Clicar num bloco existente abre modal de edição
+
+### Visão Dia
+- Timeline vertical única de 06h às 23h com mais espaço
+- **Linha vermelha** com bolinha indicando o horário atual (atualiza a cada minuto via `setInterval`)
+- Rotinas e tarefas posicionadas na timeline
+- Clique em slot vazio → modal nova tarefa
+
+### Modal de Tarefa
+- Campos: título (obrigatório), descrição, categoria, prioridade, data (pré-preenchida), hora início, hora fim
+- Botão "Salvar" chama `POST /api/agenda/tarefas` e re-renderiza a view atual sem reload
+- Se `id` estiver presente no estado do modal → chama `PUT /api/agenda/tarefas/<id>`
+- Tecla Escape fecha o modal
+
+### Modal de Rotina
+- Campos: título, categoria, hora início, hora fim, dias da semana (seleção múltipla via `.dia-btn`)
+- Salvar chama `POST /api/agenda/rotinas`
+
+### Persistência e atualização
+- Ao salvar tarefa ou rotina: recarregar apenas os dados necessários (não reload completo)
+- Rotinas são carregadas uma vez no `initAgenda()` e aplicadas a cada render de semana/dia
+- Tarefas são carregadas por data/período a cada mudança de view ou navegação
+
+---
+
+## 10. INTEGRAÇÕES FUTURAS (não implementar agora, só deixar comentários no código)
+```javascript
+// TODO: Notificação Telegram quando tarefa iniciar (integrar com jake_telegram.py)
+// TODO: Análise IA da semana — Claude analisa padrões e sugere otimizações
+// TODO: Importar compromissos do Google Calendar via API
+// TODO: Estatísticas de produtividade (tarefas concluídas vs criadas por semana)
+```
+
+---
+
+## CHECKLIST FINAL
+
+- [ ] Tabelas criadas no Neon na primeira execução
+- [ ] Todas as rotas `/api/agenda/` protegidas por login
+- [ ] Hash `#agenda` adicionado ao router em `app.js`
+- [ ] `initAgenda()` chamado corretamente ao navegar para a seção
+- [ ] Visões Dia, Semana e Mês funcionando com navegação
+- [ ] Linha do horário atual na visão Dia (atualiza a cada minuto)
+- [ ] Rotinas renderizadas automaticamente nos dias corretos
+- [ ] Modais de tarefa e rotinaoad
+- [ ] CSS 100% alinhado com tema Jake OS (glassmorphism, cyan, Rajdhani/Montserrat)
+- [ ] Sem dependências externas além das já usadas no projeto
+
+É esse prompt. Cobre tudo: banco, rotas, estado JS, HTML semântico, CSS pixel a pixel no tema Jake OS, todos os comportamentos das 3 visões, modais, rotinas fixas, linha do agora — e ainda deixa os TODOs pra integrações futuras. É só jogar no Claude Code e rodar.

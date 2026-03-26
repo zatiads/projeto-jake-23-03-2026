@@ -1,0 +1,29 @@
+# Jake OS — Arquitetura
+
+**Stack:** Python/Flask, Neon PostgreSQL, Vanilla JS (IIFE), CSS Glassmorphism
+**Porta:** 5050
+**Auth:** admin@jakeos.local / Jake@2024!
+
+## Módulos
+- Carrossel Instagram (Claude sonnet-4-5)
+- Copy de Anúncios (Claude sonnet-4-6)
+- Relatórios Meta Ads (Graph API v21.0)
+- Fábrica de Criativos v2 (Replicate + Claude)
+- Arquiteto de Sites (Claude sonnet-4-5)
+- Finanças Pessoais (Claude sonnet-4-5)
+- Geração de Prompts (Claude sonnet-4-5)
+
+## Arquivos principais
+- `app.py` — ~1900 linhas, todas as rotas
+- `templates/dashboard.html` — SPA shell
+- `static/js/` — módulos IIFE por feature
+
+## Links Relacionados
+- [[App-Rotas]] — detalhes de cada rota e módulo
+- [[Frontend]] — dashboard HTML e JS
+- [[banco-de-dados]]
+- [[jake-principal]]
+- [[vps-scripts]]
+- [[api-rest]] — padrões de rotas e respostas JSON
+- [[webhook]] — mecanismo usado pelos bots Telegram
+- [[IA/README]] — modelos de IA integrados

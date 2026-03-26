@@ -1,0 +1,27 @@
+# Ambientes virtuais
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Variáveis de ambiente
+.env
+.env.*
+
+# Uploads gerados
+static/uploads/architect/
+
+# Logs e tunelamento
+tunnel.log
+tunnel_url.txt
+
+# IDEs
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db

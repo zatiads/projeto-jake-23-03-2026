@@ -1,0 +1,9 @@
+{
+  "id": "6",
+  "subject": "Task 1: Rota GET /api/performance/saldo",
+  "description": "Criar test_performance_api.py com fixture padrão e testes da rota de saldo. Implementar rota no app.py com cache 30min e alerta < R$150.",
+  "activeForm": "Implementando rota de saldo",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

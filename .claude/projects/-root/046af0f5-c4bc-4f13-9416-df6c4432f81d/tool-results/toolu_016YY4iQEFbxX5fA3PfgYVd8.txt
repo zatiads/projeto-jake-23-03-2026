@@ -1,0 +1,1368 @@
+     1→<!DOCTYPE html>
+     2→<html lang="pt-BR">
+     3→<head>
+     4→  <meta charset="UTF-8" />
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+     6→  <title>Clínica Aline Filgueiras</title>
+     7→  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+     8→  <style>
+     9→
+    10→    /* ============================================
+    11→       VARIÁVEIS — edite aqui para mudar as cores
+    12→    ============================================ */
+    13→    :root {
+    14→      --cor-primaria: #c9a97a;        /* dourado/rose gold */
+    15→      --cor-primaria-escura: #a8875a;
+    16→      --cor-texto: #3a3a3a;
+    17→      --cor-texto-claro: #7a7a7a;
+    18→      --cor-fundo: #fdfaf7;
+    19→      --cor-fundo-secao: #f9f3ee;
+    20→      --cor-branco: #ffffff;
+    21→      --cor-rosa-claro: #f5ede4;
+    22→      --fonte-titulo: 'Cormorant Garamond', serif;
+    23→      --fonte-corpo: 'Jost', sans-serif;
+    24→    }
+    25→
+    26→    /* ============================================
+    27→       RESET & BASE
+    28→    ============================================ */
+    29→    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    30→    html { scroll-behavior: smooth; }
+    31→    body {
+    32→      font-family: var(--fonte-corpo);
+    33→      color: var(--cor-texto);
+    34→      background: var(--cor-fundo);
+    35→      font-size: 16px;
+    36→      line-height: 1.7;
+    37→    }
+    38→    img { max-width: 100%; display: block; }
+    39→    a { text-decoration: none; color: inherit; }
+    40→    ul { list-style: none; }
+    41→
+    42→    /* ============================================
+    43→       UTILITÁRIOS
+    44→    ============================================ */
+    45→    .container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+    46→    .section-tag {
+    47→      font-family: var(--fonte-corpo);
+    48→      font-size: 11px;
+    49→      font-weight: 500;
+    50→      letter-spacing: 3px;
+    51→      text-transform: uppercase;
+    52→      color: var(--cor-primaria);
+    53→      display: block;
+    54→      margin-bottom: 12px;
+    55→    }
+    56→    .section-title {
+    57→      font-family: var(--fonte-titulo);
+    58→      font-size: clamp(2rem, 4vw, 3rem);
+    59→      font-weight: 300;
+    60→      line-height: 1.2;
+    61→      color: var(--cor-texto);
+    62→    }
+    63→    .section-title em {
+    64→      font-style: italic;
+    65→      color: var(--cor-primaria);
+    66→    }
+    67→    .btn {
+    68→      display: inline-block;
+    69→      padding: 14px 36px;
+    70→      font-family: var(--fonte-corpo);
+    71→      font-size: 12px;
+    72→      font-weight: 500;
+    73→      letter-spacing: 2px;
+    74→      text-transform: uppercase;
+    75→      border: 1.5px solid var(--cor-primaria);
+    76→      color: var(--cor-primaria);
+    77→      transition: all 0.3s ease;
+    78→      cursor: pointer;
+    79→    }
+    80→    .btn:hover {
+    81→      background: var(--cor-primaria);
+    82→      color: var(--cor-branco);
+    83→    }
+    84→    .btn-filled {
+    85→      background: var(--cor-primaria);
+    86→      color: var(--cor-branco);
+    87→    }
+    88→    .btn-filled:hover {
+    89→      background: var(--cor-primaria-escura);
+    90→      border-color: var(--cor-primaria-escura);
+    91→    }
+    92→    .divider {
+    93→      width: 50px;
+    94→      height: 1.5px;
+    95→      background: var(--cor-primaria);
+    96→      margin: 20px 0;
+    97→    }
+    98→
+    99→    /* ============================================
+   100→       HEADER / NAVEGAÇÃO
+   101→    ============================================ */
+   102→    .header {
+   103→      position: fixed;
+   104→      top: 0; left: 0; right: 0;
+   105→      z-index: 1000;
+   106→      background: rgba(253, 250, 247, 0.95);
+   107→      backdrop-filter: blur(8px);
+   108→      border-bottom: 1px solid rgba(201,169,122,0.2);
+   109→      transition: box-shadow 0.3s;
+   110→    }
+   111→    .header.scrolled { box-shadow: 0 2px 20px rgba(0,0,0,0.06); }
+   112→    .header-inner {
+   113→      display: flex;
+   114→      align-items: center;
+   115→      justify-content: space-between;
+   116→      height: 80px;
+   117→    }
+   118→    .logo {
+   119→      font-family: var(--fonte-titulo);
+   120→      font-size: 1.6rem;
+   121→      font-weight: 300;
+   122→      letter-spacing: 1px;
+   123→      color: var(--cor-texto);
+   124→    }
+   125→    .logo span { color: var(--cor-primaria); }
+   126→    /* Substitua o texto do logo por uma tag <img> com seu logo real */
+   127→
+   128→    .nav { display: flex; align-items: center; gap: 36px; }
+   129→    .nav a {
+   130→      font-size: 12px;
+   131→      font-weight: 500;
+   132→      letter-spacing: 1.5px;
+   133→      text-transform: uppercase;
+   134→      color: var(--cor-texto);
+   135→      position: relative;
+   136→      transition: color 0.2s;
+   137→    }
+   138→    .nav a::after {
+   139→      content: '';
+   140→      position: absolute;
+   141→      bottom: -4px; left: 0;
+   142→      width: 0; height: 1px;
+   143→      background: var(--cor-primaria);
+   144→      transition: width 0.3s;
+   145→    }
+   146→    .nav a:hover { color: var(--cor-primaria); }
+   147→    .nav a:hover::after { width: 100%; }
+   148→
+   149→    /* Dropdown procedimentos */
+   150→    .nav-dropdown { position: relative; }
+   151→    .nav-dropdown > a::after { display: none; }
+   152→    .dropdown-menu {
+   153→      position: absolute;
+   154→      top: calc(100% + 20px);
+   155→      left: -20px;
+   156→      background: var(--cor-branco);
+   157→      border: 1px solid rgba(201,169,122,0.2);
+   158→      box-shadow: 0 8px 40px rgba(0,0,0,0.08);
+   159→      min-width: 260px;
+   160→      opacity: 0;
+   161→      visibility: hidden;
+   162→      transform: translateY(-8px);
+   163→      transition: all 0.25s ease;
+   164→      z-index: 999;
+   165→    }
+   166→    .nav-dropdown:hover .dropdown-menu {
+   167→      opacity: 1;
+   168→      visibility: visible;
+   169→      transform: translateY(0);
+   170→    }
+   171→    .dropdown-col { padding: 24px; }
+   172→    .dropdown-col h4 {
+   173→      font-family: var(--fonte-corpo);
+   174→      font-size: 10px;
+   175→      font-weight: 600;
+   176→      letter-spacing: 2px;
+   177→      text-transform: uppercase;
+   178→      color: var(--cor-primaria);
+   179→      margin-bottom: 12px;
+   180→    }
+   181→    .dropdown-col a {
+   182→      display: block;
+   183→      font-size: 13px;
+   184→      letter-spacing: 0;
+   185→      text-transform: none;
+   186→      font-weight: 300;
+   187→      padding: 5px 0;
+   188→      color: var(--cor-texto);
+   189→      border-bottom: none;
+   190→      transition: color 0.2s, padding-left 0.2s;
+   191→    }
+   192→    .dropdown-col a:hover { color: var(--cor-primaria); padding-left: 6px; }
+   193→    .dropdown-col a::after { display: none !important; }
+   194→
+   195→    .nav-cta {
+   196→      font-size: 11px;
+   197→      font-weight: 500;
+   198→      letter-spacing: 2px;
+   199→      text-transform: uppercase;
+   200→      padding: 10px 22px;
+   201→      background: var(--cor-primaria);
+   202→      color: var(--cor-branco) !important;
+   203→      transition: background 0.3s !important;
+   204→    }
+   205→    .nav-cta:hover { background: var(--cor-primaria-escura) !important; color: var(--cor-branco) !important; }
+   206→    .nav-cta::after { display: none !important; }
+   207→
+   208→    /* Menu Mobile */
+   209→    .menu-toggle {
+   210→      display: none;
+   211→      flex-direction: column;
+   212→      gap: 5px;
+   213→      cursor: pointer;
+   214→      padding: 4px;
+   215→    }
+   216→    .menu-toggle span {
+   217→      display: block;
+   218→      width: 24px;
+   219→      height: 1.5px;
+   220→      background: var(--cor-texto);
+   221→      transition: all 0.3s;
+   222→    }
+   223→
+   224→    /* ============================================
+   225→       HERO BANNER
+   226→    ============================================ */
+   227→    .hero {
+   228→      min-height: 100vh;
+   229→      display: flex;
+   230→      align-items: center;
+   231→      position: relative;
+   232→      overflow: hidden;
+   233→      background: linear-gradient(135deg, #fdf8f3 0%, #f9f0e6 50%, #f5e8d8 100%);
+   234→      padding-top: 80px;
+   235→    }
+   236→    .hero::before {
+   237→      content: '';
+   238→      position: absolute;
+   239→      top: -100px; right: -100px;
+   240→      width: 600px; height: 600px;
+   241→      border-radius: 50%;
+   242→      background: radial-gradient(circle, rgba(201,169,122,0.12) 0%, transparent 70%);
+   243→      pointer-events: none;
+   244→    }
+   245→    .hero-inner {
+   246→      display: grid;
+   247→      grid-template-columns: 1fr 1fr;
+   248→      align-items: center;
+   249→      gap: 60px;
+   250→      min-height: calc(100vh - 80px);
+   251→    }
+   252→    .hero-content { padding: 80px 0; }
+   253→    .hero-eyebrow {
+   254→      font-size: 11px;
+   255→      font-weight: 500;
+   256→      letter-spacing: 4px;
+   257→      text-transform: uppercase;
+   258→      color: var(--cor-primaria);
+   259→      margin-bottom: 24px;
+   260→      display: flex;
+   261→      align-items: center;
+   262→      gap: 12px;
+   263→    }
+   264→    .hero-eyebrow::before {
+   265→      content: '';
+   266→      width: 40px;
+   267→      height: 1px;
+   268→      background: var(--cor-primaria);
+   269→    }
+   270→    .hero-title {
+   271→      font-family: var(--fonte-titulo);
+   272→      font-size: clamp(3rem, 6vw, 5.5rem);
+   273→      font-weight: 300;
+   274→      line-height: 1.1;
+   275→      margin-bottom: 24px;
+   276→      color: var(--cor-texto);
+   277→    }
+   278→    .hero-title em {
+   279→      font-style: italic;
+   280→      color: var(--cor-primaria);
+   281→      display: block;
+   282→    }
+   283→    .hero-subtitle {
+   284→      font-size: 15px;
+   285→      font-weight: 300;
+   286→      color: var(--cor-texto-claro);
+   287→      max-width: 420px;
+   288→      margin-bottom: 40px;
+   289→      line-height: 1.8;
+   290→    }
+   291→    .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+   292→    .hero-image {
+   293→      position: relative;
+   294→      height: 100%;
+   295→      display: flex;
+   296→      align-items: flex-end;
+   297→      justify-content: center;
+   298→    }
+   299→    .hero-image-frame {
+   300→      position: relative;
+   301→      width: 100%;
+   302→      max-width: 500px;
+   303→    }
+   304→    .hero-img-placeholder {
+   305→      width: 100%;
+   306→      aspect-ratio: 3/4;
+   307→      background: linear-gradient(160deg, #e8d5c0 0%, #d4b896 100%);
+   308→      border-radius: 2px 60px 2px 60px;
+   309→      display: flex;
+   310→      flex-direction: column;
+   311→      align-items: center;
+   312→      justify-content: center;
+   313→      color: rgba(255,255,255,0.7);
+   314→      font-family: var(--fonte-titulo);
+   315→      font-size: 1rem;
+   316→      letter-spacing: 2px;
+   317→      text-align: center;
+   318→      gap: 8px;
+   319→      position: relative;
+   320→      overflow: hidden;
+   321→    }
+   322→    /* Quando tiver a foto real, substitua .hero-img-placeholder por <img> */
+   323→    .hero-img-placeholder svg { width: 48px; opacity: 0.5; }
+   324→    .hero-badge {
+   325→      position: absolute;
+   326→      bottom: 40px;
+   327→      left: -20px;
+   328→      background: var(--cor-branco);
+   329→      border: 1px solid rgba(201,169,122,0.3);
+   330→      padding: 16px 24px;
+   331→      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+   332→    }
+   333→    .hero-badge-num {
+   334→      font-family: var(--fonte-titulo);
+   335→      font-size: 2.2rem;
+   336→      font-weight: 300;
+   337→      color: var(--cor-primaria);
+   338→      line-height: 1;
+   339→    }
+   340→    .hero-badge-txt {
+   341→      font-size: 10px;
+   342→      letter-spacing: 1.5px;
+   343→      text-transform: uppercase;
+   344→      color: var(--cor-texto-claro);
+   345→      margin-top: 4px;
+   346→    }
+   347→    .hero-deco {
+   348→      position: absolute;
+   349→      top: 30px; right: -10px;
+   350→      width: 120px; height: 120px;
+   351→      border: 1px solid rgba(201,169,122,0.25);
+   352→      border-radius: 50%;
+   353→    }
+   354→
+   355→    /* ============================================
+   356→       PROCEDIMENTOS
+   357→    ============================================ */
+   358→    .procedimentos {
+   359→      padding: 100px 0;
+   360→      background: var(--cor-fundo);
+   361→    }
+   362→    .procedimentos-header {
+   363→      display: flex;
+   364→      justify-content: space-between;
+   365→      align-items: flex-end;
+   366→      margin-bottom: 60px;
+   367→      gap: 40px;
+   368→      flex-wrap: wrap;
+   369→    }
+   370→    .procedimentos-grid {
+   371→      display: grid;
+   372→      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+   373→      gap: 24px;
+   374→    }
+   375→    .proc-card {
+   376→      background: var(--cor-branco);
+   377→      border: 1px solid rgba(201,169,122,0.15);
+   378→      overflow: hidden;
+   379→      transition: transform 0.3s, box-shadow 0.3s;
+   380→      cursor: pointer;
+   381→    }
+   382→    .proc-card:hover {
+   383→      transform: translateY(-6px);
+   384→      box-shadow: 0 16px 50px rgba(0,0,0,0.08);
+   385→    }
+   386→    .proc-card-img {
+   387→      aspect-ratio: 4/3;
+   388→      background: linear-gradient(145deg, var(--cor-rosa-claro), #e8d5c0);
+   389→      display: flex;
+   390→      align-items: center;
+   391→      justify-content: center;
+   392→      overflow: hidden;
+   393→      position: relative;
+   394→    }
+   395→    .proc-card-img img { width: 100%; height: 100%; object-fit: cover; }
+   396→    .proc-card-img-placeholder {
+   397→      font-family: var(--fonte-titulo);
+   398→      font-style: italic;
+   399→      font-size: 0.85rem;
+   400→      color: rgba(120,90,60,0.4);
+   401→      letter-spacing: 1px;
+   402→    }
+   403→    .proc-card-body { padding: 24px 20px; }
+   404→    .proc-card-body h3 {
+   405→      font-family: var(--fonte-titulo);
+   406→      font-size: 1.2rem;
+   407→      font-weight: 400;
+   408→      line-height: 1.3;
+   409→      margin-bottom: 8px;
+   410→    }
+   411→    .proc-card-body p {
+   412→      font-size: 13px;
+   413→      font-weight: 300;
+   414→      color: var(--cor-texto-claro);
+   415→      margin-bottom: 16px;
+   416→      line-height: 1.6;
+   417→    }
+   418→    .proc-card-link {
+   419→      font-size: 11px;
+   420→      font-weight: 500;
+   421→      letter-spacing: 2px;
+   422→      text-transform: uppercase;
+   423→      color: var(--cor-primaria);
+   424→      display: flex;
+   425→      align-items: center;
+   426→      gap: 8px;
+   427→      transition: gap 0.2s;
+   428→    }
+   429→    .proc-card-link:hover { gap: 14px; }
+   430→    .proc-card-link::after { content: '→'; }
+   431→
+   432→    /* Tabs de procedimentos */
+   433→    .proc-tabs {
+   434→      display: flex;
+   435→      gap: 4px;
+   436→      margin-bottom: 40px;
+   437→      flex-wrap: wrap;
+   438→    }
+   439→    .proc-tab {
+   440→      font-size: 11px;
+   441→      font-weight: 500;
+   442→      letter-spacing: 2px;
+   443→      text-transform: uppercase;
+   444→      padding: 10px 24px;
+   445→      border: 1px solid rgba(201,169,122,0.3);
+   446→      color: var(--cor-texto-claro);
+   447→      cursor: pointer;
+   448→      transition: all 0.2s;
+   449→      background: transparent;
+   450→      font-family: var(--fonte-corpo);
+   451→    }
+   452→    .proc-tab.active, .proc-tab:hover {
+   453→      background: var(--cor-primaria);
+   454→      color: var(--cor-branco);
+   455→      border-color: var(--cor-primaria);
+   456→    }
+   457→    .proc-panel { display: none; }
+   458→    .proc-panel.active { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 24px; }
+   459→
+   460→    /* ============================================
+   461→       SOBRE A CLÍNICA
+   462→    ============================================ */
+   463→    .sobre {
+   464→      padding: 100px 0;
+   465→      background: var(--cor-fundo-secao);
+   466→    }
+   467→    .sobre-inner {
+   468→      display: grid;
+   469→      grid-template-columns: 1fr 1fr;
+   470→      gap: 80px;
+   471→      align-items: center;
+   472→    }
+   473→    .sobre-image { position: relative; }
+   474→    .sobre-img-frame {
+   475→      width: 100%;
+   476→      aspect-ratio: 3/4;
+   477→      background: linear-gradient(160deg, #e0cbb5 0%, #c9a97a 100%);
+   478→      border-radius: 60px 2px 60px 2px;
+   479→      overflow: hidden;
+   480→      display: flex;
+   481→      align-items: center;
+   482→      justify-content: center;
+   483→      color: rgba(255,255,255,0.5);
+   484→      font-family: var(--fonte-titulo);
+   485→      font-style: italic;
+   486→    }
+   487→    .sobre-deco {
+   488→      position: absolute;
+   489→      bottom: -20px; right: -20px;
+   490→      width: 200px; height: 200px;
+   491→      border: 1px solid rgba(201,169,122,0.3);
+   492→      border-radius: 50%;
+   493→      z-index: -1;
+   494→    }
+   495→    .sobre-deco-2 {
+   496→      position: absolute;
+   497→      top: -15px; left: -15px;
+   498→      width: 80px; height: 80px;
+   499→      background: var(--cor-rosa-claro);
+   500→      border-radius: 50%;
+   501→      z-index: -1;
+   502→    }
+   503→    .sobre-content { padding: 20px 0; }
+   504→    .sobre-content p {
+   505→      font-size: 15px;
+   506→      font-weight: 300;
+   507→      color: var(--cor-texto-claro);
+   508→      line-height: 1.9;
+   509→      margin-bottom: 20px;
+   510→    }
+   511→    .sobre-content strong { color: var(--cor-texto); font-weight: 500; }
+   512→
+   513→    /* Pilares */
+   514→    .pilares {
+   515→      display: grid;
+   516→      grid-template-columns: 1fr 1fr;
+   517→      gap: 16px;
+   518→      margin: 36px 0;
+   519→    }
+   520→    .pilar {
+   521→      display: flex;
+   522→      align-items: center;
+   523→      gap: 14px;
+   524→      padding: 16px;
+   525→      background: var(--cor-branco);
+   526→      border: 1px solid rgba(201,169,122,0.15);
+   527→    }
+   528→    .pilar-icon {
+   529→      width: 40px;
+   530→      height: 40px;
+   531→      background: var(--cor-rosa-claro);
+   532→      border-radius: 50%;
+   533→      display: flex;
+   534→      align-items: center;
+   535→      justify-content: center;
+   536→      flex-shrink: 0;
+   537→      font-size: 18px;
+   538→    }
+   539→    .pilar-text {
+   540→      font-size: 12px;
+   541→      font-weight: 500;
+   542→      letter-spacing: 0.5px;
+   543→      color: var(--cor-texto);
+   544→    }
+   545→
+   546→    /* ============================================
+   547→       DEPOIMENTOS / FAMOSOS
+   548→    ============================================ */
+   549→    .depoimentos {
+   550→      padding: 100px 0;
+   551→      background: var(--cor-fundo);
+   552→      overflow: hidden;
+   553→    }
+   554→    .depoimentos-header { text-align: center; margin-bottom: 60px; }
+   555→    .depoimentos-header .divider { margin: 20px auto; }
+   556→    .depoimentos-grid {
+   557→      display: grid;
+   558→      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+   559→      gap: 20px;
+   560→    }
+   561→    .dep-card {
+   562→      position: relative;
+   563→      overflow: hidden;
+   564→      border-radius: 2px;
+   565→      cursor: pointer;
+   566→    }
+   567→    .dep-card-img {
+   568→      aspect-ratio: 4/5;
+   569→      background: linear-gradient(145deg, #e8d5c0, #d4b896);
+   570→      overflow: hidden;
+   571→      position: relative;
+   572→    }
+   573→    .dep-card-img img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s; }
+   574→    .dep-card:hover .dep-card-img img { transform: scale(1.05); }
+   575→    .dep-card-overlay {
+   576→      position: absolute;
+   577→      bottom: 0; left: 0; right: 0;
+   578→      background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%);
+   579→      padding: 30px 16px 16px;
+   580→      opacity: 0;
+   581→      transition: opacity 0.3s;
+   582→    }
+   583→    .dep-card:hover .dep-card-overlay { opacity: 1; }
+   584→    .dep-card-handle {
+   585→      color: var(--cor-branco);
+   586→      font-size: 13px;
+   587→      font-weight: 400;
+   588→    }
+   589→    .dep-card-label {
+   590→      position: absolute;
+   591→      bottom: 12px;
+   592→      left: 12px;
+   593→      background: rgba(255,255,255,0.9);
+   594→      padding: 6px 12px;
+   595→      font-size: 11px;
+   596→      font-weight: 500;
+   597→      letter-spacing: 1px;
+   598→      color: var(--cor-texto);
+   599→    }
+   600→    .dep-img-placeholder {
+   601→      width: 100%;
+   602→      height: 100%;
+   603→      display: flex;
+   604→      align-items: center;
+   605→      justify-content: center;
+   606→      font-family: var(--fonte-titulo);
+   607→      font-style: italic;
+   608→      color: rgba(120,80,40,0.35);
+   609→      font-size: 0.9rem;
+   610→    }
+   611→
+   612→    /* ============================================
+   613→       INSTAGRAM / FEED
+   614→    ============================================ */
+   615→    .instagram {
+   616→      padding: 100px 0;
+   617→      background: var(--cor-fundo-secao);
+   618→      text-align: center;
+   619→    }
+   620→    .instagram-handle {
+   621→      display: flex;
+   622→      align-items: center;
+   623→      justify-content: center;
+   624→      gap: 12px;
+   625→      margin-bottom: 16px;
+   626→    }
+   627→    .instagram-handle svg { width: 28px; }
+   628→    .instagram-handle a {
+   629→      font-family: var(--fonte-titulo);
+   630→      font-size: 1.8rem;
+   631→      font-weight: 300;
+   632→      color: var(--cor-texto);
+   633→      transition: color 0.2s;
+   634→    }
+   635→    .instagram-handle a:hover { color: var(--cor-primaria); }
+   636→    .instagram-sub {
+   637→      font-size: 12px;
+   638→      letter-spacing: 3px;
+   639→      text-transform: uppercase;
+   640→      color: var(--cor-texto-claro);
+   641→      margin-bottom: 48px;
+   642→    }
+   643→    .instagram-grid {
+   644→      display: grid;
+   645→      grid-template-columns: repeat(4, 1fr);
+   646→      gap: 12px;
+   647→      margin-bottom: 40px;
+   648→    }
+   649→    .insta-post {
+   650→      aspect-ratio: 1;
+   651→      background: linear-gradient(145deg, var(--cor-rosa-claro), #e0cbb5);
+   652→      overflow: hidden;
+   653→      position: relative;
+   654→      cursor: pointer;
+   655→    }
+   656→    .insta-post img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; }
+   657→    .insta-post:hover img { transform: scale(1.06); }
+   658→    .insta-post-overlay {
+   659→      position: absolute;
+   660→      inset: 0;
+   661→      background: rgba(201,169,122,0.5);
+   662→      display: flex;
+   663→      align-items: center;
+   664→      justify-content: center;
+   665→      opacity: 0;
+   666→      transition: opacity 0.3s;
+   667→    }
+   668→    .insta-post:hover .insta-post-overlay { opacity: 1; }
+   669→    .insta-post-overlay svg { width: 32px; fill: white; }
+   670→    .insta-placeholder {
+   671→      width: 100%;
+   672→      height: 100%;
+   673→      display: flex;
+   674→      align-items: center;
+   675→      justify-content: center;
+   676→      font-size: 11px;
+   677→      letter-spacing: 1px;
+   678→      color: rgba(120,80,40,0.3);
+   679→      font-family: var(--fonte-corpo);
+   680→    }
+   681→
+   682→    /* ============================================
+   683→       LOCALIZAÇÃO
+   684→    ============================================ */
+   685→    .localizacao {
+   686→      padding: 100px 0;
+   687→      background: var(--cor-fundo);
+   688→    }
+   689→    .localizacao-inner {
+   690→      display: grid;
+   691→      grid-template-columns: 1fr 1.2fr;
+   692→      gap: 60px;
+   693→      align-items: center;
+   694→    }
+   695→    .localizacao-info { }
+   696→    .localizacao-info p {
+   697→      font-size: 15px;
+   698→      font-weight: 300;
+   699→      color: var(--cor-texto-claro);
+   700→      margin-bottom: 12px;
+   701→    }
+   702→    .localizacao-info strong { color: var(--cor-texto); }
+   703→    .contact-item {
+   704→      display: flex;
+   705→      align-items: center;
+   706→      gap: 16px;
+   707→      padding: 18px 0;
+   708→      border-bottom: 1px solid rgba(201,169,122,0.15);
+   709→    }
+   710→    .contact-item:first-of-type { border-top: 1px solid rgba(201,169,122,0.15); margin-top: 32px; }
+   711→    .contact-icon {
+   712→      width: 44px; height: 44px;
+   713→      background: var(--cor-rosa-claro);
+   714→      display: flex;
+   715→      align-items: center;
+   716→      justify-content: center;
+   717→      flex-shrink: 0;
+   718→      font-size: 18px;
+   719→    }
+   720→    .contact-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--cor-texto-claro); }
+   721→    .contact-value { font-size: 14px; font-weight: 400; color: var(--cor-texto); margin-top: 2px; }
+   722→    .mapa-placeholder {
+   723→      width: 100%;
+   724→      aspect-ratio: 4/3;
+   725→      background: #ede4d8;
+   726→      display: flex;
+   727→      align-items: center;
+   728→      justify-content: center;
+   729→      font-family: var(--fonte-titulo);
+   730→      font-style: italic;
+   731→      color: rgba(120,80,40,0.4);
+   732→      font-size: 1rem;
+   733→      letter-spacing: 1px;
+   734→    }
+   735→    /* Para inserir Google Maps real, substitua .mapa-placeholder por <iframe> */
+   736→
+   737→    /* ============================================
+   738→       NEWSLETTER
+   739→    ============================================ */
+   740→    .newsletter {
+   741→      padding: 80px 0;
+   742→      background: linear-gradient(135deg, #3a2e25 0%, #5a4535 100%);
+   743→      position: relative;
+   744→      overflow: hidden;
+   745→    }
+   746→    .newsletter::before {
+   747→      content: '';
+   748→      position: absolute;
+   749→      top: -80px; right: -80px;
+   750→      width: 350px; height: 350px;
+   751→      border-radius: 50%;
+   752→      background: rgba(201,169,122,0.1);
+   753→      pointer-events: none;
+   754→    }
+   755→    .newsletter-inner {
+   756→      display: flex;
+   757→      align-items: center;
+   758→      justify-content: space-between;
+   759→      gap: 40px;
+   760→      flex-wrap: wrap;
+   761→    }
+   762→    .newsletter-text .section-tag { color: var(--cor-primaria); }
+   763→    .newsletter-text .section-title { color: var(--cor-branco); }
+   764→    .newsletter-text p {
+   765→      color: rgba(255,255,255,0.6);
+   766→      font-size: 14px;
+   767→      font-weight: 300;
+   768→      margin-top: 12px;
+   769→      max-width: 400px;
+   770→    }
+   771→    .newsletter-form {
+   772→      display: flex;
+   773→      gap: 0;
+   774→      max-width: 420px;
+   775→      width: 100%;
+   776→    }
+   777→    .newsletter-form input {
+   778→      flex: 1;
+   779→      padding: 16px 20px;
+   780→      border: 1.5px solid rgba(201,169,122,0.4);
+   781→      background: rgba(255,255,255,0.05);
+   782→      color: var(--cor-branco);
+   783→      font-family: var(--fonte-corpo);
+   784→      font-size: 13px;
+   785→      outline: none;
+   786→      transition: border-color 0.2s;
+   787→    }
+   788→    .newsletter-form input::placeholder { color: rgba(255,255,255,0.4); }
+   789→    .newsletter-form input:focus { border-color: var(--cor-primaria); }
+   790→    .newsletter-form button {
+   791→      padding: 16px 28px;
+   792→      background: var(--cor-primaria);
+   793→      color: var(--cor-branco);
+   794→      border: none;
+   795→      font-family: var(--fonte-corpo);
+   796→      font-size: 11px;
+   797→      font-weight: 500;
+   798→      letter-spacing: 2px;
+   799→      text-transform: uppercase;
+   800→      cursor: pointer;
+   801→      transition: background 0.2s;
+   802→      white-space: nowrap;
+   803→    }
+   804→    .newsletter-form button:hover { background: var(--cor-primaria-escura); }
+   805→
+   806→    /* ============================================
+   807→       FOOTER
+   808→    ============================================ */
+   809→    .footer {
+   810→      background: #2a2018;
+   811→      color: rgba(255,255,255,0.7);
+   812→      padding: 60px 0 30px;
+   813→    }
+   814→    .footer-grid {
+   815→      display: grid;
+   816→      grid-template-columns: 1.5fr 1fr 1fr 1fr;
+   817→      gap: 40px;
+   818→      padding-bottom: 50px;
+   819→      border-bottom: 1px solid rgba(255,255,255,0.08);
+   820→      margin-bottom: 30px;
+   821→    }
+   822→    .footer-brand .logo { color: var(--cor-branco); font-size: 1.4rem; margin-bottom: 16px; display: block; }
+   823→    .footer-brand p { font-size: 13px; font-weight: 300; line-height: 1.8; max-width: 260px; }
+   824→    .footer-social { display: flex; gap: 12px; margin-top: 24px; }
+   825→    .footer-social a {
+   826→      width: 38px; height: 38px;
+   827→      border: 1px solid rgba(201,169,122,0.3);
+   828→      display: flex;
+   829→      align-items: center;
+   830→      justify-content: center;
+   831→      font-size: 14px;
+   832→      color: var(--cor-primaria);
+   833→      transition: all 0.2s;
+   834→    }
+   835→    .footer-social a:hover { background: var(--cor-primaria); color: var(--cor-branco); }
+   836→    .footer-col h4 {
+   837→      font-family: var(--fonte-corpo);
+   838→      font-size: 10px;
+   839→      font-weight: 600;
+   840→      letter-spacing: 2.5px;
+   841→      text-transform: uppercase;
+   842→      color: var(--cor-primaria);
+   843→      margin-bottom: 20px;
+   844→    }
+   845→    .footer-col ul li { margin-bottom: 10px; }
+   846→    .footer-col ul li a {
+   847→      font-size: 13px;
+   848→      font-weight: 300;
+   849→      color: rgba(255,255,255,0.6);
+   850→      transition: color 0.2s;
+   851→    }
+   852→    .footer-col ul li a:hover { color: var(--cor-primaria); }
+   853→    .footer-bottom {
+   854→      display: flex;
+   855→      justify-content: space-between;
+   856→      align-items: center;
+   857→      flex-wrap: wrap;
+   858→      gap: 16px;
+   859→    }
+   860→    .footer-bottom p { font-size: 12px; font-weight: 300; color: rgba(255,255,255,0.4); }
+   861→    .footer-bottom a { color: rgba(255,255,255,0.4); }
+   862→    .footer-bottom a:hover { color: var(--cor-primaria); }
+   863→
+   864→    /* ============================================
+   865→       WHATSAPP FLUTUANTE
+   866→    ============================================ */
+   867→    .whatsapp-float {
+   868→      position: fixed;
+   869→      bottom: 30px; right: 30px;
+   870→      width: 56px; height: 56px;
+   871→      background: #25d366;
+   872→      border-radius: 50%;
+   873→      display: flex;
+   874→      align-items: center;
+   875→      justify-content: center;
+   876→      box-shadow: 0 4px 20px rgba(37,211,102,0.4);
+   877→      z-index: 9999;
+   878→      transition: transform 0.2s, box-shadow 0.2s;
+   879→      cursor: pointer;
+   880→    }
+   881→    .whatsapp-float:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(37,211,102,0.5); }
+   882→    .whatsapp-float svg { width: 28px; fill: white; }
+   883→
+   884→    /* ============================================
+   885→       RESPONSIVO
+   886→    ============================================ */
+   887→    @media (max-width: 900px) {
+   888→      .nav { display: none; }
+   889→      .menu-toggle { display: flex; }
+   890→      .hero-inner { grid-template-columns: 1fr; }
+   891→      .hero-image { display: none; }
+   892→      .sobre-inner { grid-template-columns: 1fr; }
+   893→      .sobre-image { display: none; }
+   894→      .localizacao-inner { grid-template-columns: 1fr; }
+   895→      .footer-grid { grid-template-columns: 1fr 1fr; }
+   896→      .instagram-grid { grid-template-columns: repeat(2, 1fr); }
+   897→      .pilares { grid-template-columns: 1fr; }
+   898→      .newsletter-inner { flex-direction: column; }
+   899→      .newsletter-form { max-width: 100%; }
+   900→    }
+   901→    @media (max-width: 560px) {
+   902→      .footer-grid { grid-template-columns: 1fr; }
+   903→      .depoimentos-grid { grid-template-columns: repeat(2, 1fr); }
+   904→    }
+   905→
+   906→    /* ============================================
+   907→       ANIMAÇÕES DE ENTRADA
+   908→    ============================================ */
+   909→    .fade-up {
+   910→      opacity: 0;
+   911→      transform: translateY(30px);
+   912→      transition: opacity 0.7s ease, transform 0.7s ease;
+   913→    }
+   914→    .fade-up.visible {
+   915→      opacity: 1;
+   916→      transform: translateY(0);
+   917→    }
+   918→
+   919→    /* ============================================
+   920→       MOBILE NAV
+   921→    ============================================ */
+   922→    .mobile-nav {
+   923→      position: fixed;
+   924→      inset: 0;
+   925→      background: var(--cor-fundo);
+   926→      z-index: 9998;
+   927→      display: flex;
+   928→      flex-direction: column;
+   929→      align-items: center;
+   930→      justify-content: center;
+   931→      gap: 32px;
+   932→      opacity: 0;
+   933→      visibility: hidden;
+   934→      transition: all 0.3s;
+   935→    }
+   936→    .mobile-nav.open { opacity: 1; visibility: visible; }
+   937→    .mobile-nav a {
+   938→      font-family: var(--fonte-titulo);
+   939→      font-size: 2rem;
+   940→      font-weight: 300;
+   941→      color: var(--cor-texto);
+   942→      transition: color 0.2s;
+   943→    }
+   944→    .mobile-nav a:hover { color: var(--cor-primaria); }
+   945→    .mobile-nav-close {
+   946→      position: absolute;
+   947→      top: 28px; right: 24px;
+   948→      font-size: 1.5rem;
+   949→      cursor: pointer;
+   950→      color: var(--cor-texto);
+   951→    }
+   952→  </style>
+   953→</head>
+   954→<body>
+   955→
+   956→  <!-- ========== HEADER ========== -->
+   957→  <header class="header" id="header">
+   958→    <div class="container">
+   959→      <div class="header-inner">
+   960→        <a href="#" class="logo"><img src="img/logo.png" alt="Clínica Aline Filgueiras" style="height:50px;width:auto;display:block;"></a>
+   961→
+   962→        <nav class="nav">
+   963→          <a href="#inicio">Início</a>
+   964→          <a href="#sobre">A Clínica</a>
+   965→          <div class="nav-dropdown">
+   966→            <a href="#procedimentos">Procedimentos ▾</a>
+   967→            <div class="dropdown-menu">
+   968→              <div class="dropdown-col">
+   969→                <h4>Rosto</h4>
+   970→                <a href="#">Toxina Botulínica</a>
+   971→                <a href="#">Preenchimento Labial</a>
+   972→                <a href="#">Bioestimuladores</a>
+   973→                <a href="#">Rinomodelação</a>
+   974→                <a href="#">Fios de Sustentação</a>
+   975→              </div>
+   976→              <div class="dropdown-col">
+   977→                <h4>Corpo</h4>
+   978→                <a href="#">Body Sculpting</a>
+   979→                <a href="#">Drenagem Linfática</a>
+   980→                <a href="#">Intradermoterapia</a>
+   981→                <h4 style="margin-top:16px">Tecnologias</h4>
+   982→                <a href="#">Ultraformer</a>
+   983→                <a href="#">Laser</a>
+   984→              </div>
+   985→            </div>
+   986→          </div>
+   987→          <a href="#contato">Contato</a>
+   988→          <a href="https://wa.me/5500000000000" class="nav-cta" target="_blank">Agendar Consulta</a>
+   989→        </nav>
+   990→
+   991→        <div class="menu-toggle" id="menuToggle">
+   992→          <span></span><span></span><span></span>
+   993→        </div>
+   994→      </div>
+   995→    </div>
+   996→  </header>
+   997→
+   998→  <!-- Mobile Nav -->
+   999→  <div class="mobile-nav" id="mobileNav">
+  1000→    <span class="mobile-nav-close" id="mobileNavClose">✕</span>
+  1001→    <a href="#inicio" class="mobile-link">Início</a>
+  1002→    <a href="#sobre" class="mobile-link">A Clínica</a>
+  1003→    <a href="#procedimentos" class="mobile-link">Procedimentos</a>
+  1004→    <a href="#contato" class="mobile-link">Contato</a>
+  1005→    <a href="https://wa.me/5500000000000" class="mobile-link" style="color:var(--cor-primaria)">Agendar Consulta</a>
+  1006→  </div>
+  1007→
+  1008→  <!-- ========== HERO ========== -->
+  1009→  <section class="hero" id="inicio">
+  1010→    <div class="container">
+  1011→      <div class="hero-inner">
+  1012→        <div class="hero-content">
+  1013→          <span class="hero-eyebrow">Clínica de Estética</span>
+  1014→          <h1 class="hero-title">
+  1015→            Promovemos autoconfiança
+  1016→            <em>e saúde</em>
+  1017→          </h1>
+  1018→          <p class="hero-subtitle">
+  1019→            Através da estética avançada, realçamos sua beleza natural com técnicas seguras e resultados que respeitam a sua individualidade.
+  1020→          </p>
+  1021→          <div class="hero-actions">
+  1022→            <a href="https://wa.me/5500000000000" class="btn btn-filled" target="_blank">Agendar Consulta</a>
+  1023→            <a href="#procedimentos" class="btn">Ver Procedimentos</a>
+  1024→          </div>
+  1025→        </div>
+  1026→        <div class="hero-image">
+  1027→          <div class="hero-image-frame">
+  1028→            <div class="hero-deco"></div>
+  1029→            <!-- Coloque a foto da Dra. na pasta img/ com o nome foto-dra.jpg -->
+  1030→            <img src="img/foto-dra.jpg" alt="Dra. Aline Filgueiras" style="width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:2px 60px 2px 60px;display:block;">
+  1031→            <div class="hero-badge">
+  1032→              <div class="hero-badge-num">+500</div>
+  1033→              <div class="hero-badge-txt">Pacientes Satisfeitas</div>
+  1034→            </div>
+  1035→          </div>
+  1036→        </div>
+  1037→      </div>
+  1038→    </div>
+  1039→  </section>
+  1040→
+  1041→  <!-- ========== PROCEDIMENTOS ========== -->
+  1042→  <section class="procedimentos" id="procedimentos">
+  1043→    <div class="container">
+  1044→      <div class="procedimentos-header fade-up">
+  1045→        <div>
+  1046→          <span class="section-tag">O que oferecemos</span>
+  1047→          <h2 class="section-title">Nossos <em>Procedimentos</em></h2>
+  1048→        </div>
+  1049→        <a href="#" class="btn">Ver Todos</a>
+  1050→      </div>
+  1051→
+  1052→      <div class="procedimentos-grid">
+  1053→        <div class="proc-card fade-up">
+  1054→          <div class="proc-card-img">
+  1055→            <img src="img/botox1.jpeg" alt="Toxina Botulínica">
+  1056→          </div>
+  1057→          <div class="proc-card-body">
+  1058→            <h3>Toxina Botulínica</h3>
+  1059→            <p>Promove rejuvenescimento facial com resultados naturais e duradouros.</p>
+  1060→            <a href="https://linktr.ee/clinicaalinefilgueiras?utm_source=organic&utm_medium=&utm_content=&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQMMjU2MjgxMDQwNTU4AAGnZC-FyfTDqsjiNY_Iubj9kmMK_3xCWIVMHYwtYCeihicdyMNPUzw7xZo9KPs_aem_faZPAG_f_6S6-y82yUstug&utm_campaign=&utm_term=&xcod=&sck=" class="proc-card-link" target="_blank">Saiba mais</a>
+  1061→          </div>
+  1062→        </div>
+  1063→        <div class="proc-card fade-up">
+  1064→          <div class="proc-card-img">
+  1065→            <img src="img/fullface.jpg" alt="Harmonização Facial">
+  1066→          </div>
+  1067→          <div class="proc-card-body">
+  1068→            <h3>Harmonização Facial</h3>
+  1069→            <p>Equilíbrio e harmonia para realçar sua beleza natural com segurança.</p>
+  1070→            <a href="https://linktr.ee/clinicaalinefilgueiras?utm_source=organic&utm_medium=&utm_content=&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQMMjU2MjgxMDQwNTU4AAGnZC-FyfTDqsjiNY_Iubj9kmMK_3xCWIVMHYwtYCeihicdyMNPUzw7xZo9KPs_aem_faZPAG_f_6S6-y82yUstug&utm_campaign=&utm_term=&xcod=&sck=" class="proc-card-link" target="_blank">Saiba mais</a>
+  1071→          </div>
+  1072→        </div>
+  1073→        <div class="proc-card fade-up">
+  1074→          <div class="proc-card-img">
+  1075→            <img src="img/botox2.jpeg" alt="Toxina Botulínica">
+  1076→          </div>
+  1077→          <div class="proc-card-body">
+  1078→            <h3>Toxina Botulínica</h3>
+  1079→            <p>Suaviza linhas de expressão e renova a aparência com naturalidade.</p>
+  1080→            <a href="https://linktr.ee/clinicaalinefilgueiras?utm_source=organic&utm_medium=&utm_content=&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQMMjU2MjgxMDQwNTU4AAGnZC-FyfTDqsjiNY_Iubj9kmMK_3xCWIVMHYwtYCeihicdyMNPUzw7xZo9KPs_aem_faZPAG_f_6S6-y82yUstug&utm_campaign=&utm_term=&xcod=&sck=" class="proc-card-link" target="_blank">Saiba mais</a>
+  1081→          </div>
+  1082→        </div>
+  1083→        <div class="proc-card fade-up">
+  1084→          <div class="proc-card-img">
+  1085→            <img src="img/fullface2.png" alt="Harmonização Facial">
+  1086→          </div>
+  1087→          <div class="proc-card-body">
+  1088→            <h3>Harmonização Facial</h3>
+  1089→            <p>Tratamento personalizado para valorizar os traços únicos de cada paciente.</p>
+  1090→            <a href="https://linktr.ee/clinicaalinefilgueiras?utm_source=organic&utm_medium=&utm_content=&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQMMjU2MjgxMDQwNTU4AAGnZC-FyfTDqsjiNY_Iubj9kmMK_3xCWIVMHYwtYCeihicdyMNPUzw7xZo9KPs_aem_faZPAG_f_6S6-y82yUstug&utm_campaign=&utm_term=&xcod=&sck=" class="proc-card-link" target="_blank">Saiba mais</a>
+  1091→          </div>
+  1092→        </div>
+  1093→      </div>
+  1094→    </div>
+  1095→  </section>
+  1096→
+  1097→  <!-- ========== SOBRE ========== -->
+  1098→  <section class="sobre" id="sobre">
+  1099→    <div class="container">
+  1100→      <div class="sobre-inner">
+  1101→        <div class="sobre-image fade-up">
+  1102→          <!-- SUBSTITUA por <img src="img/dra-foto.jpg" alt="Dra. Nome"> -->
+  1103→          <div class="sobre-img-frame">Foto da Dra.</div>
+  1104→          <div class="sobre-deco"></div>
+  1105→          <div class="sobre-deco-2"></div>
+  1106→        </div>
+  1107→        <div class="sobre-content fade-up">
+  1108→          <span class="section-tag">Quem somos</span>
+  1109→          <h2 class="section-title">Sobre a <em>Clínica</em></h2>
+  1110→          <div class="divider"></div>
+  1111→          <p>
+  1112→            A <strong>Clínica [Nome]</strong> é uma referência em estética fundada pela
+  1113→            <strong>Dra. [Nome]</strong>. Sua paixão pela harmonização facial
+  1114→            direcionou a clínica a se especializar nesse campo, oferecendo procedimentos
+  1115→            seguros, naturais e de alta qualidade.
+  1116→          </p>
+  1117→          <p>
+  1118→            Com um compromisso inabalável com a naturalidade, saúde e bem-estar,
+  1119→            a clínica reúne os melhores profissionais e tecnologias para entregar
+  1120→            resultados que respeitam a individualidade de cada paciente.
+  1121→          </p>
+  1122→
+  1123→          <div class="pilares">
+  1124→            <div class="pilar"><div class="pilar-icon">🛡️</div><div class="pilar-text">Estética com segurança</div></div>
+  1125→            <div class="pilar"><div class="pilar-icon">✨</div><div class="pilar-text">Foco em naturalidade</div></div>
+  1126→            <div class="pilar"><div class="pilar-icon">💛</div><div class="pilar-text">Acolhimento e respeito</div></div>
+  1127→            <div class="pilar"><div class="pilar-icon">📚</div><div class="pilar-text">Conhecimento constante</div></div>
+  1128→          </div>
+  1129→
+  1130→          <a href="https://wa.me/5500000000000" class="btn btn-filled" target="_blank">Agendar Consulta</a>
+  1131→        </div>
+  1132→      </div>
+  1133→    </div>
+  1134→  </section>
+  1135→
+  1136→  <!-- ========== DEPOIMENTOS / CLIENTES ========== -->
+  1137→  <section class="depoimentos">
+  1138→    <div class="container">
+  1139→      <div class="depoimentos-header fade-up">
+  1140→        <span class="section-tag">Nossas Pacientes</span>
+  1141→        <h2 class="section-title">Resultados que <em>Falam</em></h2>
+  1142→        <div class="divider"></div>
+  1143→        <p style="color:var(--cor-texto-claro);font-weight:300;font-size:15px;max-width:500px;margin:0 auto">
+  1144→          Pacientes reais, resultados reais. Veja as transformações que realizamos.
+  1145→        </p>
+  1146→      </div>
+  1147→      <div class="depoimentos-grid">
+  1148→        <!-- Repita para cada paciente/depoimento -->
+  1149→        <div class="dep-card fade-up">
+  1150→          <div class="dep-card-img">
+  1151→            <!-- <img src="img/paciente1.jpg" alt="@handle"> -->
+  1152→            <div class="dep-img-placeholder">Foto paciente</div>
+  1153→          </div>
+  1154→          <div class="dep-card-overlay"><span class="dep-card-handle">@handle_instagram</span></div>
+  1155→          <div class="dep-card-label">@handle</div>
+  1156→        </div>
+  1157→        <div class="dep-card fade-up">
+  1158→          <div class="dep-card-img"><div class="dep-img-placeholder">Foto paciente</div></div>
+  1159→          <div class="dep-card-overlay"><span class="dep-card-handle">@handle_instagram</span></div>
+  1160→          <div class="dep-card-label">@handle</div>
+  1161→        </div>
+  1162→        <div class="dep-card fade-up">
+  1163→          <div class="dep-card-img"><div class="dep-img-placeholder">Foto paciente</div></div>
+  1164→          <div class="dep-card-overlay"><span class="dep-card-handle">@handle_instagram</span></div>
+  1165→          <div class="dep-card-label">@handle</div>
+  1166→        </div>
+  1167→        <div class="dep-card fade-up">
+  1168→          <div class="dep-card-img"><div class="dep-img-placeholder">Foto paciente</div></div>
+  1169→          <div class="dep-card-overlay"><span class="dep-card-handle">@handle_instagram</span></div>
+  1170→          <div class="dep-card-label">@handle</div>
+  1171→        </div>
+  1172→        <div class="dep-card fade-up">
+  1173→          <div class="dep-card-img"><div class="dep-img-placeholder">Foto paciente</div></div>
+  1174→          <div class="dep-card-overlay"><span class="dep-card-handle">@handle_instagram</span></div>
+  1175→          <div class="dep-card-label">@handle</div>
+  1176→        </div>
+  1177→      </div>
+  1178→    </div>
+  1179→  </section>
+  1180→
+  1181→  <!-- ========== INSTAGRAM ========== -->
+  1182→  <section class="instagram">
+  1183→    <div class="container">
+  1184→      <div class="instagram-handle fade-up">
+  1185→        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+  1186→          <rect x="2" y="2" width="20" height="20" rx="5"/>
+  1187→          <circle cx="12" cy="12" r="4"/>
+  1188→          <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor"/>
+  1189→        </svg>
+  1190→        <a href="https://www.instagram.com/clinicaalinefilgueiras/" target="_blank">@clinicaalinefilgueiras</a>
+  1191→      </div>
+  1192→      <p class="instagram-sub fade-up">Acompanhe nosso Instagram</p>
+  1193→      <div class="instagram-grid">
+  1194→        <!-- Substitua por <img> dos posts reais -->
+  1195→        <div class="insta-post fade-up">
+  1196→          <div class="insta-placeholder">Post 1</div>
+  1197→          <div class="insta-post-overlay">
+  1198→            <svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
+  1199→          </div>
+  1200→        </div>
+  1201→        <div class="insta-post fade-up"><div class="insta-placeholder">Post 2</div><div class="insta-post-overlay"><svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg></div></div>
+  1202→        <div class="insta-post fade-up"><div class="insta-placeholder">Post 3</div><div class="insta-post-overlay"><svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg></div></div>
+  1203→        <div class="insta-post fade-up"><div class="insta-placeholder">Post 4</div><div class="insta-post-overlay"><svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg></div></div>
+  1204→      </div>
+  1205→      <a href="https://www.instagram.com/clinicaalinefilgueiras/" class="btn" target="_blank">Ver mais no Instagram</a>
+  1206→    </div>
+  1207→  </section>
+  1208→
+  1209→  <!-- ========== LOCALIZAÇÃO ========== -->
+  1210→  <section class="localizacao" id="contato">
+  1211→    <div class="container">
+  1212→      <div class="fade-up" style="text-align:center;margin-bottom:60px">
+  1213→        <span class="section-tag">Onde estamos</span>
+  1214→        <h2 class="section-title">Nossas <em>Unidades</em></h2>
+  1215→        <div class="divider" style="margin:20px auto"></div>
+  1216→      </div>
+  1217→      <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start">
+  1218→
+  1219→        <!-- Unidade Praia Grande -->
+  1220→        <div class="fade-up" style="background:var(--cor-branco);border:1px solid rgba(201,169,122,0.2);padding:40px">
+  1221→          <div style="font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--cor-primaria);margin-bottom:16px">Praia Grande – SP</div>
+  1222→          <div class="contact-item" style="border-top:1px solid rgba(201,169,122,0.15)">
+  1223→            <div class="contact-icon">📍</div>
+  1224→            <div>
+  1225→              <div class="contact-label">Endereço</div>
+  1226→              <div class="contact-value">R. Fumio Miyazi, 371 – Boqueirão<br>Praia Grande – SP, 11701-160</div>
+  1227→            </div>
+  1228→          </div>
+  1229→          <div style="margin-top:28px">
+  1230→            <a href="https://linktr.ee/clinicaalinefilgueiras?utm_source=organic&utm_medium=&utm_content=&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQMMjU2MjgxMDQwNTU4AAGnZC-FyfTDqsjiNY_Iubj9kmMK_3xCWIVMHYwtYCeihicdyMNPUzw7xZo9KPs_aem_faZPAG_f_6S6-y82yUstug&utm_campaign=&utm_term=&xcod=&sck=" class="btn btn-filled" target="_blank">Agendar Consulta</a>
+  1231→          </div>
+  1232→        </div>
+  1233→
+  1234→        <!-- Unidade Belo Horizonte -->
+  1235→        <div class="fade-up" style="background:var(--cor-branco);border:1px solid rgba(201,169,122,0.2);padding:40px">
+  1236→          <div style="font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--cor-primaria);margin-bottom:16px">Belo Horizonte – MG</div>
+  1237→          <div class="contact-item" style="border-top:1px solid rgba(201,169,122,0.15)">
+  1238→            <div class="contact-icon">📍</div>
+  1239→            <div>
+  1240→              <div class="contact-label">Endereço</div>
+  1241→              <div class="contact-value">Av. Raja Gabáglia, 2000, Torre 2<br>Sala 241 a 244 – Estoril<br>Belo Horizonte – MG, 30494-170</div>
+  1242→            </div>
+  1243→          </div>
+  1244→          <div style="margin-top:28px">
+  1245→            <a href="https://linktr.ee/clinicaalinefilgueiras?utm_source=organic&utm_medium=&utm_content=&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQMMjU2MjgxMDQwNTU4AAGnZC-FyfTDqsjiNY_Iubj9kmMK_3xCWIVMHYwtYCeihicdyMNPUzw7xZo9KPs_aem_faZPAG_f_6S6-y82yUstug&utm_campaign=&utm_term=&xcod=&sck=" class="proc-card-link" target="_blank">Agendar Consulta</a>
+  1246→          </div>
+  1247→        </div>
+  1248→
+  1249→      </div>
+  1250→    </div>
+  1251→  </section>
+  1252→
+  1253→  <!-- ========== NEWSLETTER ========== -->
+  1254→  <section class="newsletter">
+  1255→    <div class="container">
+  1256→      <div class="newsletter-inner">
+  1257→        <div class="newsletter-text fade-up">
+  1258→          <span class="section-tag">Fique por dentro</span>
+  1259→          <h2 class="section-title" style="color:#fff">Inscreva-se na nossa <em>Newsletter</em></h2>
+  1260→          <p>Receba novidades, promoções exclusivas e dicas de beleza diretamente no seu e-mail.</p>
+  1261→        </div>
+  1262→        <div class="newsletter-form fade-up">
+  1263→          <input type="email" placeholder="Seu melhor e-mail">
+  1264→          <button type="button">Assinar</button>
+  1265→        </div>
+  1266→      </div>
+  1267→    </div>
+  1268→  </section>
+  1269→
+  1270→  <!-- ========== FOOTER ========== -->
+  1271→  <footer class="footer">
+  1272→    <div class="container">
+  1273→      <div class="footer-grid">
+  1274→        <div class="footer-brand">
+  1275→          <a href="#"><img src="img/logo.png" alt="Clínica Aline Filgueiras" style="height:45px;width:auto;display:block;margin-bottom:8px;"></a>
+  1276→          <p>Sua clínica de referência em estética e harmonização facial, com foco em naturalidade, segurança e bem-estar.</p>
+  1277→          <div class="footer-social">
+  1278→            <a href="#" target="_blank" title="Instagram">
+  1279→              <svg viewBox="0 0 24 24" width="16" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07..."/></svg>
+  1280→              IG
+  1281→            </a>
+  1282→            <a href="#" target="_blank" title="WhatsApp">WA</a>
+  1283→            <a href="#" target="_blank" title="Facebook">FB</a>
+  1284→          </div>
+  1285→        </div>
+  1286→        <div class="footer-col">
+  1287→          <h4>Links</h4>
+  1288→          <ul>
+  1289→            <li><a href="#">Início</a></li>
+  1290→            <li><a href="#">A Clínica</a></li>
+  1291→            <li><a href="#">Procedimentos</a></li>
+  1292→            <li><a href="#">Contato</a></li>
+  1293→            <li><a href="#">Política de Privacidade</a></li>
+  1294→          </ul>
+  1295→        </div>
+  1296→        <div class="footer-col">
+  1297→          <h4>Procedimentos</h4>
+  1298→          <ul>
+  1299→            <li><a href="#procedimentos">Toxina Botulínica</a></li>
+  1300→            <li><a href="#procedimentos">Harmonização Facial</a></li>
+  1301→          </ul>
+  1302→        </div>
+  1303→        <div class="footer-col">
+  1304→          <h4>Nossas Unidades</h4>
+  1305→          <ul>
+  1306→            <li><a href="#contato">📍 Praia Grande – SP</a></li>
+  1307→            <li><a href="#contato">📍 Belo Horizonte – MG</a></li>
+  1308→            <li><a href="https://www.instagram.com/clinicaalinefilgueiras/" target="_blank">📸 @clinicaalinefilgueiras</a></li>
+  1309→          </ul>
+  1310→        </div>
+  1311→      </div>
+  1312→      <div class="footer-bottom">
+  1313→        <p>© 2025 Clínica Nome — Todos os direitos reservados.</p>
+  1314→        <p><a href="#">Política de Privacidade</a> · <a href="#">Termos de Uso</a></p>
+  1315→      </div>
+  1316→    </div>
+  1317→  </footer>
+  1318→
+  1319→  <!-- WhatsApp Flutuante -->
+  1320→  <a href="https://wa.me/5500000000000" class="whatsapp-float" target="_blank" title="Fale pelo WhatsApp">
+  1321→    <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  1322→  </a>
+  1323→
+  1324→  <!-- ========== SCRIPTS ========== -->
+  1325→  <script>
+  1326→    // Header scroll
+  1327→    const header = document.getElementById('header');
+  1328→    window.addEventListener('scroll', () => {
+  1329→      header.classList.toggle('scrolled', window.scrollY > 60);
+  1330→    });
+  1331→
+  1332→    // Mobile menu
+  1333→    document.getElementById('menuToggle').addEventListener('click', () => {
+  1334→      document.getElementById('mobileNav').classList.add('open');
+  1335→    });
+  1336→    document.getElementById('mobileNavClose').addEventListener('click', () => {
+  1337→      document.getElementById('mobileNav').classList.remove('open');
+  1338→    });
+  1339→    document.querySelectorAll('.mobile-link').forEach(link => {
+  1340→      link.addEventListener('click', () => document.getElementById('mobileNav').classList.remove('open'));
+  1341→    });
+  1342→
+  1343→    // Tabs de procedimentos
+  1344→    function showTab(tab, btn) {
+  1345→      document.querySelectorAll('.proc-panel').forEach(p => p.classList.remove('active'));
+  1346→      document.querySelectorAll('.proc-tab').forEach(t => t.classList.remove('active'));
+  1347→      document.getElementById('tab-' + tab).classList.add('active');
+  1348→      btn.classList.add('active');
+  1349→    }
+  1350→
+  1351→    // Animações de scroll (fade-up)
+  1352→    const observer = new IntersectionObserver((entries) => {
+  1353→      entries.forEach((entry, i) => {
+  1354→        if (entry.isIntersecting) {
+  1355→          setTimeout(() => entry.target.classList.add('visible'), i * 80);
+  1356→        }
+  1357→      });
+  1358→    }, { threshold: 0.12 });
+  1359→    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+  1360→  </script>
+  1361→
+  1362→</body>
+  1363→</html>
+  1364→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

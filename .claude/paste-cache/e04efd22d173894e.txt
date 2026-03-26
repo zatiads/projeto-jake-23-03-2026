@@ -1,0 +1,50 @@
+Corrigir bug crítico na Fábrica de Criativos do Jake OS:
+
+BUG: Quando o usuário sobe uma imagem de referência e seleciona
+qualquer modelo de geração normal (Flux, Ideogram, Recraft),
+a imagem gerada ignora completamente a referência.
+
+CORREÇÃO 1 — Roteamento automático no frontend (criativos.js):
+Quando CriativosState.imagemInputUrl não é null:
+- Desabilitar visualmente todos os cards de modelo
+- Forçar seleção do Kontext Pro automaticamente
+- Mostrar badge: "🔒 Modo Edição — Kontext Pro ativo"
+- Esconder o seletor de modelos ou mostrar mensagem:
+  "Com imagem de referência, usamos Kontext Pro para manter consistência"
+
+CORREÇÃO 2 — Engenheiro de prompt no backend:
+Na rota /api/criativos/engenheirar-prompt, verificar se veio
+o parâmetro "tem_referencia": true no body.
+
+Se tem_referencia = true, usar este system prompt:
+"Você é especialista em edição de imagens com IA.
+O usuário tem uma imagem de referência e quer modificá-la.
+Transforme o pedido simples em uma INSTRUÇÃO DE EDIÇÃO clara.
+Formato: descreva APENAS o que deve mudar, nunca a imagem inteira.
+Use verbos de ação diretos: 'Troca', 'Muda', 'Remove', 'Adiciona'.
+Exemplo de saída correta: 'Change the product label text to focus
+on postpartum women. Keep the product, lighting, background and
+composition exactly the same.'
+Máximo 2 frases. Sempre em inglês."
+
+Se tem_referencia = false, usar o system prompt atual (descrição completa).
+
+CORREÇÃO 3 — Chamada no backend:
+Se tem_referencia = true, chamar obrigatoriamente:
+  replicate.run(
+      "black-forest-labs/flux-kontext-pro",
+      input={
+          "prompt": prompt_engenheirado,
+          "input_image": imagem_input_url,
+          "output_format": "webp",
+          "output_quality": 90
+      }
+  )
+Ignorar o campo "modelo" enviado pelo frontend neste caso.
+
+CORREÇÃO 4 — Placeholder do textarea:
+Se tem imagem de referência:
+  placeholder = "O que você quer mudar? Ex: mude a copy para algo
+  focado em mulheres no pós parto"
+Se não tem:
+  placeholder = "Descreva a imagem que você quer criar..."

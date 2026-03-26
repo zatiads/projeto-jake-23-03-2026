@@ -1,0 +1,1584 @@
+     1→#!/usr/bin/env python3
+     2→"""
+     3→Jake OS – Plataforma SaaS completa.
+     4→Acesse via: http://localhost:5050
+     5→"""
+     6→
+     7→import os
+     8→import io
+     9→import json
+    10→import base64
+    11→import uuid
+    12→import webbrowser
+    13→import threading
+    14→import time
+    15→import secrets as _secrets
+    16→from datetime import datetime
+    17→from zoneinfo import ZoneInfo
+    18→from functools import wraps
+    19→
+    20→from flask import Flask, render_template, jsonify, request, session, redirect, url_for
+    21→
+    22→import requests
+    23→from dotenv import load_dotenv
+    24→
+    25→# Carrega .env do projeto ou do diretório pai (ex.: /root/.env)
+    26→_basedir = os.path.dirname(os.path.abspath(__file__))
+    27→load_dotenv(os.path.join(_basedir, ".env"))
+    28→load_dotenv(os.path.join(os.path.dirname(_basedir), ".env"))
+    29→
+    30→from openai import OpenAI
+    31→import anthropic as _anthropic
+    32→
+    33→app = Flask(__name__, static_folder="static", template_folder="templates")
+    34→app.secret_key = os.environ.get("SESSION_SECRET") or _secrets.token_hex(32)
+    35→
+    36→# ── Credenciais de acesso ────────────────────────────────────────────────────
+    37→_ADMIN_EMAIL    = os.environ.get("ADMIN_EMAIL",    "admin@jakeos.local")
+    38→_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Jake@2024!")
+    39→
+    40→# ── Auth helper ──────────────────────────────────────────────────────────────
+    41→def login_required(f):
+    42→    @wraps(f)
+    43→    def decorated(*args, **kwargs):
+    44→        if not session.get("logged_in"):
+    45→            return redirect(url_for("login_page"))
+    46→        return f(*args, **kwargs)
+    47→    return decorated
+    48→
+    49→# ── Rotas de autenticação ────────────────────────────────────────────────────
+    50→@app.route("/login")
+    51→def login_page():
+    52→    if session.get("logged_in"):
+    53→        return redirect(url_for("index"))
+    54→    error = request.args.get("error")
+    55→    return render_template("login.html", error=error)
+    56→
+    57→@app.route("/auth/login", methods=["POST"])
+    58→def auth_login():
+    59→    email    = (request.form.get("email") or "").strip().lower()
+    60→    password = request.form.get("password") or ""
+    61→    if (email == _ADMIN_EMAIL.strip().lower()
+    62→            and _secrets.compare_digest(password, _ADMIN_PASSWORD)):
+    63→        session["logged_in"]   = True
+    64→        session["user_email"]  = email
+    65→        return redirect(url_for("index"))
+    66→    return redirect(url_for("login_page") + "?error=1")
+    67→
+    68→@app.route("/auth/logout")
+    69→def auth_logout():
+    70→    session.clear()
+    71→    return redirect(url_for("login_page"))
+    72→
+    73→# ── Painel principal (SPA) ───────────────────────────────────────────────────
+    74→@app.route("/")
+    75→@login_required
+    76→def index():
+    77→    return render_template("dashboard.html", user_email=session.get("user_email", ""))
+    78→
+    79→# ── API: hora e data ─────────────────────────────────────────────────────────
+    80→_WEEKDAY_PT = ("Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo")
+    81→
+    82→@app.route("/api/now")
+    83→@login_required
+    84→def api_now():
+    85→    now = datetime.now(ZoneInfo("America/Sao_Paulo"))
+    86→    wd  = now.weekday()
+    87→    return jsonify({
+    88→        "time":    now.strftime("%H:%M"),
+    89→        "date":    now.strftime("%d/%m/%Y"),
+    90→        "weekday": _WEEKDAY_PT[wd],
+    91→    })
+    92→
+    93→# ── API: temperatura ─────────────────────────────────────────────────────────
+    94→@app.route("/api/weather")
+    95→@login_required
+    96→def api_weather():
+    97→    try:
+    98→        r = requests.get(
+    99→            "https://api.open-meteo.com/v1/forecast"
+   100→            "?latitude=-23.55&longitude=-46.63"
+   101→            "&current=temperature_2m,relative_humidity_2m"
+   102→            "&timezone=America/Sao_Paulo",
+   103→            timeout=3,
+   104→        )
+   105→        if r.ok:
+   106→            cur = r.json().get("current", {})
+   107→            return jsonify({
+   108→                "temp":     round(cur.get("temperature_2m", 0), 1),
+   109→                "unit":     "°C",
+   110→                "humidity": cur.get("relative_humidity_2m"),
+   111→            })
+   112→    except Exception:
+   113→        pass
+   114→    return jsonify({"temp": None, "unit": "°C", "humidity": None})
+   115→
+   116→# ── OpenAI helpers ───────────────────────────────────────────────────────────
+   117→def _openai_client():
+   118→    key = os.environ.get("OPENAI_API_KEY", "").strip()
+   119→    return OpenAI(api_key=key) if key else None
+   120→
+   121→def _send_telegram(text):
+   122→    token   = os.environ.get("TELEGRAM_BOT_TOKEN",    "").strip()
+   123→    chat_id = (os.environ.get("TELEGRAM_ALERT_CHAT_ID", "").strip()
+   124→               or os.environ.get("AUTHORIZED_ID", "").strip())
+   125→    if not token or not chat_id:
+   126→        return False, "Telegram não configurado"
+   127→    try:
+   128→        r = requests.post(
+   129→            f"https://api.telegram.org/bot{token}/sendMessage",
+   130→            json={"chat_id": chat_id, "text": text, "disable_web_page_preview": True},
+   131→            timeout=10,
+   132→        )
+   133→        return r.ok, "Enviado" if r.ok else r.text
+   134→    except Exception as e:
+   135→        return False, str(e)
+   136→
+   137→TELEGRAM_TOOL = {
+   138→    "type": "function",
+   139→    "function": {
+   140→        "name": "send_telegram_message",
+   141→        "description": "Envia uma mensagem para o Telegram do usuário.",
+   142→        "parameters": {
+   143→            "type": "object",
+   144→            "properties": {
+   145→                "message": {"type": "string", "description": "Texto a enviar"}
+   146→            },
+   147→            "required": ["message"],
+   148→        },
+   149→    },
+   150→}
+   151→
+   152→SYSTEM_PROMPT = (
+   153→    "Você é o Jake, um assistente de IA no estilo Jarvis da Stark Industries. "
+   154→    "REGRA: Responda SEMPRE apenas em português brasileiro, de forma clara e objetiva. "
+   155→    "Quando o usuário pedir para mandar algo no Telegram, use a ferramenta send_telegram_message."
+   156→)
+   157→
+   158→def _chat_with_tools(client, messages):
+   159→    response = client.chat.completions.create(
+   160→        model="gpt-4o",
+   161→        messages=messages,
+   162→        tools=[TELEGRAM_TOOL],
+   163→        tool_choice="auto",
+   164→    )
+   165→    msg = response.choices[0].message
+   166→    if getattr(msg, "tool_calls", None):
+   167→        for tc in msg.tool_calls:
+   168→            if getattr(tc.function, "name", "") == "send_telegram_message":
+   169→                args = json.loads(getattr(tc.function, "arguments", "{}") or "{}")
+   170→                ok, detail = _send_telegram(args.get("message", ""))
+   171→                messages.append(msg)
+   172→                messages.append({
+   173→                    "role":         "tool",
+   174→                    "tool_call_id": getattr(tc, "id", ""),
+   175→                    "content":      "Enviado no Telegram." if ok else f"Falha: {detail}",
+   176→                })
+   177→                return _chat_with_tools(client, messages)
+   178→    return msg.content or ""
+   179→
+   180→# ── API: falar com o Jake ────────────────────────────────────────────────────
+   181→@app.route("/api/falar", methods=["POST"])
+   182→@login_required
+   183→def api_falar():
+   184→    client = _openai_client()
+   185→    if not client:
+   186→        return jsonify({"error": "OPENAI_API_KEY não configurada"}), 500
+   187→
+   188→    # Aceita texto direto (mais rápido, sem Whisper) ou arquivo de áudio
+   189→    user_text = None
+   190→    if request.is_json:
+   191→        user_text = ((request.get_json() or {}).get("text") or "").strip()
+   192→
+   193→    if not user_text:
+   194→        audio_file = request.files.get("audio")
+   195→        if audio_file and audio_file.filename:
+   196→            try:
+   197→                audio_bytes = audio_file.read()
+   198→                if not audio_bytes:
+   199→                    return jsonify({"error": "Áudio vazio"}), 400
+   200→                file_like      = io.BytesIO(audio_bytes)
+   201→                file_like.name = audio_file.filename or "audio.webm"
+   202→                transcript     = client.audio.transcriptions.create(
+   203→                    model="whisper-1", file=file_like, language="pt"
+   204→                )
+   205→                user_text = (transcript.text or "").strip()
+   206→            except Exception as e:
+   207→                return jsonify({"error": f"Transcrição: {e}"}), 500
+   208→
+   209→    if not user_text:
+   210→        return jsonify({"error": "Envie 'text' (JSON) ou arquivo 'audio'"}), 400
+   211→
+   212→    try:
+   213→        messages      = [{"role": "system", "content": SYSTEM_PROMPT},
+   214→                         {"role": "user",   "content": user_text}]
+   215→        response_text = _chat_with_tools(client, messages).strip()
+   216→        if not response_text:
+   217→            return jsonify({"error": "Resposta vazia"}), 500
+   218→
+   219→        tts = client.audio.speech.create(model="tts-1", voice="onyx", input=response_text)
+   220→        audio_out = (getattr(tts, "content", None)
+   221→                     or (b"".join(tts.iter_bytes()) if hasattr(tts, "iter_bytes") else b""))
+   222→        return jsonify({
+   223→            "text":        response_text,
+   224→            "audio":       base64.b64encode(audio_out).decode() if audio_out else "",
+   225→            "transcribed": user_text,
+   226→        })
+   227→    except Exception as e:
+   228→        return jsonify({"error": str(e)}), 500
+   229→
+   230→# ── API: Gerador de Carrossel (Claude claude-sonnet-4-5) ───────────────────────────
+   231→_CAROUSEL_SYSTEM = """\
+   232→Você é um Estrategista de Conteúdo Sênior especializado em carrosséis educativos de alto valor para Instagram.
+   233→
+   234→FILOSOFIA:
+   235→Você cria conteúdo que ensina algo genuinamente útil. O leitor deve terminar o carrossel sabendo fazer \
+   236→ou entender algo que não sabia antes. Autoridade se constrói pelo mérito do conteúdo, não por hype.
+   237→
+   238→REGRAS DE OURO:
+   239→1. Cada slide desenvolve UMA ideia central com profundidade — sem superficialidade.
+   240→2. Use dados reais, exemplos concretos, números, estudos ou casos sempre que possível.
+   241→3. Evite absolutamente: clichês motivacionais, frases de efeito vazias, "você sabia que...", promessas infladas.
+   242→4. A narrativa deve ser progressiva: cada slide avança o entendimento, nunca repete.
+   243→5. Prefira verbos de ação e linguagem direta. Português do Brasil natural, sem rebuscamento.
+   244→6. Zero emojis.
+   245→
+   246→ESTRUTURA DOS 7 SLIDES:
+   247→- Slide 1 | GANCHO: Abre com uma afirmação contraintuitiva, dado surpreendente ou insight que quebra uma crença comum. \
+   248→Deve criar tensão cognitiva imediata — o leitor para de rolar porque precisa saber mais.
+   249→- Slides 2-3 | PROBLEMA: Diagnóstico profundo. Mostre as causas raiz (não os sintomas). \
+   250→Por que o problema persiste? Qual o custo real de ignorá-lo? O leitor deve pensar "é exatamente isso que acontece."
+   251→- Slides 4-5 | MÉTODO/FRAMEWORK: Entregue o método, framework ou critério de forma acionável e estruturada. \
+   252→Nomeie os princípios. Dê exemplos práticos de como aplicar. Seja específico ao ponto de o leitor conseguir \
+   253→implementar sem precisar de mais nada.
+   254→- Slide 6 | RESULTADO/VALOR: Mostre o resultado concreto de quem aplica o método. \
+   255→Use antes/depois, métricas reais ou transformação mensurável. Torne o ganho tangível.
+   256→- Slide 7 | CTA: Um próximo passo imediato, concreto e de baixa fricção que o leitor pode fazer HOJE. \
+   257→Não prometa milagres. Ofereça a ação lógica mais próxima.
+   258→
+   259→FORMATO DE SAÍDA:
+   260→Retorne SOMENTE JSON válido, sem texto antes ou depois:
+   261→{"slides":[{"headline":"...","subheadline":"...","tag":"..."}]}
+   262→Exatamente 7 itens. Headline: máx 100 caracteres. Subheadline: 90-200 caracteres com conteúdo rico e específico.\
+   263→"""
+   264→
+   265→_CAROUSEL_TONE = {
+   266→    "agressivo":    "Tom: direto, urgente, sem rodeios. Contraste forte entre dor e ganho. CTA incisivo e imperativo.",
+   267→    "elegante":     "Tom: premium, sofisticado e confiante. Vocabulário refinado sem ser pedante. Autoridade pela precisão.",
+   268→    "educacional":  "Tom: didático, claro e estruturado. Priorize explicações passo a passo, analogias e exemplos práticos.",
+   269→    "storytelling": "Tom: narrativa com começo, tensão e resolução. Use casos, jornada do personagem ou antes/depois para engajar.",
+   270→}
+   271→
+   272→_CAROUSEL_AWARENESS = {
+   273→    "frio":     "Público FRIO: a pessoa não sabe que tem o problema ou não te conhece. Gancho por curiosidade, dado surpreendente ou problema latente. Zero venda direta no início.",
+   274→    "problema": "Público reconhece o PROBLEMA: já sente a dor. Reforce o diagnóstico e o custo de não agir.",
+   275→    "solucao":  "Público busca SOLUÇÃO: está comparando caminhos. Diferencie pelo método e pela clareza.",
+   276→    "produto":  "Público em fase PRODUTO: compara ofertas. Reforce prova social, resultado e critério de escolha.",
+   277→    "oferta":   "Público consciente da OFERTA: pronto para decidir. Remova objeções, destaque urgência/escassez e facilite a ação.",
+   278→}
+   279→
+   280→_CAROUSEL_TRIGGER = {
+   281→    "prova":       "Gatilho principal: PROVA SOCIAL — números, depoimentos, resultados de quem aplicou.",
+   282→    "urgencia":    "Gatilho principal: URGÊNCIA — prazo real, decisão agora ou perde.",
+   283→    "autoridade":  "Gatilho principal: AUTORIDADE — credenciais, anos de experiência, cases, certificações.",
+   284→    "pertenca":    "Gatilho principal: PERTENCIMENTO — quem já está do outro lado, tribo, exclusividade.",
+   285→    "curiosidade": "Gatilho principal: CURIOSIDADE — revelar algo inesperado, tensão cognitiva que o leitor precisa resolver.",
+   286→}
+   287→
+   288→def _carousel_fallback(theme, tone):
+   289→    suffix = {"agressivo": "Quem age sem método perde para quem age com estratégia.", "elegante": "A diferença está nos critérios, não no esforço.", "educacional": "Entender a causa raiz é o primeiro passo para resolver de forma duradoura."}.get(tone, "")
+   290→    return [
+   291→        {"headline": f"{theme}: o que separa os 5% que dominam dos 95% que tentam", "subheadline": f"Não é talento nem sorte. É um conjunto de decisões que a maioria nunca aprende a tomar. {suffix}", "tag": "GANCHO"},
+   292→        {"headline": "O erro está no diagnóstico, não na execução", "subheadline": "A maioria tenta resolver o sintoma enquanto a causa raiz segue intacta. Resultado: ciclo de tentativas sem evolução real.", "tag": "PROBLEMA"},
+   293→        {"headline": "Sem critério claro, qualquer caminho parece certo", "subheadline": "A ausência de um framework de decisão transforma esforço em ruído. Trabalho duro sem direção correta não gera resultado, gera esgotamento.", "tag": "PROBLEMA"},
+   294→        {"headline": "O framework em 3 camadas que muda o resultado", "subheadline": "1. Defina o problema real (não o aparente). 2. Identifique a alavanca de maior impacto. 3. Execute em ciclos curtos com medição constante.", "tag": "MÉTODO"},
+   295→        {"headline": "A alavanca que 9 em cada 10 ignoram", "subheadline": "Concentrar 80% da energia nos 20% de ações que geram resultado é teoria conhecida — mas aplicar exige rejeitar o que parece urgente mas não é importante.", "tag": "FRAMEWORK"},
+   296→        {"headline": "Quem aplica esse método muda o resultado em 30 dias", "subheadline": "Não porque é mágico, mas porque elimina o desperdício de energia em ações de baixo retorno. Foco gera velocidade, velocidade gera resultados mensuráveis.", "tag": "VALOR"},
+   297→        {"headline": "Seu próximo passo concreto começa aqui", "subheadline": f"Escolha UMA área onde você quer aplicar esse framework em {theme}. Defina o problema real, a alavanca e o ciclo de medição. Comece esta semana.", "tag": "CTA"},
+   298→    ]
+   299→
+   300→def _anthropic_client():
+   301→    key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+   302→    return _anthropic.Anthropic(api_key=key) if key else None
+   303→
+   304→@app.route("/api/carousel/copy", methods=["POST"])
+   305→@login_required
+   306→def api_carousel_copy():
+   307→    data  = request.get_json() or {}
+   308→    theme = (data.get("theme") or "").strip()
+   309→    tone  = data.get("tone", "elegante")
+   310→    awareness = data.get("awareness") or "problema"
+   311→    trigger   = data.get("trigger") or "prova"
+   312→    if len(theme) < 3:
+   313→        return jsonify({"error": "Tema muito curto (mínimo 3 caracteres)."}), 400
+   314→    tone_hint = _CAROUSEL_TONE.get(tone, _CAROUSEL_TONE["elegante"])
+   315→    awareness_hint = _CAROUSEL_AWARENESS.get(awareness, _CAROUSEL_AWARENESS["problema"])
+   316→    trigger_hint   = _CAROUSEL_TRIGGER.get(trigger, _CAROUSEL_TRIGGER["prova"])
+   317→
+   318→    client = _anthropic_client()
+   319→    if not client:
+   320→        return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
+   321→
+   322→    try:
+   323→        msg = client.messages.create(
+   324→            model="claude-sonnet-4-5",
+   325→            max_tokens=2048,
+   326→            system=_CAROUSEL_SYSTEM,
+   327→            messages=[{
+   328→                "role": "user",
+   329→                "content": "\n".join([
+   330→                    f"Tema: {theme}",
+   331→                    f"Tom solicitado: {tone}. {tone_hint}",
+   332→                    f"Nível de consciência do público: {awareness_hint}",
+   333→                    f"Gatilho mental a priorizar: {trigger_hint}",
+   334→                    "Gere os 7 slides com profundidade real de conteúdo.",
+   335→                    "Cada subheadline deve ensinar algo específico, com dados ou exemplos concretos.",
+   336→                    'Retorne SOMENTE o JSON: {"slides":[...7 itens...]}',
+   337→                ]),
+   338→            }],
+   339→        )
+   340→        raw = (msg.content[0].text or "").strip()
+   341→        # Extrai o JSON caso venha com texto extra
+   342→        start = raw.find("{")
+   343→        end   = raw.rfind("}") + 1
+   344→        if start == -1 or end == 0:
+   345→            raise ValueError("JSON não encontrado na resposta")
+   346→        parsed = json.loads(raw[start:end])
+   347→        slides = parsed.get("slides", [])
+   348→        if len(slides) != 7:
+   349→            raise ValueError(f"Esperava 7 slides, recebi {len(slides)}")
+   350→        return jsonify({"slides": slides, "theme": theme, "tone": tone})
+   351→    except Exception as exc:
+   352→        return jsonify({"error": str(exc), "slides": _carousel_fallback(theme, tone)}), 500
+   353→
+   354→# ── API: Máquina de Copys ────────────────────────────────────────────────────
+   355→_COPYS_SYSTEM = """\
+   356→Você é um Copywriter de Alta Conversão, especializado em anúncios pagos para gestores de tráfego brasileiros.
+   357→Seu trabalho é criar textos persuasivos e prontos para veicular em anúncios digitais.
+   358→
+   359→REGRAS ABSOLUTAS:
+   360→1. Entregue SOMENTE o texto do anúncio — sem introduções, sem explicações, sem comentários sobre a copy.
+   361→2. Use português brasileiro natural, direto e impactante.
+   362→3. Respeite rigorosamente o framework, a plataforma, o tom e TODAS as variáveis fornecidas.
+   363→4. Adapte o formato à plataforma: Meta Ads aceita textos longos; Google Ads exige títulos curtos (30 chars); TikTok/YouTube focam nos primeiros 3 segundos.
+   364→5. Para Roteiro de Vídeo: use tópicos numerados com indicação de cena/visual entre colchetes.
+   365→6. O CTA informado deve aparecer EXATAMENTE na última linha, sem nenhuma alteração.
+   366→
+   367→NÍVEL DE CONSCIÊNCIA — muda radicalmente o ângulo de entrada:
+   368→- Público Frio (Topo): a pessoa não sabe que tem o problema ou não te conhece. Gancho baseado em curiosidade, dado surpreendente ou problema latente. Zero empurrão de venda direta.
+   369→- Público Morno (Meio): sabe que tem o problema, está comparando soluções. Diferencie, apresente autoridade e valide com provas sociais ou resultados.
+   370→- Público Quente (Fundo): pronto para comprar, só precisa de um empurrão. Remova objeções, destaque urgência/escassez e facilite a decisão.
+   371→
+   372→GATILHO MENTAL — deve ser o fio condutor do texto inteiro, não apenas uma menção:
+   373→- Urgência: prazo real se esgotando, decisão agora ou perde.
+   374→- Escassez: vagas/unidades limitadas, exclusividade.
+   375→- Prova Social: números, depoimentos, resultados de outros clientes.
+   376→- Autoridade: credenciais, anos de experiência, cases, certificações do especialista.
+   377→- Curiosidade: revelar algo inesperado, criar tensão cognitiva que o leitor precisa resolver.
+   378→
+   379→TAMANHO — regra inviolável:
+   380→- Curta (Stories/Reels): 1 gancho + 1 benefício + CTA. Máximo 3 frases. Copy leve, ritmo acelerado.
+   381→- Média (Feed Meta): 3-4 parágrafos com gancho, desenvolvimento, prova e CTA. Tom conversacional.
+   382→- Longa (Texto Persuasivo): copy completa com gancho forte, identificação com a dor, apresentação da solução, provas, quebra de objeção e CTA poderoso. 600-1200 caracteres.
+   383→
+   384→EMOJIS:
+   385→- Sim: use emojis estrategicamente para destacar benefícios e criar ritmo visual. Não exagere.
+   386→- Não: zero emojis. Texto limpo, sem nenhum caractere especial decorativo.
+   387→
+   388→FRAMEWORKS — COMO APLICAR:
+   389→- AIDA: Bloco de Atenção → Interesse (contexto/dados) → Desejo (benefício emocional) → Ação (CTA direto).
+   390→- PAS: Nomear a dor sem rodeios → Agitar (consequências de ignorar) → Solução com o produto.
+   391→- Storytelling Rápido: micro-história em 3 atos (situação → virada → resultado) + CTA.
+   392→- Oferta Direta / Varejo: preço / desconto em destaque → benefício principal → urgência + CTA.
+   393→- Quebra de Objeção: validar a dúvida do remarketing → rebater com prova/garantia → CTA urgente.
+   394→- Roteiro de Vídeo: gancho visual nos 3s → desenvolvimento em tópicos falados → CTA final.
+   395→"""
+   396→
+   397→_COPYS_PLATFORM_HINTS = {
+   398→    "Meta Ads (Facebook/Instagram)": (
+   399→        "Formato Meta Ads: separe o texto em 3 partes com os rótulos exatos: "
+   400→        "[TEXTO PRINCIPAL] (copy principal, pode ser longa), "
+   401→        "[TÍTULO] (máx 40 chars, impacto imediato), "
+   402→        "[DESCRIÇÃO] (máx 30 chars, complemento do título)."
+   403→    ),
+   404→    "Google Ads (Rede de Pesquisa)": (
+   405→        "Formato Google Ads: gere exatamente com os rótulos: "
+   406→        "[TÍTULO 1] (máx 30 chars), [TÍTULO 2] (máx 30 chars), [TÍTULO 3] (máx 30 chars), "
+   407→        "[DESCRIÇÃO 1] (máx 90 chars), [DESCRIÇÃO 2] (máx 90 chars). "
+   408→        "Inclua a palavra-chave principal nos títulos. Conte os caracteres com rigor."
+   409→    ),
+   410→    "TikTok Ads": (
+   411→        "Formato TikTok: gancho nos primeiros 3 segundos é CRÍTICO. "
+   412→        "Texto principal curto (máx 100 chars), linguagem jovem e ritmo acelerado. "
+   413→        "Separe: [LEGENDA] e [TEXTO NA TELA] (se roteiro)."
+   414→    ),
+   415→    "YouTube In-Stream": (
+   416→        "Formato YouTube In-Stream: os primeiros 5 segundos determinam se o usuário pula. "
+   417→        "Use os rótulos de tempo: [0-5s GANCHO], [6-15s DESENVOLVIMENTO], [16-30s OFERTA+CTA]."
+   418→    ),
+   419→}
+   420→
+   421→@app.route("/api/copys/gerar", methods=["POST"])
+   422→@login_required
+   423→def api_copys_gerar():
+   424→    data              = request.get_json() or {}
+   425→    plataforma        = (data.get("plataforma")       or "Meta Ads (Facebook/Instagram)").strip()
+   426→    framework         = (data.get("framework")        or "AIDA").strip()
+   427→    tom               = (data.get("tom")              or "Curto, Seco e Direto ao Ponto").strip()
+   428→    nicho             = (data.get("nicho")            or "").strip()
+   429→    oferta            = (data.get("oferta")           or "").strip()
+   430→    profissao         = (data.get("profissao")        or "").strip()
+   431→    nivel_consciencia = (data.get("nivel_consciencia") or "Público Frio (Topo)").strip()
+   432→    gatilho           = (data.get("gatilho")          or "Urgência").strip()
+   433→    tamanho           = (data.get("tamanho")          or "Média (Feed)").strip()
+   434→    cta               = (data.get("cta")              or "").strip()
+   435→    usar_emojis       = data.get("usar_emojis", False)
+   436→    variacao          = data.get("variacao", False)
+   437→
+   438→    if len(oferta) < 10:
+   439→        return jsonify({"error": "Descreva melhor a oferta / produto (mínimo 10 caracteres)."}), 400
+   440→
+   441→    platform_hint = _COPYS_PLATFORM_HINTS.get(plataforma, "")
+   442→    emoji_instrucao = "Sim — use emojis estrategicamente" if usar_emojis else "Não — zero emojis, texto 100% limpo"
+   443→
+   444→    linhas = [
+   445→        "═══ BRIEFING DA COPY ═══",
+   446→        f"Plataforma: {plataforma}",
+   447→        platform_hint,
+   448→        f"Framework / Estrutura: {framework}",
+   449→        f"Tom de Voz: {tom}",
+   450→        f"Nível de Consciência do Público: {nivel_consciencia}",
+   451→        f"Gatilho Mental Foco: {gatilho}",
+   452→        f"Tamanho da Copy: {tamanho}",
+   453→        f"Usar Emojis: {emoji_instrucao}",
+   454→        f"Especialista / Profissão: {profissao if profissao else 'Não informado'}",
+   455→        f"Nicho / Público-Alvo: {nicho if nicho else 'Geral'}",
+   456→        f"A Oferta / Produto: {oferta}",
+   457→        f"CTA Exato a usar: {cta if cta else 'Crie um CTA adequado ao contexto'}",
+   458→        "",
+   459→    ]
+   460→
+   461→    if variacao:
+   462→        linhas.append(
+   463→            "INSTRUÇÃO ESPECIAL — VARIAÇÃO A/B: Crie uma copy com ângulo COMPLETAMENTE DIFERENTE "
+   464→            "da geração anterior. Mude o gancho de entrada, a estrutura narrativa, o vocabulário e "
+   465→            "a abordagem emocional. O objetivo é gerar uma alternativa para teste A/B que transmita "
+   466→            "a mesma oferta por um caminho totalmente diferente. Surpreenda."
+   467→        )
+   468→    else:
+   469→        linhas.append("Gere agora a copy de alta conversão seguindo EXATAMENTE todas as especificações acima.")
+   470→
+   471→    user_msg = "\n".join(filter(None, linhas))
+   472→
+   473→    client = _anthropic_client()
+   474→    if not client:
+   475→        return jsonify({"error": "ANTHROPIC_API_KEY não configurada no servidor."}), 500
+   476→
+   477→    try:
+   478→        msg = client.messages.create(
+   479→            model="claude-sonnet-4-6",
+   480→            max_tokens=1500,
+   481→            system=_COPYS_SYSTEM,
+   482→            messages=[{"role": "user", "content": user_msg}],
+   483→        )
+   484→        copy_text = (msg.content[0].text or "").strip()
+   485→        if not copy_text:
+   486→            return jsonify({"error": "A IA retornou uma resposta vazia."}), 500
+   487→        return jsonify({"copy": copy_text, "variacao": variacao})
+   488→    except Exception as exc:
+   489→        return jsonify({"error": str(exc)}), 500
+   490→
+   491→# ── API: Meta Insights para Relatórios ──────────────────────────────────────
+   492→import re as _re
+   493→
+   494→_meta_insights_cache: dict = {}   # account_id → {"ts": float, "data": dict}
+   495→_META_CACHE_TTL = 1800            # 30 minutos
+   496→
+   497→# Tokens por agência (expansível)
+   498→_META_TOKENS = {
+   499→    "piloti": lambda: os.environ.get("META_TOKEN_PILOTI", "").strip(),
+   500→    "dentto": lambda: os.environ.get("META_TOKEN_DENTTO", "").strip(),
+   501→}
+   502→
+   503→@app.route("/api/relatorios/insights/<agency>/<account_id>")
+   504→@login_required
+   505→def api_relatorios_insights(agency, account_id):
+   506→    if not _re.match(r'^act_\d+$', account_id):
+   507→        return jsonify({"error": "ID de conta inválido"}), 400
+   508→
+   509→    cache_key = f"{agency}:{account_id}"
+   510→    now = time.time()
+   511→    if cache_key in _meta_insights_cache:
+   512→        cached = _meta_insights_cache[cache_key]
+   513→        if now - cached["ts"] < _META_CACHE_TTL:
+   514→            return jsonify(cached["data"])
+   515→
+   516→    token_fn = _META_TOKENS.get(agency)
+   517→    token = token_fn() if token_fn else ""
+   518→    if not token:
+   519→        return jsonify({"error": f"Token da agência '{agency}' não configurado"}), 500
+   520→
+   521→    def _find_action(arr, *types):
+   522→        """Percorre um array de actions e retorna o value do primeiro type encontrado."""
+   523→        for entry in (arr or []):
+   524→            if entry.get("action_type") in types:
+   525→                try:
+   526→                    return float(entry.get("value", 0) or 0)
+   527→                except (TypeError, ValueError):
+   528→                    return 0.0
+   529→        return 0.0
+   530→
+   531→    try:
+   532→        r = requests.get(
+   533→            f"https://graph.facebook.com/v21.0/{account_id}/insights",
+   534→            params={
+   535→                "fields": "spend,impressions,clicks,reach,cpm,ctr,frequency,"
+   536→                          "actions,cost_per_action_type",
+   537→                "date_preset": "last_7d",
+   538→                "access_token": token,
+   539→            },
+   540→            timeout=15,
+   541→        )
+   542→        if not r.ok:
+   543→            err = r.json().get("error", {})
+   544→            return jsonify({"error": err.get("message", f"Meta API {r.status_code}")}), 502
+   545→
+   546→        data = r.json().get("data", [])
+   547→        if not data:
+   548→            result = {
+   549→                "spend": 0.0, "impressions": 0, "clicks": 0, "reach": 0,
+   550→                "leads": 0,          "lead_cost": 0.0,
+   551→                "messaging": 0,      "messaging_cost": 0.0,
+   552→                "profile_visits": 0, "profile_visit_cost": 0.0,
+   553→                "purchases": 0,
+   554→                "ctr": "0.00", "cpm": "0.00", "frequency": "1.00", "empty": True,
+   555→            }
+   556→            _meta_insights_cache[cache_key] = {"ts": now, "data": result}
+   557→            return jsonify(result)
+   558→
+   559→        row      = data[0]
+   560→        actions  = row.get("actions") or []
+   561→        costs    = row.get("cost_per_action_type") or []
+   562→
+   563→        # ── Extrações com fallback seguro ────────────────────────────
+   564→        leads          = int(_find_action(actions, "lead"))
+   565→        lead_cost      = _find_action(costs,   "lead")
+   566→
+   567→        profile_visits      = int(_find_action(actions, "instagram_profile_visit"))
+   568→        profile_visit_cost  = _find_action(costs,   "instagram_profile_visit")
+   569→
+   570→        messaging      = int(_find_action(
+   571→            actions,
+   572→            "onsite_conversion.messaging_conversation_started_7d",
+   573→            "onsite_conversion.messaging_conversation_started",
+   574→        ))
+   575→        messaging_cost = _find_action(
+   576→            costs,
+   577→            "onsite_conversion.messaging_conversation_started_7d",
+   578→            "onsite_conversion.messaging_conversation_started",
+   579→        )
+   580→
+   581→        purchases = int(_find_action(actions, "purchase", "omni_purchase"))
+   582→
+   583→        # Diagnóstico: todos os action_types retornados
+   584→        raw_actions = {a.get("action_type"): a.get("value") for a in actions}
+   585→
+   586→        result = {
+   587→            "spend":              float(row.get("spend", 0) or 0),
+   588→            "impressions":        int(row.get("impressions", 0) or 0),
+   589→            "clicks":             int(row.get("clicks", 0) or 0),
+   590→            "reach":              int(row.get("reach", 0) or 0),
+   591→            "leads":              leads,
+   592→            "lead_cost":          lead_cost,
+   593→            "messaging":          messaging,
+   594→            "messaging_cost":     messaging_cost,
+   595→            "profile_visits":     profile_visits,
+   596→            "profile_visit_cost": profile_visit_cost,
+   597→            "purchases":          purchases,
+   598→            "ctr":                row.get("ctr", "0.00"),
+   599→            "cpm":                row.get("cpm", "0.00"),
+   600→            "frequency":          row.get("frequency", "1.00"),
+   601→            "_actions":           raw_actions,
+   602→        }
+   603→        _meta_insights_cache[cache_key] = {"ts": now, "data": result}
+   604→        return jsonify(result)
+   605→
+   606→    except requests.Timeout:
+   607→        return jsonify({"error": "Timeout na Meta API"}), 504
+   608→    except Exception as exc:
+   609→        return jsonify({"error": str(exc)}), 500
+   610→
+   611→# ── API: Análise IA para Relatórios ──────────────────────────────────────────
+   612→@app.route("/api/relatorios/analise", methods=["POST"])
+   613→@login_required
+   614→def api_relatorios_analise():
+   615→    data    = request.get_json() or {}
+   616→    nome    = (data.get("nome") or "").strip()
+   617→    metricas = data.get("metricas") or {}
+   618→
+   619→    client = _anthropic_client()
+   620→    if not client:
+   621→        return jsonify({"analise": ""})
+   622→
+   623→    metricas_str = "\n".join(f"- {k}: {v}" for k, v in metricas.items())
+   624→    prompt = (
+   625→        f"Você é analista de tráfego pago. Gere uma análise BREVE (2-3 frases, máximo 120 palavras) "
+   626→        f"sobre os resultados das campanhas Meta Ads de '{nome}' nos últimos 7 dias.\n\n"
+   627→        f"Dados:\n{metricas_str}\n\n"
+   628→        f"Seja direto, profissional, em português brasileiro. "
+   629→        f"Destaque o principal resultado e dê UMA recomendação prática. "
+   630→        f"NÃO use markdown, asteriscos, negrito ou formatação. Apenas texto corrido simples."
+   631→    )
+   632→    try:
+   633→        msg = client.messages.create(
+   634→            model="claude-sonnet-4-5",
+   635→            max_tokens=220,
+   636→            messages=[{"role": "user", "content": prompt}],
+   637→        )
+   638→        return jsonify({"analise": (msg.content[0].text or "").strip()})
+   639→    except Exception as exc:
+   640→        return jsonify({"analise": "", "error": str(exc)})
+   641→
+   642→# ── API: Gerador de Prompts de Imagem ────────────────────────────────────────
+   643→_PROMPTS_SYSTEM = """\
+   644→You are a world-class AI image prompt engineer. Your sole task is to receive a user's image idea \
+   645→(provided in Portuguese) and return a single, complete image generation prompt EXCLUSIVELY in English.
+   646→
+   647→RULES:
+   648→1. Output ONLY the final prompt text — no explanations, no titles, no labels, no comments.
+   649→2. The prompt must be 100% in English, even if the input is in Portuguese.
+   650→3. Enrich the prompt with professional technical quality modifiers appropriate for the chosen style.
+   651→4. Structure: [subject/scene], [style], [lighting], [colors], [camera/composition], [quality tags].
+   652→5. Always end with a cluster of quality boosters relevant to the style chosen.
+   653→
+   654→QUALITY BOOSTERS BY STYLE:
+   655→- ultra-realistic photography: 8k resolution, RAW photo, photorealistic, sharp focus, depth of field, \
+   656→bokeh, professional color grading, shot on Sony A7R IV
+   657→- 3D render / Pixar-Disney: 3D render, Pixar style, subsurface scattering, global illumination, \
+   658→octane render, smooth shading, vibrant palette, cinematic lighting
+   659→- digital illustration: digital art, concept art, artstation trending, highly detailed, \
+   660→intricate linework, professional illustration
+   661→- cinematic: cinematic shot, anamorphic lens, film grain, color grading, dramatic lighting, \
+   662→movie poster quality, ultra-wide angle
+   663→- minimalist / flat design: flat design, vector art, clean lines, minimal shadows, \
+   664→pastel palette, geometric shapes, UI design quality
+   665→- dark fantasy: dark fantasy, dramatic atmosphere, volumetric fog, rim lighting, \
+   666→hyperrealistic textures, epic scale, deviantart masterpiece
+   667→- neon cyberpunk: neon glow, cyberpunk aesthetic, rain reflections, neon lights, \
+   668→futuristic city, blade runner style, vibrant neon palette
+   669→"""
+   670→
+   671→@app.route("/api/prompts/gerar", methods=["POST"])
+   672→@login_required
+   673→def api_prompts_gerar():
+   674→    data     = request.get_json() or {}
+   675→    objetivo = (data.get("objetivo") or "").strip()
+   676→    estilo   = (data.get("estilo")   or "").strip()
+   677→    tema     = (data.get("tema")     or "").strip()
+   678→    cores    = (data.get("cores")    or "").strip()
+   679→
+   680→    if len(tema) < 5:
+   681→        return jsonify({"error": "Descreva melhor o tema principal (mínimo 5 caracteres)."}), 400
+   682→
+   683→    user_msg = "\n".join(filter(None, [
+   684→        f"Image purpose: {objetivo}",
+   685→        f"Visual style: {estilo}",
+   686→        f"Scene/subject (in Portuguese, translate and adapt): {tema}",
+   687→        f"Colors & lighting notes: {cores}" if cores else "",
+   688→        "",
+   689→        "Generate the complete image prompt now.",
+   690→    ]))
+   691→
+   692→    client = _anthropic_client()
+   693→    if not client:
+   694→        return jsonify({"error": "ANTHROPIC_API_KEY não configurada no servidor."}), 500
+   695→
+   696→    try:
+   697→        msg = client.messages.create(
+   698→            model="claude-sonnet-4-5",
+   699→            max_tokens=600,
+   700→            system=_PROMPTS_SYSTEM,
+   701→            messages=[{"role": "user", "content": user_msg}],
+   702→        )
+   703→        prompt_text = (msg.content[0].text or "").strip()
+   704→        if not prompt_text:
+   705→            return jsonify({"error": "A IA retornou uma resposta vazia."}), 500
+   706→        return jsonify({"prompt": prompt_text})
+   707→    except Exception as exc:
+   708→        return jsonify({"error": str(exc)}), 500
+   709→
+   710→
+   711→# ── API: Fábrica de Criativos (Texto + Imagem) ─────────────────────────────────
+   712→
+   713→def _parse_creative_variants(raw: str) -> list[dict]:
+   714→    """
+   715→    Tenta extrair uma lista de {headline, subheadline} a partir de um JSON retornado pela IA.
+   716→    """
+   717→    try:
+   718→        raw = raw.strip()
+   719→        start = raw.find("[")
+   720→        end = raw.rfind("]") + 1
+   721→        if start == -1 or end == 0:
+   722→            raise ValueError("JSON não encontrado na resposta")
+   723→        slice_ = raw[start:end]
+   724→        parsed = json.loads(slice_)
+   725→        if not isinstance(parsed, list):
+   726→            raise ValueError("JSON não é uma lista")
+   727→        variants: list[dict] = []
+   728→        for item in parsed[:5]:
+   729→            hl = str(item.get("headline", "")).strip()
+   730→            sh = str(item.get("subheadline", "")).strip()
+   731→            if hl:
+   732→                variants.append({"headline": hl, "subheadline": sh})
+   733→        if not variants:
+   734→            raise ValueError("Nenhuma variação válida encontrada")
+   735→        while len(variants) < 5:
+   736→            variants.append(variants[-1])
+   737→        return variants
+   738→    except Exception as exc:  # pragma: no cover - diagnóstico
+   739→        print("[Jake] Erro ao parsear variantes de criativos:", exc, raw[:400])
+   740→        raise
+   741→
+   742→
+   743→def _generate_creative_texts(niche: str, campaign_focus: str, engine: str) -> list[dict]:
+   744→    focus_label = {
+   745→        "whatsapp": "campanhas de mensagem no WhatsApp (objetivo leads/contato)",
+   746→        "conversion": "conversões diretas (vendas/checkout)",
+   747→        "awareness": "reconhecimento de marca e lembrança",
+   748→    }.get(campaign_focus, "campanhas de mensagem no WhatsApp (objetivo leads/contato)")
+   749→
+   750→    system_prompt = (
+   751→        "Você é um copywriter especialista em anúncios para Meta Ads focados em campanhas de mensagem.\n\n"
+   752→        "Gere EXATAMENTE 5 variações, cada uma com:\n"
+   753→        '- \"headline\": promessa curta, agressiva e clara (máx. 55 caracteres).\n'
+   754→        '- \"subheadline\": texto de apoio de 1 a 2 frases, focado em benefício e próximo da linguagem do público.\n\n'
+   755→        "Contexto:\n"
+   756→        f"- Público/nicho: {niche}\n"
+   757→        f"- Foco da campanha: {focus_label}\n\n"
+   758→        "Responda APENAS em JSON, no formato:\n\n"
+   759→        '[\n  { "headline": "...", "subheadline": "..." },\n  ... (total 5 itens)\n]\n'
+   760→    )
+   761→
+   762→    if engine == "claude":
+   763→        client = _anthropic_client()
+   764→        if not client:
+   765→            raise RuntimeError("ANTHROPIC_API_KEY não configurada para o motor de texto.")
+   766→        msg = client.messages.create(
+   767→            model="claude-sonnet-4-6",
+   768→            max_tokens=900,
+   769→            system=system_prompt,
+   770→            messages=[{
+   771→                "role": "user",
+   772→                "content": "Gere as 5 variações em português brasileiro conforme instruções, respondendo apenas com o JSON.",
+   773→            }],
+   774→        )
+   775→        raw = (msg.content[0].text or "").strip()
+   776→        return _parse_creative_variants(raw)
+   777→    else:
+   778→        client = _openai_client()
+   779→        if not client:
+   780→            raise RuntimeError("OPENAI_API_KEY não configurada para o motor de texto.")
+   781→        resp = client.chat.completions.create(
+   782→            model="gpt-4o",
+   783→            temperature=0.8,
+   784→            max_tokens=900,
+   785→            messages=[
+   786→                {"role": "system", "content": system_prompt},
+   787→                {"role": "user", "content": "Gere as 5 variações em português brasileiro conforme instruções, em JSON."},
+   788→            ],
+   789→        )
+   790→        raw = (resp.choices[0].message.content or "").strip()
+   791→        return _parse_creative_variants(raw)
+   792→
+   793→
+   794→def _file_to_data_url(f) -> str:
+   795→    """Converte um arquivo enviado via formulário em data URL."""
+   796→    content = f.read()
+   797→    mime = f.mimetype or "image/jpeg"
+   798→    b64 = base64.b64encode(content).decode("utf-8")
+   799→    return f"data:{mime};base64,{b64}"
+   800→
+   801→
+   802→def _generate_creative_images(mode: str, image_engine: str, prompt: str, image_file):
+   803→    """
+   804→    Gera até 5 imagens (ou reutiliza a mesma) dependendo do modo.
+   805→    Retorna lista de data URLs.
+   806→    """
+   807→    images: list[str] = []
+   808→
+   809→    # Upload: devolve a mesma foto base em todos os criativos (lado a lado com as promessas).
+   810→    if mode == "upload" and image_file:
+   811→        try:
+   812→            data_url = _file_to_data_url(image_file)
+   813→            images = [data_url] * 5
+   814→            return images
+   815→        except Exception as exc:
+   816→            print("[Jake] Erro ao converter imagem de upload:", exc)
+   817→            return []
+   818→
+   819→    # Prompt: gera uma imagem sintética e replica para os 5 cards.
+   820→    if mode == "prompt" and prompt:
+   821→        # 1️⃣ Flux 1.1 Pro via Replicate
+   822→        replicate_token = os.environ.get("REPLICATE_API_TOKEN", "").strip()
+   823→        if replicate_token and image_engine == "flux":
+   824→            try:
+   825→                image_url = _generate_flux(prompt, replicate_token)
+   826→                data_url = _url_to_data_url(image_url)
+   827→                images = [data_url] * 5
+   828→                return images
+   829→            except Exception as flux_err:  # pragma: no cover - diagnóstico
+   830→                print("[Jake] Flux (Fábrica de Criativos) falhou, tentando fallback:", flux_err)
+   831→
+   832→        # 2️⃣ Fallback com DALL-E 3 (ou uso como pseudo-Imagen 4)
+   833→        openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+   834→        if openai_key:
+   835→            try:
+   836→                client = OpenAI(api_key=openai_key)
+   837→                final_prompt = f"{prompt}. {_IMG_MASTER_STYLE}"
+   838→                resp = client.images.generate(
+   839→                    model="dall-e-3",
+   840→                    prompt=final_prompt,
+   841→                    size="1024x1024",
+   842→                    quality="standard",
+   843→                    n=1,
+   844→                )
+   845→                image_url = resp.data[0].url
+   846→                data_url = _url_to_data_url(image_url)
+   847→                images = [data_url] * 5
+   848→                return images
+   849→            except Exception as e:  # pragma: no cover - diagnóstico
+   850→                print("[Jake] DALL-E fallback (Fábrica de Criativos) falhou:", e)
+   851→
+   852→    return images
+   853→
+   854→
+   855→@app.route("/api/generate-creative", methods=["POST"])
+   856→@login_required
+   857→def api_generate_creative():
+   858→    """
+   859→    Endpoint da Fábrica de Criativos.
+   860→
+   861→    Recebe multipart/form-data com:
+   862→    - mode: 'prompt' ou 'upload'
+   863→    - image_engine: 'flux' ou 'imagen4'
+   864→    - text_engine: 'claude' ou 'gpt4o'
+   865→    - campaign_focus: 'whatsapp' | 'conversion' | 'awareness'
+   866→    - niche: string
+   867→    - prompt: (se mode = prompt)
+   868→    - image: arquivo (se mode = upload)
+   869→    """
+   870→    mode = (request.form.get("mode") or "prompt").strip()
+   871→    image_engine = (request.form.get("image_engine") or "flux").strip()
+   872→    text_engine = (request.form.get("text_engine") or "claude").strip()
+   873→    campaign_focus = (request.form.get("campaign_focus") or "whatsapp").strip()
+   874→    niche = (request.form.get("niche") or "").strip()
+   875→    prompt = (request.form.get("prompt") or "").strip()
+   876→    image_file = request.files.get("image")
+   877→
+   878→    if not niche:
+   879→        return jsonify({"error": "Preencha o público/nicho antes de gerar."}), 400
+   880→
+   881→    if mode == "prompt" and not prompt:
+   882→        return jsonify({"error": "Descreva a cena do criativo (prompt)."}), 400
+   883→
+   884→    if mode == "upload" and (not image_file or not image_file.filename):
+   885→        return jsonify({"error": "Envie uma imagem base no modo Upload."}), 400
+   886→
+   887→    try:
+   888→        texts = _generate_creative_texts(niche, campaign_focus, text_engine)
+   889→    except Exception as exc:
+   890→        return jsonify({"error": f"Falha ao gerar textos: {exc}"}), 500
+   891→
+   892→    try:
+   893→        images = _generate_creative_images(mode, image_engine, prompt, image_file)
+   894→    except Exception as exc:
+   895→        print("[Jake] Erro ao gerar imagens (Fábrica de Criativos):", exc)
+   896→        images = []
+   897→
+   898→    creatives = []
+   899→    for i in range(5):
+   900→        t = texts[i] if i < len(texts) else texts[-1]
+   901→        img = images[i] if i < len(images) else (images[0] if images else None)
+   902→        creatives.append({
+   903→            "id": i + 1,
+   904→            "headline": t.get("headline", ""),
+   905→            "subheadline": t.get("subheadline", ""),
+   906→            "image": img,
+   907→        })
+   908→
+   909→    return jsonify({
+   910→        "creatives": creatives,
+   911→        "meta": {
+   912→            "mode": mode,
+   913→            "image_engine": image_engine,
+   914→            "text_engine": text_engine,
+   915→            "campaign_focus": campaign_focus,
+   916→        },
+   917→    })
+   918→
+   919→# ── Inicialização ────────────────────────────────────────────────────────────
+   920→def _local_ip():
+   921→    try:
+   922→        import socket
+   923→        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+   924→        s.settimeout(0.5)
+   925→        s.connect(("8.8.8.8", 80))
+   926→        ip = s.getsockname()[0]
+   927→        s.close()
+   928→        return ip
+   929→    except Exception:
+   930→        return None
+   931→
+   932→# ── Prompt mestre cinematográfico ────────────────────────────────────────────
+   933→_IMG_MASTER_STYLE = (
+   934→    "Cinematic ultra-realistic editorial photograph, 8K. "
+   935→    "Hyperdetailed textures, dramatic chiaroscuro lighting — deep rich shadows contrasted with luminous practicals. "
+   936→    "Shot on Hasselblad medium format, 50mm f/1.4, shallow depth of field with smooth bokeh. "
+   937→    "Award-winning commercial photography, magazine cover quality. "
+   938→    "No text, no watermarks, no logos, no UI mockups."
+   939→)
+   940→
+   941→def _carousel_image_style_suffix(style_visual: str, mix_reality: str, palette: str) -> str:
+   942→    """Monta sufixo de estilo para geração de imagem do carrossel."""
+   943→    style_map = {
+   944→        "editorial": "Editorial realista, revista de negócios, luz natural e composição limpa.",
+   945→        "luxo": "High fashion, moda e luxo, estética de campanha premium, tecidos e ambientes refinados.",
+   946→        "cyberpunk": "Futurista cyberpunk, neon, tecnologia e humano fundidos, cenários distópicos.",
+   947→        "documental": "Documentário, fotografia crua, realismo sem retoque excessivo.",
+   948→        "retrato": "Retrato editorial, foco no rosto e expressão, fundo suave.",
+   949→        "produto": "Fotografia de produto, foco no objeto, fundo neutro ou lifestyle.",
+   950→    }
+   951→    mix_map = {
+   952→        "leve": "Leve toque digital: reflexos ou partículas sutis, mantendo o real dominante.",
+   953→        "medio": "Mistura equilibrada: elementos digitais/holográficos integrados à cena real — dados, luzes volumétricas, UI flutuante.",
+   954→        "forte": "Mistura forte real × IA: cenário real com personagens ou objetos claramente digitais, hologramas, circuitos visíveis.",
+   955→    }
+   956→    palette_map = {
+   957→        "neutro": "Paleta neutra, tons de cinza e bege, destaque sutil em uma cor.",
+   958→        "quente": "Paleta quente: âmbar, dourado, laranja suave, sensação acolhedora.",
+   959→        "frio": "Paleta fria: azul, teal, prata, sensação tecnológica.",
+   960→        "neon": "Neon: roxo, rosa elétrico, ciano, alto contraste.",
+   961→        "pb": "Preto e branco, alto contraste, cinematográfico.",
+   962→    }
+   963→    a = style_map.get(style_visual or "", style_map["editorial"])
+   964→    b = mix_map.get(mix_reality or "", mix_map["medio"])
+   965→    c = palette_map.get(palette or "", palette_map["neutro"])
+   966→    return f"{a} {b} Colorização: {c}"
+   967→
+   968→def _url_to_data_url(url: str) -> str:
+   969→    resp = requests.get(url, timeout=60)
+   970→    mime = resp.headers.get("content-type", "image/webp")
+   971→    b64  = base64.b64encode(resp.content).decode("utf-8")
+   972→    return f"data:{mime};base64,{b64}"
+   973→
+   974→def _generate_flux(prompt: str, token: str, style_suffix: str | None = None) -> str:
+   975→    """Generate image with Flux 1.1 Pro via Replicate. Returns image URL."""
+   976→    import time as _time
+   977→    final_prompt = f"{prompt}. {_IMG_MASTER_STYLE}"
+   978→    if style_suffix:
+   979→        final_prompt = f"{final_prompt}. {style_suffix}"
+   980→    resp = requests.post(
+   981→        "https://api.replicate.com/v1/models/black-forest-labs/flux-1.1-pro/predictions",
+   982→        headers={
+   983→            "Authorization": f"Bearer {token}",
+   984→            "Content-Type": "application/json",
+   985→            "Prefer": "wait=60",
+   986→        },
+   987→        json={
+   988→            "input": {
+   989→                "prompt": final_prompt,
+   990→                "aspect_ratio": "4:5",
+   991→                "output_format": "webp",
+   992→                "output_quality": 92,
+   993→                "safety_tolerance": 2,
+   994→                "prompt_upsampling": True,
+   995→            }
+   996→        },
+   997→        timeout=75,
+   998→    )
+   999→    if not resp.ok:
+  1000→        detail = ""
+  1001→        try:
+  1002→            data = resp.json()
+  1003→            detail = str(data.get("detail") or data.get("error") or "")[:200]
+  1004→        except Exception:
+  1005→            detail = resp.text[:200]
+  1006→        lower_detail = detail.lower()
+  1007→        if resp.status_code == 429 or "throttled" in lower_detail or "rate limit" in lower_detail:
+  1008→            raise RuntimeError(
+  1009→                "Replicate: limite de velocidade atingido. "
+  1010→                "Com saldo baixo (< US$5), o limite é de 6 requisições por minuto com burst de 1. "
+  1011→                "Gere menos slides por vez (ex.: 1–3) ou espere alguns segundos antes de tentar novamente."
+  1012→            )
+  1013→        raise RuntimeError(f"Replicate {resp.status_code}: {detail}")
+  1014→
+  1015→    pred = resp.json()
+  1016→    # Synchronous path
+  1017→    if pred.get("status") == "succeeded":
+  1018→        out = pred.get("output")
+  1019→        return (out[0] if isinstance(out, list) else out)
+  1020→
+  1021→    # Async polling fallback
+  1022→    get_url = (pred.get("urls") or {}).get("get")
+  1023→    if get_url:
+  1024→        for _ in range(25):
+  1025→            _time.sleep(3)
+  1026→            p = requests.get(get_url, headers={"Authorization": f"Bearer {token}"}, timeout=10).json()
+  1027→            if p.get("status") == "succeeded":
+  1028→                out = p.get("output")
+  1029→                return (out[0] if isinstance(out, list) else out)
+  1030→            if p.get("status") in ("failed", "canceled"):
+  1031→                raise RuntimeError(f"Flux falhou: {p.get('error', 'desconhecido')}")
+  1032→    raise RuntimeError("Flux: timeout após polling.")
+  1033→
+  1034→# ── Geração de imagens (apenas Replicate / Flux 1.1 Pro) ─────────────────────
+  1035→@app.route("/api/carousel/generate-image", methods=["POST"])
+  1036→@login_required
+  1037→def api_carousel_generate_image():
+  1038→    data   = request.get_json() or {}
+  1039→    prompt = (data.get("prompt") or "").strip()
+  1040→    style_visual = (data.get("style_visual") or "").strip() or None
+  1041→    mix_reality  = (data.get("mix_reality") or "").strip() or None
+  1042→    palette      = (data.get("palette") or "").strip() or None
+  1043→
+  1044→    if len(prompt) < 5:
+  1045→        return jsonify({"error": "Prompt muito curto."}), 400
+  1046→
+  1047→    replicate_token = os.environ.get("REPLICATE_API_TOKEN", "").strip()
+  1048→    if not replicate_token:
+  1049→        return jsonify({"error": "Configure REPLICATE_API_TOKEN no .env para gerar imagens."}), 500
+  1050→
+  1051→    style_suffix = _carousel_image_style_suffix(style_visual, mix_reality, palette)
+  1052→    try:
+  1053→        image_url = _generate_flux(prompt, replicate_token, style_suffix=style_suffix)
+  1054→        data_url  = _url_to_data_url(image_url)
+  1055→        return jsonify({"dataUrl": data_url, "prompt": prompt, "model": "flux-1.1-pro"})
+  1056→    except Exception as e:
+  1057→        return jsonify({"error": str(e)}), 500
+  1058→
+  1059→
+  1060→# ── API: Financeiro Pessoal — Análise IA ────────────────────────────────────
+  1061→@app.route("/api/financeiro/analise", methods=["POST"])
+  1062→@login_required
+  1063→def financeiro_analise():
+  1064→    data = request.get_json(force=True) or {}
+  1065→    mes        = data.get("mes", "este mês")
+  1066→    receita    = data.get("receita", 0)
+  1067→    despesas   = data.get("despesas", 0)
+  1068→    saldo      = data.get("saldo", 0)
+  1069→    receita_ant = data.get("receita_ant", 0)
+  1070→    desp_ant   = data.get("desp_ant", 0)
+  1071→
+  1072→    var_receita = ""
+  1073→    if receita_ant > 0:
+  1074→        pct = ((receita - receita_ant) / receita_ant) * 100
+  1075→        var_receita = f"As receitas variaram {pct:+.1f}% em relação ao mês anterior."
+  1076→
+  1077→    prompt = f"""Você é Jake, o assistente financeiro pessoal. Analise os dados abaixo e forneça
+  1078→um parágrafo direto, honesto e perspicaz sobre a saúde financeira do usuário em {mes}.
+  1079→Use linguagem objetiva e tom de consultor financeiro profissional. Máximo de 3 parágrafos curtos.
+  1080→
+  1081→Dados de {mes}:
+  1082→- Receita total: R$ {receita:,.2f}
+  1083→- Despesas totais: R$ {despesas:,.2f}
+  1084→- Saldo: R$ {saldo:,.2f}
+  1085→- Taxa de comprometimento: {(despesas/receita*100) if receita else 0:.1f}% da receita
+  1086→- Comparativo: receita anterior R$ {receita_ant:,.2f} / despesas anteriores R$ {desp_ant:,.2f}
+  1087→{var_receita}
+  1088→
+  1089→Seja específico com os números. Dê pelo menos 1 recomendação prática."""
+  1090→
+  1091→    ant_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
+  1092→    openai_key = os.environ.get("OPENAI_API_KEY")
+  1093→
+  1094→    if ant_key:
+  1095→        try:
+  1096→            client = _anthropic.Anthropic(api_key=ant_key)
+  1097→            msg = client.messages.create(
+  1098→                model="claude-sonnet-4-5",
+  1099→                max_tokens=512,
+  1100→                messages=[{"role": "user", "content": prompt}]
+  1101→            )
+  1102→            analise = msg.content[0].text
+  1103→            return jsonify({"analise": analise})
+  1104→        except Exception as e:
+  1105→            pass
+  1106→
+  1107→    if openai_key:
+  1108→        try:
+  1109→            client = OpenAI(api_key=openai_key)
+  1110→            resp = client.chat.completions.create(
+  1111→                model="gpt-4o",
+  1112→                messages=[{"role": "user", "content": prompt}],
+  1113→                max_tokens=512,
+  1114→            )
+  1115→            analise = resp.choices[0].message.content
+  1116→            return jsonify({"analise": analise})
+  1117→        except Exception as e:
+  1118→            pass
+  1119→
+  1120→    # Fallback local
+  1121→    saldo_emoji = "✅" if saldo >= 0 else "⚠️"
+  1122→    taxa = (despesas / receita * 100) if receita else 0
+  1123→    analise = (
+  1124→        f"{saldo_emoji} Em <strong>{mes}</strong>, você faturou <strong>R$ {receita:,.2f}</strong> "
+  1125→        f"e gastou <strong>R$ {despesas:,.2f}</strong>, resultando em saldo de "
+  1126→        f"<strong>R$ {saldo:,.2f}</strong>. "
+  1127→        f"Sua taxa de comprometimento foi de <strong>{taxa:.1f}%</strong> da receita."
+  1128→    )
+  1129→    return jsonify({"analise": analise})
+  1130→
+  1131→
+  1132→# ── API: Site Architect — geração de landing page ─────────────────────────────
+  1133→
+  1134→_SITE_ARCH_SYSTEM = """\
+  1135→Você é um Site Architect especialista em landing pages de alta conversão.
+  1136→
+  1137→OBJETIVO:
+  1138→- Receber uma URL de referência (layout base) e o contexto de negócio do usuário.
+  1139→- Entregar UMA landing page completa, em HTML + TailwindCSS, moderna, responsiva e limpa.
+  1140→- Manter a estrutura de seções da referência (Hero, Benefícios, Prova Social, FAQ, Rodapé),
+  1141→  mas SEM copiar código ou textos literalmente.
+  1142→
+  1143→REGRAS:
+  1144→1. Use SOMENTE TailwindCSS (classes utilitárias) — não use CSS em <style>.
+  1145→2. Não importe fontes externas; use system fonts (font-sans).
+  1146→3. Estrutura básica:
+  1147→   <html lang="pt-BR">
+  1148→     <head> (meta + título + link Tailwind via CDN)
+  1149→     <body class="bg-slate-950 text-slate-50 ..."> ... </body>
+  1150→   </html>
+  1151→4. Seções mínimas:
+  1152→   - Hero com headline forte, subheadline e call-to-action.
+  1153→   - Seção de benefícios / features.
+  1154→   - Seção de prova social (depoimentos, métricas ou logos).
+  1155→   - Seção de FAQ.
+  1156→   - Rodapé simples.
+  1157→5. Substitua completamente qualquer texto da referência pela copy do usuário (hero_copy, extra_copy, contexto).
+  1158→6. Nunca use textos genéricos como "Lorem ipsum".
+  1159→7. Saída: retorne APENAS o HTML final, pronto para ser salvo como index.html.
+  1160→"""
+  1161→
+  1162→
+  1163→def _save_data_url_image(kind: str, data_url: str, index: int | None = None) -> str | None:
+  1164→    """
+  1165→    Salva uma imagem enviada como data URL em static/uploads/architect
+  1166→    e retorna a URL pública (/static/...).
+  1167→    """
+  1168→    if not data_url or not isinstance(data_url, str) or "," not in data_url:
+  1169→        return None
+  1170→    try:
+  1171→        header, b64 = data_url.split(",", 1)
+  1172→        mime = "image/png"
+  1173→        if header.startswith("data:") and ";base64" in header:
+  1174→            mime = header[5:header.index(";base64")] or "image/png"
+  1175→        ext = {
+  1176→            "image/jpeg": "jpg",
+  1177→            "image/jpg": "jpg",
+  1178→            "image/png": "png",
+  1179→            "image/webp": "webp",
+  1180→        }.get(mime, "png")
+  1181→
+  1182→        # Garante diretório
+  1183→        base_dir = os.path.join(app.static_folder, "uploads", "architect")
+  1184→        os.makedirs(base_dir, exist_ok=True)
+  1185→
+  1186→        suffix = f"_{index}" if index is not None else ""
+  1187→        filename = f"{int(time.time())}_{kind}{suffix}_{uuid.uuid4().hex[:8]}.{ext}"
+  1188→        filepath = os.path.join(base_dir, filename)
+  1189→
+  1190→        with open(filepath, "wb") as f:
+  1191→            f.write(base64.b64decode(b64))
+  1192→
+  1193→        # Caminho público
+  1194→        return f"/static/uploads/architect/{filename}"
+  1195→    except Exception:
+  1196→        return None
+  1197→
+  1198→
+  1199→def _anthropic_client_46():
+  1200→    key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+  1201→    return _anthropic.Anthropic(api_key=key) if key else None
+  1202→
+  1203→
+  1204→@app.route("/api/site-architect/generate", methods=["POST"])
+  1205→@login_required
+  1206→def api_site_arch_generate():
+  1207→    """
+  1208→    Gera uma landing page completa (HTML+Tailwind) a partir de:
+  1209→    - URL de referência (para entender seções)
+  1210→    - contexto de negócio e copy
+  1211→    - metadados de assets (logo/hero/gallery) em data URLs (opcionais)
+  1212→    """
+  1213→    data = request.get_json(force=True) or {}
+  1214→    ref_url = (data.get("reference_url") or "").strip()
+  1215→    contexto = (data.get("business_context") or "").strip()
+  1216→    hero_copy = (data.get("hero_copy") or "").strip()
+  1217→    extra_copy = (data.get("extra_copy") or "").strip()
+  1218→    template_kind = (data.get("template_kind") or "").strip() or "lead"
+  1219→    assets = data.get("assets") or {}
+  1220→
+  1221→    if not any((ref_url, contexto, hero_copy)):
+  1222→        return jsonify({"error": "Preencha pelo menos URL de referência, contexto ou hero copy."}), 400
+  1223→
+  1224→    client = _anthropic_client_46()
+  1225→    if not client:
+  1226→        return jsonify({"error": "ANTHROPIC_API_KEY não configurada para o Site Architect."}), 500
+  1227→
+  1228→    template_hints = {
+  1229→        "lead": (
+  1230→            "Tipo de página: CAPTURA DE LEADS.\n"
+  1231→            "Foque em formulário ou botão de WhatsApp como ação principal, promessa forte no hero, "
+  1232→            "seção de benefícios enxuta e prova social objetiva.\n"
+  1233→        ),
+  1234→        "lancamento": (
+  1235→            "Tipo de página: LANÇAMENTO / FUNIL.\n"
+  1236→            "Inclua seções claras de promessa, prova social forte, módulo para detalhes do evento/curso, "
+  1237→            "bônus e garantia. Crie sensação de urgência real e estrutura pensando em tráfego frio/morno.\n"
+  1238→        ),
+  1239→        "servico-local": (
+  1240→            "Tipo de página: SERVIÇO LOCAL.\n"
+  1241→            "Destaque endereço/região atendida, fotos do espaço, depoimentos locais, mapa ou instruções de "
+  1242→            "como chegar e foco em agendamento (botão de WhatsApp ou telefone visível o tempo todo).\n"
+  1243→        ),
+  1244→        "saas": (
+  1245→            "Tipo de página: SOFTWARE / SAAS.\n"
+  1246→            "Use blocos de features claros, captura de e-mail para teste grátis, comparativo rápido com "
+  1247→            "a forma antiga de fazer, seção de pricing simples e prova social com logos/métricas.\n"
+  1248→        ),
+  1249→        "ecommerce": (
+  1250→            "Tipo de página: E‑COMMERCE SIMPLES (1 PRODUTO).\n"
+  1251→            "Hero com foto forte do produto, benefícios em bullets, seção de detalhes/tabela, prova social "
+  1252→            "com reviews e um bloco de perguntas frequentes focado em objeções de compra.\n"
+  1253→        ),
+  1254→    }
+  1255→    template_hint = template_hints.get(template_kind, template_hints["lead"])
+  1256→
+  1257→    # resumo textual + URLs dos assets
+  1258→    logo_present = bool(assets.get("logo"))
+  1259→    hero_present = bool(assets.get("hero"))
+  1260→    gallery_list = assets.get("gallery") or []
+  1261→    benefits_list = assets.get("benefits") or []
+  1262→    social_list = assets.get("social") or []
+  1263→    gallery_len = len(gallery_list)
+  1264→    benefits_len = len(benefits_list)
+  1265→    social_len = len(social_list)
+  1266→
+  1267→    logo_url = _save_data_url_image("logo", assets.get("logo")) if logo_present else None
+  1268→    hero_url = _save_data_url_image("hero", assets.get("hero")) if hero_present else None
+  1269→    gallery_urls: list[str] = []
+  1270→    for idx, item in enumerate(gallery_list[:6]):
+  1271→        url = _save_data_url_image("gallery", item, index=idx + 1)
+  1272→        if url:
+  1273→            gallery_urls.append(url)
+  1274→
+  1275→    benefits_urls: list[str] = []
+  1276→    for idx, item in enumerate(benefits_list[:6]):
+  1277→        url = _save_data_url_image("benefits", item, index=idx + 1)
+  1278→        if url:
+  1279→            benefits_urls.append(url)
+  1280→
+  1281→    social_urls: list[str] = []
+  1282→    for idx, item in enumerate(social_list[:6]):
+  1283→        url = _save_data_url_image("social", item, index=idx + 1)
+  1284→        if url:
+  1285→            social_urls.append(url)
+  1286→
+  1287→    assets_summary_lines = [
+  1288→        "Resumo dos assets visuais disponíveis:",
+  1289→        f"- Logotipo enviado: {'sim' if logo_present else 'não'}",
+  1290→        f"- Banner principal enviado: {'sim' if hero_present else 'não'}",
+  1291→        f"- Imagens de produto/serviço na galeria: {gallery_len}",
+  1292→        f"- Imagens específicas para BENEFÍCIOS: {benefits_len}",
+  1293→        f"- Imagens específicas para PROVA SOCIAL / RESULTADOS: {social_len}",
+  1294→        "",
+  1295→        "URLs de imagem já hospedadas (use-as diretamente nos elementos <img src=\"...\"> do HTML gerado, sem buscar imagens novas):",
+  1296→        f"- LOGO_URL: {logo_url or '[nenhum logotipo enviado]'}",
+  1297→        f"- HERO_URL: {hero_url or '[nenhum banner principal enviado]'}",
+  1298→        "- GALLERY_URLS (use em cards/seção de produtos/serviços):",
+  1299→    ]
+  1300→    for u in gallery_urls:
+  1301→        assets_summary_lines.append(f"  - {u}")
+  1302→    assets_summary_lines.append("- BENEFITS_URLS (use como ícones/fotos na seção de Benefícios):")
+  1303→    for u in benefits_urls:
+  1304→        assets_summary_lines.append(f"  - {u}")
+  1305→    assets_summary_lines.append("- SOCIAL_PROOF_URLS (use em depoimentos, prints de resultado, logos de clientes na seção de Prova Social):")
+  1306→    for u in social_urls:
+  1307→        assets_summary_lines.append(f"  - {u}")
+  1308→    assets_summary_lines.append(
+  1309→        "Orientação: se LOGO_URL existir, use-o no cabeçalho/nav da página. "
+  1310→        "Se HERO_URL existir, use como imagem principal na seção Hero (banner do topo). "
+  1311→        "Use GALLERY_URLS em cards ou grades na seção de produtos/serviços, BENEFITS_URLS na seção de benefícios "
+  1312→        "e SOCIAL_PROOF_URLS na seção de prova social/resultados, sem inventar URLs adicionais."
+  1313→    )
+  1314→    assets_summary = "\n".join(assets_summary_lines)
+  1315→
+  1316→    # Se tiver URL de referência, tentamos trazer o HTML bruto só para dar contexto estrutural ao modelo.
+  1317→    reference_snippet = ""
+  1318→    if ref_url:
+  1319→        try:
+  1320→            r = requests.get(ref_url, timeout=8)
+  1321→            if r.ok:
+  1322→                txt = r.text
+  1323→                # Limitamos o HTML para não estourar contexto.
+  1324→                reference_snippet = txt[:6000]
+  1325→        except Exception:
+  1326→            reference_snippet = ""
+  1327→
+  1328→    user_instructions = "\n".join(
+  1329→        [
+  1330→            f"URL de referência (se disponível): {ref_url or 'não fornecida'}",
+  1331→            "",
+  1332→            template_hint,
+  1333→            "",
+  1334→            assets_summary,
+  1335→            "",
+  1336→            "HTML bruto (trecho) da referência, se carregado com sucesso:",
+  1337→            reference_snippet or "[não carregado ou indisponível]",
+  1338→            "",
+  1339→            "Contexto do negócio:",
+  1340→            contexto or "[não informado]",
+  1341→            "",
+  1342→            "Copy principal (Hero):",
+  1343→            hero_copy or "[não informado]",
+  1344→            "",
+  1345→            "Outras informações relevantes (benefícios, provas, objeções etc.):",
+  1346→            extra_copy or "[não informado]",
+  1347→            "",
+  1348→            "Gere agora o HTML completo seguindo as regras do sistema.",
+  1349→        ]
+  1350→    )
+  1351→
+  1352→    try:
+  1353→        msg = client.messages.create(
+  1354→            model="claude-sonnet-4-6",
+  1355→            max_tokens=4000,
+  1356→            system=_SITE_ARCH_SYSTEM,
+  1357→            messages=[{"role": "user", "content": user_instructions}],
+  1358→        )
+  1359→        html = (msg.content[0].text or "").strip()
+  1360→        return jsonify({"html": html})
+  1361→    except Exception as exc:
+  1362→        return jsonify({"error": str(exc)}), 500
+  1363→
+  1364→
+  1365→@app.route("/api/site-architect/refine", methods=["POST"])
+  1366→@login_required
+  1367→def api_site_arch_refine():
+  1368→    """
+  1369→    Recebe o HTML atual + uma instrução de chat e devolve
+  1370→    uma nova versão do HTML com o ajuste aplicado.
+  1371→    Ex.: "mude a cor dos botões para verde".
+  1372→    """
+  1373→    data = request.get_json(force=True) or {}
+  1374→    instruction = (data.get("instruction") or "").strip()
+  1375→    html = (data.get("html") or "").strip()
+  1376→    if not html or not instruction:
+  1377→        return jsonify({"error": "Envie 'html' e 'instruction'."}), 400
+  1378→
+  1379→    client = _anthropic_client_46()
+  1380→    if not client:
+  1381→        return jsonify({"error": "ANTHROPIC_API_KEY não configurada para o Site Architect."}), 500
+  1382→
+  1383→    refine_prompt = (
+  1384→        "Você receberá o HTML atual de uma landing page e uma instrução de edição.\n"
+  1385→        "Ajuste SOMENTE o necessário no HTML para cumprir a instrução, mantendo o resto intacto.\n"
+  1386→        "Retorne apenas o novo HTML completo, sem explicações.\n\n"
+  1387→        f"Instrução do usuário: {instruction}\n\n"
+  1388→        "HTML atual:\n"
+  1389→        f"{html}\n"
+  1390→    )
+  1391→
+  1392→    try:
+  1393→        msg = client.messages.create(
+  1394→            model="claude-sonnet-4-6",
+  1395→            max_tokens=4000,
+  1396→            system=_SITE_ARCH_SYSTEM,
+  1397→            messages=[{"role": "user", "content": refine_prompt}],
+  1398→        )
+  1399→        new_html = (msg.content[0].text or "").strip()
+  1400→        return jsonify(
+  1401→            {
+  1402→                "html": new_html,
+  1403→                "summary": f"Ajuste aplicado: {instruction}",
+  1404→            }
+  1405→        )
+  1406→    except Exception as exc:
+  1407→        return jsonify({"error": str(exc)}), 500
+  1408→
+  1409→
+  1410→@app.route("/api/site-architect/export", methods=["POST"])
+  1411→@login_required
+  1412→def api_site_arch_export():
+  1413→    """
+  1414→    Exporta o HTML atual como um index.html pronto para deploy.
+  1415→
+  1416→    A lógica de download é feita no front-end (Blob + link temporário),
+  1417→    então aqui retornamos apenas JSON com o conteúdo.
+  1418→    """
+  1419→    data = request.get_json(force=True) or {}
+  1420→    html = (data.get("html") or "").strip()
+  1421→    if not html:
+  1422→        return jsonify({"error": "Envie o HTML para exportação."}), 400
+  1423→    return jsonify({"filename": "index.html", "html": html})
+  1424→
+  1425→
+  1426→@app.route("/api/site-architect/export-react", methods=["POST"])
+  1427→@login_required
+  1428→def api_site_arch_export_react():
+  1429→    """
+  1430→    Converte o HTML em um componente React simples (TSX) usando dangerouslySetInnerHTML.
+  1431→    É a forma mais segura de preservar a estrutura Tailwind sem tentar "reactificar" tudo.
+  1432→    """
+  1433→    data = request.get_json(force=True) or {}
+  1434→    html = (data.get("html") or "").strip()
+  1435→    component_name_raw = (data.get("component_name") or "LandingGenerated").strip()
+  1436→    if not html:
+  1437→        return jsonify({"error": "Envie o HTML para exportação React."}), 400
+  1438→
+  1439→    # Sanitiza nome do componente para PascalCase
+  1440→    safe_name = "".join(ch if ch.isalnum() else " " for ch in component_name_raw).title().replace(" ", "")
+  1441→    if not safe_name:
+  1442→        safe_name = "LandingGenerated"
+  1443→
+  1444→    # Escapa caracteres problemáticos dentro do template string
+  1445→    esc_html = html.replace("`", "\\`").replace("${", "\\${")
+  1446→
+  1447→    code = f"""import React from "react";
+  1448→
+  1449→type Props = {{
+  1450→  // Você pode passar props aqui no futuro se quiser tornar a landing dinâmica
+  1451→}};
+  1452→
+  1453→const {safe_name}: React.FC<Props> = () => {{
+  1454→  return (
+  1455→    <div
+  1456→      dangerouslySetInnerHTML={{{{{ __html: `{esc_html}` }}}}}
+  1457→    />
+  1458→  );
+  1459→}};
+  1460→
+  1461→export default {safe_name};
+  1462→"""
+  1463→    filename = f"{safe_name}.tsx"
+  1464→    return jsonify({"filename": filename, "code": code})
+  1465→
+  1466→
+  1467→def _deploy_to_vercel(project_name: str, index_html: str) -> tuple[bool, str, dict]:
+  1468→    """
+  1469→    Esqueleto de integração com a API da Vercel.
+  1470→
+  1471→    Fluxo esperado:
+  1472→    1. Criar um deployment com 1 arquivo (index.html) via API REST:
+  1473→       POST https://api.vercel.com/v13/deployments
+  1474→       Headers:
+  1475→         - Authorization: Bearer VERCEL_TOKEN
+  1476→         - Content-Type: application/json
+  1477→       Body (simplificado):
+  1478→         {
+  1479→           "name": "<project_name>",
+  1480→           "files": [{ "file": "index.html", "data": "<conteúdo do HTML>" }],
+  1481→           "projectSettings": { "framework": "static" }
+  1482→         }
+  1483→    2. A Vercel devolve a URL do preview e, se o projeto estiver conectado a um domínio,
+  1484→       também o domínio final.
+  1485→    """
+  1486→    token = os.environ.get("VERCEL_TOKEN", "").strip()
+  1487→    if not token:
+  1488→        return (
+  1489→            False,
+  1490→            "Configure VERCEL_TOKEN no .env para publicar automaticamente.",
+  1491→            {},
+  1492→        )
+  1493→    payload = {
+  1494→        "name": project_name or "jake-architect-site",
+  1495→        "files": [
+  1496→            {
+  1497→                "file": "index.html",
+  1498→                "data": index_html,
+  1499→            }
+  1500→        ],
+  1501→        "projectSettings": {
+  1502→            "framework": "static",
+  1503→        },
+  1504→    }
+  1505→    try:
+  1506→        r = requests.post(
+  1507→            "https://api.vercel.com/v13/deployments",
+  1508→            headers={
+  1509→                "Authorization": f"Bearer {token}",
+  1510→                "Content-Type": "application/json",
+  1511→            },
+  1512→            json=payload,
+  1513→            timeout=40,
+  1514→        )
+  1515→        if not r.ok:
+  1516→            try:
+  1517→                err = r.json()
+  1518→            except Exception:
+  1519→                err = {"error": r.text}
+  1520→            return False, f"Vercel API {r.status_code}: {err.get('error') or err}", err
+  1521→        data = r.json()
+  1522→        url = data.get("url")
+  1523→        inspector = data.get("inspectorUrl") or f"https://vercel.com/{url}" if url else ""
+  1524→        return True, url or inspector or "Deploy criado.", data
+  1525→    except Exception as exc:
+  1526→        return False, f"Falha na chamada para a Vercel: {exc}", {}
+  1527→
+  1528→
+  1529→@app.route("/api/site-architect/deploy", methods=["POST"])
+  1530→@login_required
+  1531→def api_site_arch_deploy():
+  1532→    """
+  1533→    Cria um deploy estático na Vercel com base em um index.html.
+  1534→
+  1535→    - Requer VERCEL_TOKEN no .env.
+  1536→    - project_name é opcional (usa um nome padrão quando vazio).
+  1537→    """
+  1538→    data = request.get_json(force=True) or {}
+  1539→    html = (data.get("html") or "").strip()
+  1540→    project_name = (data.get("project_name") or "jake-architect-site").strip()
+  1541→    if not html:
+  1542→        return jsonify({"error": "Envie o HTML para publicar."}), 400
+  1543→
+  1544→    ok, msg, extra = _deploy_to_vercel(project_name, html)
+  1545→    if not ok:
+  1546→        hint = (
+  1547→            "Você pode exportar o index.html e subir manualmente na Vercel "
+  1548→            "caso prefira configurar o projeto pelo painel web."
+  1549→        )
+  1550→        return jsonify({"error": msg, "hint": hint}), 502
+  1551→
+  1552→    return jsonify(
+  1553→        {
+  1554→            "message": "Deploy criado com sucesso.",
+  1555→            "url": extra.get("url"),
+  1556→            "inspectorUrl": extra.get("inspectorUrl"),
+  1557→            "project": project_name,
+  1558→        }
+  1559→    )
+  1560→
+  1561→
+  1562→
+  1563→def _open_browser_delayed(port, delay=2):
+  1564→    time.sleep(delay)
+  1565→    webbrowser.open(f"http://localhost:{port}")
+  1566→
+  1567→if __name__ == "__main__":
+  1568→    port = int(os.environ.get("PORT", 5050))
+  1569→    ip   = _local_ip()
+  1570→    print(f"\n  Jake OS")
+  1571→    print(f"  Local : http://localhost:{port}")
+  1572→    if ip:
+  1573→        print(f"  Rede  : http://{ip}:{port}")
+  1574→    print(f"  Login : {_ADMIN_EMAIL} / {_ADMIN_PASSWORD}")
+  1575→    print("  Mantenha esta janela aberta.\n")
+  1576→    if os.environ.get("OPEN_BROWSER", "").lower() in ("1", "true", "yes"):
+  1577→        threading.Thread(target=_open_browser_delayed, args=(port,), daemon=True).start()
+  1578→    debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
+  1579→    app.run(host="0.0.0.0", port=port, debug=debug)
+  1580→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

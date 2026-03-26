@@ -1,0 +1,323 @@
+"""
+Base compartilhada para todos os bots Jake IA.
+Inclui: memória Neon, busca web, PDF read/write, voz (Whisper).
+"""
+import os, re, tempfile
+import anthropic
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+except ImportError:
+    pass
+
+# --- Bibliotecas opcionais ---
+try:
+    from ddgs import DDGS as _DDGS
+    _WEB_OK = True
+except ImportError:
+    _WEB_OK = False
+
+try:
+    import pdfplumber
+    _PDF_READ = True
+except ImportError:
+    _PDF_READ = False
+
+try:
+    from fpdf import FPDF
+    _PDF_WRITE = True
+except ImportError:
+    _PDF_WRITE = False
+
+try:
+    import psycopg2
+    _DB_URL = os.environ.get("DATABASE_URL", "").strip()
+    _db_conn = None
+
+    def _get_db():
+        global _db_conn
+        try:
+            if _db_conn is None or _db_conn.closed:
+                _db_conn = psycopg2.connect(_DB_URL)
+            else:
+                _db_conn.cursor().execute("SELECT 1")
+        except Exception:
+            _db_conn = psycopg2.connect(_DB_URL)
+        return _db_conn
+
+    def db_carregar(chat_id: int, limite: int = 40, namespace: str = "base") -> list:
+        try:
+            conn = _get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT role, content FROM conversa WHERE chat_id=%s AND namespace=%s ORDER BY criado_em DESC LIMIT %s",
+                (chat_id, namespace, limite)
+            )
+            rows = cur.fetchall()
+            cur.close()
+            return [{"role": r, "content": c} for r, c in reversed(rows)]
+        except Exception as e:
+            print(f"[DB] Erro ao carregar: {e}")
+            return []
+
+    def db_salvar(chat_id: int, role: str, content: str, namespace: str = "base"):
+        try:
+            conn = _get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO conversa (chat_id, role, content, namespace) VALUES (%s, %s, %s, %s)",
+                (chat_id, role, content, namespace)
+            )
+            conn.commit()
+            cur.close()
+        except Exception as e:
+            print(f"[DB] Erro ao salvar: {e}")
+
+    _DB_OK = True
+except ImportError:
+    _DB_OK = False
+    def db_carregar(chat_id, limite=40, namespace="base"): return []
+    def db_salvar(chat_id, role, content, namespace="base"): pass
+
+# --- Web search ---
+_PALAVRAS_BUSCA = (
+    "pesquisa", "pesquise", "busca", "busque", "procura", "procure",
+    "google", "internet", "notícia", "noticia", "novidade", "atualidade",
+    "aconteceu", "acontecendo", "lançou", "anunciou", "tendência", "tendencia",
+    "2024", "2025", "2026", "hoje", "agora", "recente", "último", "ultima",
+    "essa semana", "esse mês",
+)
+
+def _precisa_busca(texto: str) -> bool:
+    t = texto.lower()
+    return any(p in t for p in _PALAVRAS_BUSCA)
+
+def _buscar_web(query: str, max_results: int = 5) -> str:
+    if not _WEB_OK:
+        return ""
+    try:
+        with _DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=max_results, region="br-pt"))
+        if not results:
+            return ""
+        linhas = []
+        for r in results:
+            linhas.append(f"Fonte: {r.get('href', '')}")
+            linhas.append(f"Título: {r.get('title', '')}")
+            linhas.append(f"Resumo: {r.get('body', '')[:300]}")
+            linhas.append("")
+        return "\n".join(linhas)
+    except Exception as e:
+        print(f"[Web] Erro: {e}")
+        return ""
+
+# --- PDF ---
+def _extrair_texto_pdf(path: str) -> str:
+    if not _PDF_READ:
+        return ""
+    try:
+        with pdfplumber.open(path) as pdf:
+            return "\n".join(p.extract_text() or "" for p in pdf.pages)
+    except Exception as e:
+        return f"[Erro ao ler PDF: {e}]"
+
+def _limpar_texto(txt: str) -> str:
+    return re.sub(r'[^\x00-\xFF\u00C0-\u024F]', '', txt).strip()
+
+def _gerar_pdf(titulo: str, conteudo: str) -> str:
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_font("DejaVu", "", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+    pdf.add_font("DejaVu", "B", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+    pdf.set_font("DejaVu", "B", 16)
+    pdf.set_text_color(30, 30, 30)
+    pdf.multi_cell(0, 10, _limpar_texto(titulo), align="C")
+    pdf.ln(6)
+    pdf.set_draw_color(100, 100, 100)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(6)
+    for linha in conteudo.split("\n"):
+        linha = _limpar_texto(linha)
+        if not linha:
+            pdf.ln(4)
+            continue
+        if linha.endswith(":") and len(linha) < 80:
+            pdf.set_font("DejaVu", "B", 12)
+            pdf.set_text_color(20, 80, 160)
+            pdf.multi_cell(0, 8, linha)
+            pdf.set_text_color(30, 30, 30)
+        else:
+            pdf.set_font("DejaVu", "", 11)
+            pdf.multi_cell(0, 7, linha)
+    path = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False).name
+    pdf.output(path)
+    return path
+
+
+# --- Runner principal ---
+def rodar_bot(token_env: str, prompt_sistema: str, namespace: str, nome: str):
+    """Inicia um bot Telegram completo com o prompt e namespace fornecidos."""
+
+    TELEGRAM_TOKEN = os.environ.get(token_env, "").strip()
+    AUTHORIZED_ID = int(os.environ.get("AUTHORIZED_ID", "0") or "0")
+    ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+
+    ai = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
+
+    openai_client = None
+    if OPENAI_KEY:
+        try:
+            from openai import OpenAI
+            openai_client = OpenAI(api_key=OPENAI_KEY)
+        except Exception:
+            pass
+
+    def _autorizado(update: Update) -> bool:
+        return update.message.chat_id == AUTHORIZED_ID
+
+    def _chamar_claude(texto: str, historico: list) -> str:
+        msgs = list(historico)
+        msgs.append({"role": "user", "content": texto})
+        r = ai.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2000,
+            system=prompt_sistema,
+            messages=msgs,
+        )
+        return (r.content[0].text or "").strip()
+
+    async def _enviar(update: Update, texto: str):
+        if len(texto) <= 4096:
+            await update.message.reply_text(texto)
+        else:
+            for i in range(0, len(texto), 4000):
+                await update.message.reply_text(texto[i:i+4000])
+
+    _PDF_KEYWORDS = (
+        "gere um pdf", "gera um pdf", "crie um pdf", "cria um pdf",
+        "faça um pdf", "faz um pdf", "fazer um pdf", "gerar um pdf",
+        "criar um pdf", "manda em pdf", "manda como pdf", "em pdf",
+        "quero em pdf", "quero um pdf", "exporta em pdf", "exportar em pdf",
+    )
+
+    def _quer_pdf(texto: str) -> bool:
+        t = texto.lower()
+        return any(k in t for k in _PDF_KEYWORDS)
+
+    async def _processar_texto(update: Update, context: ContextTypes.DEFAULT_TYPE, user_text: str):
+        """Processa um texto (digitado ou transcrito de áudio) e responde."""
+        chat_id = update.effective_chat.id
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+        try:
+            historico = db_carregar(chat_id, namespace=namespace)
+            contexto_web = ""
+            if _WEB_OK and _precisa_busca(user_text):
+                await update.message.reply_text("🔍 Buscando na internet...")
+                contexto_web = _buscar_web(user_text)
+            texto_completo = (
+                f"PERGUNTA DO PATRÃO: {user_text}\n\nRESULTADOS DA BUSCA:\n{contexto_web}"
+                if contexto_web else user_text
+            )
+            resposta = _chamar_claude(texto_completo, historico)
+            db_salvar(chat_id, "user", user_text, namespace=namespace)
+            db_salvar(chat_id, "assistant", resposta, namespace=namespace)
+            if _PDF_WRITE and _quer_pdf(user_text):
+                await update.message.reply_text("📄 Gerando PDF...")
+                pdf_path = _gerar_pdf(f"Documento — {nome}", resposta)
+                await update.message.reply_document(document=open(pdf_path, "rb"), filename="documento.pdf")
+                os.unlink(pdf_path)
+            else:
+                await _enviar(update, resposta)
+        except Exception as e:
+            await update.message.reply_text(f"Deu ruim, Patrão. Tenta de novo. ({e})")
+
+    async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not _autorizado(update):
+            return
+        user_text = (update.message.text or "").strip()
+        if not user_text:
+            return
+        await _processar_texto(update, context, user_text)
+
+    async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not _autorizado(update):
+            return
+        if not openai_client:
+            await update.message.reply_text("Áudio não disponível: OpenAI não configurado, Patrão.")
+            return
+        voice = update.message.voice
+        file = await context.bot.get_file(voice.file_id)
+        with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
+            await file.download_to_drive(tmp.name)
+            with open(tmp.name, "rb") as af:
+                transcricao = openai_client.audio.transcriptions.create(
+                    model="whisper-1", file=af, language="pt"
+                )
+            os.unlink(tmp.name)
+        texto = transcricao.text.strip()
+        await _processar_texto(update, context, texto)
+
+    async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not _autorizado(update):
+            return
+        doc = update.message.document
+        if not doc.mime_type == "application/pdf":
+            return
+        file = await context.bot.get_file(doc.file_id)
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            await file.download_to_drive(tmp.name)
+            texto_pdf = _extrair_texto_pdf(tmp.name)
+            os.unlink(tmp.name)
+        caption = update.message.caption or ""
+        instrucao = caption if caption else "Analise este documento e me dê um resumo dos pontos mais importantes."
+        prompt_usuario = f"INSTRUÇÃO: {instrucao}\n\nCONTEÚDO DO PDF:\n{texto_pdf[:12000]}"
+        await update.message.reply_text(f"📄 PDF recebido ({len(texto_pdf)} chars). Analisando...")
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+        historico = db_carregar(update.effective_chat.id, namespace=namespace)
+        resposta = _chamar_claude(prompt_usuario, historico)
+        if _PDF_WRITE and any(w in instrucao.lower() for w in ["pdf", "documento", "relatório", "relatorio"]):
+            pdf_path = _gerar_pdf(f"Análise — {doc.file_name}", resposta)
+            await update.message.reply_document(document=open(pdf_path, "rb"), filename="analise.pdf")
+            os.unlink(pdf_path)
+        else:
+            await _enviar(update, resposta)
+
+    async def cmd_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not _autorizado(update) or not _PDF_WRITE:
+            return
+        texto = (" ".join(context.args or [])).strip()
+        if not texto:
+            await update.message.reply_text("Me manda o conteúdo após /pdf, Patrão.")
+            return
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+        historico = db_carregar(update.effective_chat.id, namespace=namespace)
+        resposta = _chamar_claude(f"Formate profissionalmente para PDF:\n\n{texto}", historico)
+        pdf_path = _gerar_pdf(f"Documento — {nome}", resposta)
+        await update.message.reply_document(document=open(pdf_path, "rb"), filename="documento.pdf")
+        os.unlink(pdf_path)
+
+    async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not _autorizado(update):
+            return
+        await update.message.reply_text(
+            f"Fala, Patrão! {nome} online. 🧠\n\n"
+            f"• Mensagem de texto → resposta direta\n"
+            f"• /pdf [conteúdo] → gera arquivo PDF\n"
+            f"• Envie um PDF → eu leio e analiso\n"
+            f"• Áudio → transcrevo e respondo"
+        )
+
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CommandHandler("pdf", cmd_pdf))
+    app.add_handler(MessageHandler(filters.Document.PDF, handle_document))
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    print(f"{nome} online! {'Web: ativo' if _WEB_OK else ''} {'PDF: ativo' if _PDF_WRITE else ''}")
+    app.run_polling(drop_pending_updates=True)

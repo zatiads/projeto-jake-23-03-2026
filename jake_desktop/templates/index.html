@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jake IA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <header class="header">
+    <h1 class="title">Jake <span class="title-ia">IA</span></h1>
+    <p class="subtitle">Assistente inteligente</p>
+  </header>
+
+  <main class="main">
+    <aside class="cards cards-left">
+      <article class="card card-time">
+        <div class="card-icon">🕐</div>
+        <h2 class="card-title">Hora & Data</h2>
+        <p class="card-value card-time-value" id="time">--:--:--</p>
+        <p class="card-meta" id="date">--/--/----</p>
+      </article>
+      <article class="card card-weather">
+        <div class="card-icon">🌡️</div>
+        <h2 class="card-title">Temperatura</h2>
+        <p class="card-value" id="temp">-- °C</p>
+        <p class="card-meta" id="humidity">Umidade: --%</p>
+      </article>
+    </aside>
+
+    <section class="hero">
+      <div class="sphere-wrap" id="sphere-wrap">
+        <div class="sphere-ring" id="sphere-ring" aria-hidden="true"></div>
+        <div class="sphere sphere-outer"></div>
+        <div class="sphere sphere-mid"></div>
+        <div class="sphere sphere-core"></div>
+        <div class="sphere sphere-inner"></div>
+      </div>
+      <div class="voice-section">
+        <button type="button" class="btn-activate" id="btn-activate">Toque para ativar — microfone sempre ouvindo</button>
+        <p class="voice-status" id="voice-status"></p>
+        <div class="voice-response voice-response-mini" id="voice-response" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <aside class="cards cards-right">
+      <article class="card card-greeting">
+        <div class="card-icon card-greeting-emoji" id="greeting-emoji">🌙</div>
+        <h2 class="card-title">Olá</h2>
+        <p class="card-value card-greeting-text" id="greeting">Boa noite, patrão</p>
+        <p class="card-meta">Pronto para ajudar</p>
+      </article>
+      <article class="card card-status">
+        <div class="status-check-wrap">
+          <span class="status-check" aria-hidden="true">✓</span>
+        </div>
+        <h2 class="card-title">Status</h2>
+        <p class="card-value card-status-value">Online</p>
+        <p class="card-meta">Sistema pronto</p>
+      </article>
+    </aside>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/voice.js') }}"></script>
+</body>
+</html>

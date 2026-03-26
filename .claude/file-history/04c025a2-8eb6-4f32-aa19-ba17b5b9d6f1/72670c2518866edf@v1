@@ -1,0 +1,24 @@
+---
+tags: [conceito, obsidian, vault, memória]
+---
+# Jake Brain
+
+Vault Obsidian que serve como memória de longo prazo do sistema Jake IA.
+
+## Estrutura
+- `Clientes/` — briefings dos clientes
+- `Jake OS/` — documentação técnica
+- `Fluxos/` — processos de trabalho
+- `IA/` — modelos e tecnologias
+- `Integrações/` — APIs externas
+- `Conceitos/` — fundamentos técnicos
+- `Jake OS/Outputs/` — gerado automaticamente por [[brain-py]]
+
+## Sincronização
+Cron a cada 5min: `git add . && git commit && git push`
+
+## Uso em prompts
+[[brain-py]] injeta contexto do vault nos prompts via [[rag]].
+
+## Links
+[[brain-py]] | [[rag]] | [[Arquitetura]] | [[claude-sonnet]] | [[Módulo Copys]]

@@ -1,0 +1,11 @@
+# Vault Foundation — Jake Brain
+
+**Data:** 2026-03-22
+**Contexto:** Precisávamos de um cérebro centralizado para o projeto Jake que persistisse contexto entre sessões.
+**Decisão tomada:** Vault Obsidian na VPS com sync via Git para Windows.
+**Motivo:** VPS é onde Jake OS e Claude Code já estão — escrever .md direto no disco é o caminho mais simples.
+**Alternativas descartadas:** Obsidian Sync (pago), Local REST API via tunnel (frágil).
+**Resultado/Follow-up:** Sub-projetos 2, 3 e 4 pendentes — brain retroativo, automação live e leitura de contexto.
+
+## Template
+Para novas decisões, usar [[_Template]].

@@ -1,0 +1,115 @@
+<h2>Seleção de Modelo — Como exibir?</h2>
+<p class="subtitle">Com múltiplos modelos e características diferentes, qual formato facilita a escolha?</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Dropdown simples</h3>
+      <p>Select com o nome do modelo. Rápido, compacto, sem detalhes.</p>
+      <div class="mockup" style="margin-top:10px">
+        <div class="mockup-header">Preview</div>
+        <div class="mockup-body" style="padding:12px">
+          <div style="font-size:.72rem;color:#b0bec5;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Modelo</div>
+          <select style="width:100%;background:rgba(0,0,0,.3);border:1px solid rgba(0,229,255,.2);border-radius:6px;color:#e0e0e0;padding:8px;font-size:.85rem">
+            <option>Flux 1.1 Pro</option>
+            <option>Flux Dev</option>
+            <option>Recraft V3</option>
+            <option>Ideogram V3 Turbo</option>
+            <option>Imagen 4</option>
+          </select>
+          <div style="margin-top:6px;display:flex;gap:4px">
+            <span style="background:rgba(105,240,174,.15);color:#69f0ae;border-radius:4px;padding:2px 8px;font-size:.7rem">✓ Compacto</span>
+            <span style="background:rgba(255,82,82,.12);color:#ff5252;border-radius:4px;padding:2px 8px;font-size:.7rem">✗ Sem contexto</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Cards com badges de características</h3>
+      <p>Cards clicáveis com nome, tipo (T2V/I2V), velocidade e indicador de custo. Recomendado.</p>
+      <div class="mockup" style="margin-top:10px">
+        <div class="mockup-header">Preview — Modelos de Vídeo</div>
+        <div class="mockup-body" style="padding:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div style="background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.4);border-radius:8px;padding:8px">
+              <div style="font-size:.78rem;color:#00e5ff;font-weight:600;margin-bottom:4px">Wan 2.2 T2V Fast</div>
+              <div style="display:flex;gap:3px;flex-wrap:wrap">
+                <span style="background:rgba(0,229,255,.1);color:#00e5ff;border-radius:3px;padding:1px 5px;font-size:.62rem">T2V</span>
+                <span style="background:rgba(105,240,174,.1);color:#69f0ae;border-radius:3px;padding:1px 5px;font-size:.62rem">⚡ Rápido</span>
+                <span style="background:rgba(255,214,0,.1);color:#ffd740;border-radius:3px;padding:1px 5px;font-size:.62rem">$ Baixo</span>
+              </div>
+            </div>
+            <div style="background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px">
+              <div style="font-size:.78rem;color:#e0e0e0;margin-bottom:4px">Runway Gen-4 Turbo</div>
+              <div style="display:flex;gap:3px;flex-wrap:wrap">
+                <span style="background:rgba(0,229,255,.1);color:#00e5ff;border-radius:3px;padding:1px 5px;font-size:.62rem">T2V</span>
+                <span style="background:rgba(105,240,174,.1);color:#69f0ae;border-radius:3px;padding:1px 5px;font-size:.62rem">⚡ Rápido</span>
+                <span style="background:rgba(255,82,82,.12);color:#ff5252;border-radius:3px;padding:1px 5px;font-size:.62rem">$$$ Alto</span>
+              </div>
+            </div>
+            <div style="background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px">
+              <div style="font-size:.78rem;color:#e0e0e0;margin-bottom:4px">Wan 2.2 I2V Fast</div>
+              <div style="display:flex;gap:3px;flex-wrap:wrap">
+                <span style="background:rgba(176,190,197,.1);color:#b0bec5;border-radius:3px;padding:1px 5px;font-size:.62rem">I2V</span>
+                <span style="background:rgba(105,240,174,.1);color:#69f0ae;border-radius:3px;padding:1px 5px;font-size:.62rem">⚡ Rápido</span>
+                <span style="background:rgba(255,214,0,.1);color:#ffd740;border-radius:3px;padding:1px 5px;font-size:.62rem">$ Baixo</span>
+              </div>
+            </div>
+            <div style="background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px">
+              <div style="font-size:.78rem;color:#e0e0e0;margin-bottom:4px">Seedance 1 Lite</div>
+              <div style="display:flex;gap:3px;flex-wrap:wrap">
+                <span style="background:rgba(0,229,255,.1);color:#00e5ff;border-radius:3px;padding:1px 5px;font-size:.62rem">T2V</span>
+                <span style="background:rgba(255,214,0,.1);color:#ffd740;border-radius:3px;padding:1px 5px;font-size:.62rem">◑ Médio</span>
+                <span style="background:rgba(255,214,0,.1);color:#ffd740;border-radius:3px;padding:1px 5px;font-size:.62rem">$$ Médio</span>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:6px;display:flex;gap:4px">
+            <span style="background:rgba(105,240,174,.15);color:#69f0ae;border-radius:4px;padding:2px 8px;font-size:.7rem">✓ Info clara</span>
+            <span style="background:rgba(105,240,174,.15);color:#69f0ae;border-radius:4px;padding:2px 8px;font-size:.7rem">✓ Contexto T2V/I2V</span>
+            <span style="background:rgba(255,82,82,.12);color:#ff5252;border-radius:4px;padding:2px 8px;font-size:.7rem">✗ Ocupa mais espaço</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Botões pill com tooltip</h3>
+      <p>Botões compactos com nome abreviado. Hover mostra detalhes completos do modelo.</p>
+      <div class="mockup" style="margin-top:10px">
+        <div class="mockup-header">Preview</div>
+        <div class="mockup-body" style="padding:12px">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">
+            <div style="background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.4);border-radius:20px;padding:4px 12px;font-size:.75rem;color:#00e5ff">Flux 1.1 Pro ✓</div>
+            <div style="background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:4px 12px;font-size:.75rem;color:#666">Flux Dev</div>
+            <div style="background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:4px 12px;font-size:.75rem;color:#666">Recraft V3</div>
+            <div style="background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:4px 12px;font-size:.75rem;color:#666">Ideogram</div>
+            <div style="background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:4px 12px;font-size:.75rem;color:#666">Imagen 4</div>
+          </div>
+          <div style="background:rgba(0,0,0,.3);border:1px solid rgba(0,229,255,.15);border-radius:6px;padding:8px;font-size:.72rem;color:#b0bec5">
+            <strong style="color:#00e5ff">Flux 1.1 Pro</strong><br>
+            Melhor custo-benefício. Alta qualidade fotorrealista. Ideal para anúncios.<br>
+            <span style="color:#69f0ae">⚡ ~15s</span> · <span style="color:#ffd740">$$ Médio</span>
+          </div>
+          <div style="margin-top:6px;display:flex;gap:4px">
+            <span style="background:rgba(105,240,174,.15);color:#69f0ae;border-radius:4px;padding:2px 8px;font-size:.7rem">✓ Compacto</span>
+            <span style="background:rgba(105,240,174,.15);color:#69f0ae;border-radius:4px;padding:2px 8px;font-size:.7rem">✓ Detalhes on demand</span>
+            <span style="background:rgba(255,82,82,.12);color:#ff5252;border-radius:4px;padding:2px 8px;font-size:.7rem">✗ Info escondida</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px">💡 Recomendação: <strong>B (Cards com badges)</strong> — especialmente para vídeo, saber se é T2V ou I2V antes de escolher é crítico para o fluxo correto.</p>

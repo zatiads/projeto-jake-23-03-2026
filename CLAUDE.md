@@ -1,0 +1,79 @@
+# Jake IA — Contexto do Projeto
+
+## Usuário
+- Nome: **Bruno** (sempre chamar de Patrão nos bots)
+- Preferências: respostas diretas, sem enrolação, em **português**
+
+## Estrutura em /root
+- `bot/` — bots Telegram (múltiplos agentes)
+- `core/` — `db.py` (Neon/PostgreSQL) + `sync_planilha.py` (Google Sheets)
+- `meta/` — Meta Ads API (checar saldo, relatórios)
+- `jake_desktop/` — Jake OS (Flask SPA, porta 5050)
+- `scripts/` — `subir_jake.sh` (sobe bot principal)
+- `jake_telegram.py` — bot principal (também em `/root/`)
+- `leitor_planilha.py` — lê Google Sheets (gspread)
+- `.env` — todas as credenciais (NUNCA commitar)
+
+## Bots Telegram
+| Arquivo | Token env | Namespace | Função |
+|---|---|---|---|
+| `jake_telegram.py` | `TELEGRAM_BOT_TOKEN` | default | Bot principal (analista, copy, tráfego) |
+| `bot/jake_pessoal.py` | `TELEGRAM_TOKEN_PESSOAL` | pessoal | Assistente pessoal do Bruno |
+| `bot/jake_viagem.py` | `TELEGRAM_TOKEN_VIAGEM` | viagem | Especialista em viagens |
+| `bot/base_bot.py` | — | — | Base comum para todos os bots |
+| `bot/gerar_agente.py` | — | — | Meta-agente: cria novos bots |
+
+## Jake OS (jake_desktop/)
+- Flask SPA, porta **5050**
+- Auth: `admin@jakeos.local` / `Jake@2024!`
+- Funcionalidades: carrossel Instagram, copy de anúncios, relatórios Meta Ads, fábrica de criativos, arquiteto de sites, finanças pessoais, geração de imagens
+
+## Infraestrutura
+- VPS Linux (este servidor, /root)
+- Banco: **Neon (PostgreSQL)** — `DATABASE_URL` no .env
+- Tabela principal: `controle_relatorios_semanais`
+- Planilha: Google Sheets → `core/sync_planilha.py`
+- Tunnel: `cloudflared` (binário em /root/cloudflared)
+- Firewall: `scripts/ativar_firewall.sh`
+
+## Como subir os bots
+```bash
+# Bot principal
+./scripts/subir_jake.sh
+# ou:
+PYTHONPATH=/root nohup /root/venv/bin/python3 /root/jake_telegram.py >> /root/logs/jake.log 2>&1 &
+
+# Bots secundários
+nohup /root/venv/bin/python3 /root/bot/jake_pessoal.py > /tmp/jake_pessoal.log 2>&1 &
+nohup /root/venv/bin/python3 /root/bot/jake_viagem.py > /tmp/jake_viagem.log 2>&1 &
+```
+
+## Cron
+- Saldo Meta: `0 9 * * *` → `python3 -m meta.checar_saldo_meta`
+- Alerta abaixo de R$150 (`META_ALERTA_SALDO_LIMITE`)
+
+## Meta Ads
+- Conta: `act_360347436292903`
+- API: v21.0
+
+## APIs / Modelos
+- **Anthropic**: `claude-sonnet-4-6` (copy, análise, prompts)
+- **OpenAI**: GPT-4o (chat Jake OS), Whisper (voz), DALL-E 3 (fallback imagens)
+- **Replicate**: Flux 1.1 Pro (imagens)
+- **Meta Ads API** v21.0
+- **Google Sheets** (gspread + credenciais.json)
+
+## Limitações da VPS (IMPORTANTE)
+- VPS Contabo com load alto — Cursor Server consome CPU excessiva quando ativo
+- Antes de sessões longas: `pkill -f cursor-server`
+- **Diretórios a IGNORAR em buscas** (pesados/irrelevantes):
+  - `/root/venv/` — virtualenv Python
+  - `/root/jake_desktop/venv/` — virtualenv do Jake OS
+  - `/root/jake_desktop/node_modules/` — se existir
+  - `/root/.local/` — dados locais do usuário
+  - `/root/.npm/` — cache npm
+- **Arquivos grandes** (ler por partes com offset/limit):
+  - `jake_desktop/app.py` — ~1895 linhas
+  - `jake_desktop/templates/dashboard.html` — ~1695 linhas
+- Preferir ferramentas Read/Grep/Glob nativas ao invés de comandos bash find/grep
+- Comandos bash lentos podem ser interrompidos — dividir em operações menores se necessário

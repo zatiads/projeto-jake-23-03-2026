@@ -1,0 +1,22 @@
+# Memória do Projeto Jake IA
+
+## Contexto geral
+Projeto do Bruno — sistema Jake IA com bots Telegram + plataforma web (Jake OS).
+Usuário se chama **Bruno**. Bots sempre chamam ele de "Patrão".
+
+## Estrutura principal em /root
+- `bot/` — bots Telegram (múltiplos agentes)
+- `core/` — db.py (Neon/PostgreSQL) + sync_planilha.py (Google Sheets)
+- `meta/` — Meta Ads API (checar saldo, relatórios)
+- `jake_desktop/` — Jake OS (Flask SPA, roda na porta 5050)
+- `scripts/` — subir_jake.sh (sobe bot principal)
+- `leitor_planilha.py` — lê Google Sheets (gspread)
+- `.env` — todas as credenciais (NÃO commitar)
+
+## Detalhes: → [projeto.md](projeto.md)
+
+## Preferências do Bruno
+- Comunicação direta, sem enrolação
+- Responde em português
+- Não quer perder contexto entre sessões → sempre consultar memória
+- Sempre reiniciar Jake OS após alterações → [feedback_restart_jakeos.md](feedback_restart_jakeos.md)

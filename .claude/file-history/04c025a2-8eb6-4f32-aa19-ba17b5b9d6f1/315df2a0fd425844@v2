@@ -1,0 +1,19 @@
+---
+tags: [conceito, índice]
+---
+# Conceitos — Fundamentos Técnicos
+
+Índice de conceitos técnicos que fundamentam o Jake OS.
+
+## Arquitetura
+- [[api-rest]] — padrão de rotas Flask, respostas JSON, autenticação
+- [[webhook]] — notificações HTTP em tempo real (bots Telegram)
+
+## IA e Memória
+- [[rag]] — Retrieval-Augmented Generation, injeção de contexto via vault
+- [[brain-py]] — script que conecta o vault Obsidian aos prompts
+- [[jake-brain]] — vault Obsidian como memória de longo prazo
+- [[prompt-engineering]] — técnicas para construção de prompts eficazes
+
+## Links
+[[Arquitetura]] | [[App-Rotas]] | [[jake-brain]]

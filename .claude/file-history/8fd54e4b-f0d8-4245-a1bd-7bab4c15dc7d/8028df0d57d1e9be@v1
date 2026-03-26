@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Clínica — Nome da Clínica</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    /* ============================================
+       VARIÁVEIS — edite aqui para mudar as cores
+    ============================================ */
+    :root {
+      --cor-primaria: #c9a97a;        /* dourado/rose gold */
+      --cor-primaria-escura: #a8875a;
+      --cor-texto: #3a3a3a;
+      --cor-texto-claro: #7a7a7a;
+      --cor-fundo: #fdfaf7;
+      --cor-fundo-secao: #f9f3ee;
+      --cor-branco: #ffffff;
+      --cor-rosa-claro: #f5ede4;
+      --fonte-titulo: 'Cormorant Garamond', serif;
+      --fonte-corpo: 'Jost', sans-serif;
+    }
+
+    /* ============================================
+       RESET & BASE
+    ============================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--fonte-corpo);
+      color: var(--cor-texto);
+      background: var(--cor-fundo);
+      font-size: 16px;
+      line-height: 1.7;
+    }
+    img { max-width: 100%; display: block; }
+    a { text-decoration: none; color: inherit; }
+    ul { list-style: none; }
+
+    /* ============================================
+       UTILITÁRIOS
+    ============================================ */
+    .container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+    .section-tag {
+      font-family: var(--fonte-corpo);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--cor-primaria);
+      display: block;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-family: var(--fonte-titulo);
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 300;
+      line-height: 1.2;
+      color: var(--cor-texto);
+    }
+    .section-title em {
+      font-style: italic;
+      color: var(--cor-primaria);
+    }
+    .btn {
+      display: inline-block;
+      padding: 14px 36px;
+      font-family: var(--fonte-corpo);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      border: 1.5px solid var(--cor-primaria);
+      color: var(--cor-primaria);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .btn:hover {
+      background: var(--cor-primaria);
+      color: var(--cor-branco);
+    }
+    .btn-filled {
+      background: var(--cor-primaria);
+      color: var(--cor-branco);
+    }
+    .btn-filled:hover {
+      background: var(--cor-primaria-escura);
+      border-color: var(--cor-primaria-escura);
+    }
+    .divider {
+      width: 50px;
+      height: 1.5px;
+      background: var(--cor-primaria);
+      margin: 20px 0;
+    }
+
+    /* ============================================
+       HEADER / NAVEGAÇÃO
+    ============================================ */
+    .header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 1000;
+      background: rgba(253, 250, 247, 0.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(201,169,122,0.2);
+      transition: box-shadow 0.3s;
+    }
+    .header.scrolled { box-shadow: 0 2px 20px rgba(0,0,0,0.06); }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 80px;
+    }
+    .logo {
+      font-family: var(--fonte-titulo);
+      font-size: 1.6rem;
+      font-weight: 300;
+      letter-spacing: 1px;
+      color: var(--cor-texto);
+    }
+    .logo span { color: var(--cor-primaria); }
+    /* Substitua o texto do logo por uma tag <img> com seu logo real */
+
+    .nav { display: flex; align-items: center; gap: 36px; }
+    .nav a {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--cor-texto);
+      position: relative;
+      transition: color 0.2s;
+    }
+    .nav a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px; left: 0;
+      width: 0; height: 1px;
+      background: var(--cor-primaria);
+      transition: width 0.3s;
+    }
+    .nav a:hover { color: var(--cor-primaria); }
+    .nav a:hover::after { width: 100%; }
+
+    /* Dropdown procedimentos */
+    .nav-dropdown { position: relative; }
+    .nav-dropdown > a::after { display: none; }
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 20px);
+      left: -20px;
+      background: var(--cor-branco);
+      border: 1px solid rgba(201,169,122,0.2);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.08);
+      min-width: 260px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-8px);
+      transition: all 0.25s ease;
+      z-index: 999;
+    }
+    .nav-dropdown:hover .dropdown-menu {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .dropdown-col { padding: 24px; }
+    .dropdown-col h4 {
+      font-family: var(--fonte-corpo);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--cor-primaria);
+      margin-bottom: 12px;
+    }
+    .dropdown-col a {
+      display: block;
+      font-size: 13px;
+      letter-spacing: 0;
+      text-transform: none;
+      font-weight: 300;
+      padding: 5px 0;
+      color: var(--cor-texto);
+      border-bottom: none;
+      transition: color 0.2s, padding-left 0.2s;
+    }
+    .dropdown-col a:hover { color: var(--cor-primaria); padding-left: 6px; }
+    .dropdown-col a::after { display: none !important; }
+
+    .nav-cta {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 10px 22px;
+      background: var(--cor-primaria);
+      color: var(--cor-branco) !important;
+      transition: background 0.3s !important;
+    }
+    .nav-cta:hover { background: var(--cor-primaria-escura) !important; color: var(--cor-branco) !important; }
+    .nav-cta::after { display: none !important; }
+
+    /* Menu Mobile */
+    .menu-toggle {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      cursor: pointer;
+      padding: 4px;
+    }
+    .menu-toggle span {
+      display: block;
+      width: 24px;
+      height: 1.5px;
+      background: var(--cor-texto);
+      transition: all 0.3s;
+    }
+
+    /* ============================================
+       HERO BANNER
+    ============================================ */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, #fdf8f3 0%, #f9f0e6 50%, #f5e8d8 100%);
+      padding-top: 80px;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -100px; right: -100px;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(201,169,122,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 60px;
+      min-height: calc(100vh - 80px);
+    }
+    .hero-content { padding: 80px 0; }
+    .hero-eyebrow {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--cor-primaria);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .hero-eyebrow::before {
+      content: '';
+      width: 40px;
+      height: 1px;
+      background: var(--cor-primaria);
+    }
+    .hero-title {
+      font-family: var(--fonte-titulo);
+      font-size: clamp(3rem, 6vw, 5.5rem);
+      font-weight: 300;
+      line-height: 1.1;
+      margin-bottom: 24px;
+      color: var(--cor-texto);
+    }
+    .hero-title em {
+      font-style: italic;
+      color: var(--cor-primaria);
+      display: block;
+    }
+    .hero-subtitle {
+      font-size: 15px;
+      font-weight: 300;
+      color: var(--cor-texto-claro);
+      max-width: 420px;
+      margin-bottom: 40px;
+      line-height: 1.8;
+    }
+    .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+    .hero-image {
+      position: relative;
+      height: 100%;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .hero-image-frame {
+      position: relative;
+      width: 100%;
+      max-width: 500px;
+    }
+    .hero-img-placeholder {
+      width: 100%;
+      aspect-ratio: 3/4;
+      background: linear-gradient(160deg, #e8d5c0 0%, #d4b896 100%);
+      border-radius: 2px 60px 2px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255,255,255,0.7);
+      font-family: var(--fonte-titulo);
+      font-size: 1rem;
+      letter-spacing: 2px;
+      text-align: center;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+    /* Quando tiver a foto real, substitua .hero-img-placeholder por <img> */
+    .hero-img-placeholder svg { width: 48px; opacity: 0.5; }
+    .hero-badge {
+      position: absolute;
+      bottom: 40px;
+      left: -20px;
+      background: var(--cor-branco);
+      border: 1px solid rgba(201,169,122,0.3);
+      padding: 16px 24px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    }
+    .hero-badge-num {
+      font-family: var(--fonte-titulo);
+      font-size: 2.2rem;
+      font-weight: 300;
+      color: var(--cor-primaria);
+      line-height: 1;
+    }
+    .hero-badge-txt {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--cor-texto-claro);
+      margin-top: 4px;
+    }
+    .hero-deco {
+      position: absolute;
+      top: 30px; right: -10px;
+      width: 120px; height: 120px;
+      border: 1px solid rgba(201,169,122,0.25);
+      border-radius: 50%;
+    }
+
+    /* ============================================
+       PROCEDIMENTOS
+    ============================================ */
+    .procedimentos {
+      padding: 100px 0;
+      background: var(--cor-fundo);
+    }
+    .procedimentos-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 60px;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+    .procedimentos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 24px;
+    }
+    .proc-card {
+      background: var(--cor-branco);
+      border: 1px solid rgba(201,169,122,0.15);
+      overflow: hidden;
+      transition: transform 0.3s, box-shadow 0.3s;
+      cursor: pointer;
+    }
+    .proc-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 16px 50px rgba(0,0,0,0.08);
+    }
+    .proc-card-img {
+      aspect-ratio: 4/3;
+      background: linear-gradient(145deg, var(--cor-rosa-claro), #e8d5c0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+    .proc-card-img img { width: 100%; height: 100%; object-fit: cover; }
+    .proc-card-img-placeholder {
+      font-family: var(--fonte-titulo);
+      font-style: italic;
+      font-size: 0.85rem;
+      color: rgba(120,90,60,0.4);
+      letter-spacing: 1px;
+    }
+    .proc-card-body { padding: 24px 20px; }
+    .proc-card-body h3 {
+      font-family: var(--fonte-titulo);
+      font-size: 1.2rem;
+      font-weight: 400;
+      line-height: 1.3;
+      margin-bottom: 8px;
+    }
+    .proc-card-body p {
+      font-size: 13px;
+      font-weight: 300;
+      color: var(--cor-texto-claro);
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+    .proc-card-link {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--cor-primaria);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: gap 0.2s;
+    }
+    .proc-card-link:hover { gap: 14px; }
+    .proc-card-link::after { content: '→'; }
+
+    /* Tabs de procedimentos */
+    .proc-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 40px;
+      flex-wrap: wrap;
+    }
+    .proc-tab {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 10px 24px;
+      border: 1px solid rgba(201,169,122,0.3);
+      color: var(--cor-texto-claro);
+      cursor: pointer;
+      transition: all 0.2s;
+      background: transparent;
+      font-family: var(--fonte-corpo);
+    }
+    .proc-tab.active, .proc-tab:hover {
+      background: var(--cor-primaria);
+      color: var(--cor-branco);
+      border-color: var(--cor-primaria);
+    }
+    .proc-panel { display: none; }
+    .proc-panel.active { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 24px; }
+
+    /* ============================================
+       SOBRE A CLÍNICA
+    ============================================ */
+    .sobre {
+      padding: 100px 0;
+      background: var(--cor-fundo-secao);
+    }
+    .sobre-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+    .sobre-image { position: relative; }
+    .sobre-img-frame {
+      width: 100%;
+      aspect-ratio: 3/4;
+      background: linear-gradient(160deg, #e0cbb5 0%, #c9a97a 100%);
+      border-radius: 60px 2px 60px 2px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255,255,255,0.5);
+      font-family: var(--fonte-titulo);
+      font-style: italic;
+    }
+    .sobre-deco {
+      position: absolute;
+      bottom: -20px; right: -20px;
+      width: 200px; height: 200px;
+      border: 1px solid rgba(201,169,122,0.3);
+      border-radius: 50%;
+      z-index: -1;
+    }
+    .sobre-deco-2 {
+      position: absolute;
+      top: -15px; left: -15px;
+      width: 80px; height: 80px;
+      background: var(--cor-rosa-claro);
+      border-radius: 50%;
+      z-index: -1;
+    }
+    .sobre-content { padding: 20px 0; }
+    .sobre-content p {
+      font-size: 15px;
+      font-weight: 300;
+      color: var(--cor-texto-claro);
+      line-height: 1.9;
+      margin-bottom: 20px;
+    }
+    .sobre-content strong { color: var(--cor-texto); font-weight: 500; }
+
+    /* Pilares */
+    .pilares {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 36px 0;
+    }
+    .pilar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px;
+      background: var(--cor-branco);
+      border: 1px solid rgba(201,169,122,0.15);
+    }
+    .pilar-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--cor-rosa-claro);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 18px;
+    }
+    .pilar-text {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      color: var(--cor-texto);
+    }
+
+    /* ============================================
+       DEPOIMENTOS / FAMOSOS
+    ============================================ */
+    .depoimentos {
+      padding: 100px 0;
+      background: var(--cor-fundo);
+      overflow: hidden;
+    }
+    .depoimentos-header { text-align: center; margin-bottom: 60px; }
+    .depoimentos-header .divider { margin: 20px auto; }
+    .depoimentos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+    }
+    .dep-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 2px;
+      cursor: pointer;
+    }
+    .dep-card-img {
+      aspect-ratio: 4/5;
+      background: linear-gradient(145deg, #e8d5c0, #d4b896);
+      overflow: hidden;
+      position: relative;
+    }
+    .dep-card-img img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s; }
+    .dep-card:hover .dep-card-img img { transform: scale(1.05); }
+    .dep-card-overlay {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%);
+      padding: 30px 16px 16px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .dep-card:hover .dep-card-overlay { opacity: 1; }
+    .dep-card-handle {
+      color: var(--cor-branco);
+      font-size: 13px;
+      font-weight: 400;
+    }
+    .dep-card-label {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      background: rgba(255,255,255,0.9);
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      color: var(--cor-texto);
+    }
+    .dep-img-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--fonte-titulo);
+      font-style: italic;
+      color: rgba(120,80,40,0.35);
+      font-size: 0.9rem;
+    }
+
+    /* ============================================
+       INSTAGRAM / FEED
+    ============================================ */
+    .instagram {
+      padding: 100px 0;
+      background: var(--cor-fundo-secao);
+      text-align: center;
+    }
+    .instagram-handle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .instagram-handle svg { width: 28px; }
+    .instagram-handle a {
+      font-family: var(--fonte-titulo);
+      font-size: 1.8rem;
+      font-weight: 300;
+      color: var(--cor-texto);
+      transition: color 0.2s;
+    }
+    .instagram-handle a:hover { color: var(--cor-primaria); }
+    .instagram-sub {
+      font-size: 12px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--cor-texto-claro);
+      margin-bottom: 48px;
+    }
+    .instagram-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+    .insta-post {
+      aspect-ratio: 1;
+      background: linear-gradient(145deg, var(--cor-rosa-claro), #e0cbb5);
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+    }
+    .insta-post img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; }
+    .insta-post:hover img { transform: scale(1.06); }
+    .insta-post-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(201,169,122,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .insta-post:hover .insta-post-overlay { opacity: 1; }
+    .insta-post-overlay svg { width: 32px; fill: white; }
+    .insta-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: rgba(120,80,40,0.3);
+      font-family: var(--fonte-corpo);
+    }
+
+    /* ============================================
+       LOCALIZAÇÃO
+    ============================================ */
+    .localizacao {
+      padding: 100px 0;
+      background: var(--cor-fundo);
+    }
+    .localizacao-inner {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 60px;
+      align-items: center;
+    }
+    .localizacao-info { }
+    .localizacao-info p {
+      font-size: 15px;
+      font-weight: 300;
+      color: var(--cor-texto-claro);
+      margin-bottom: 12px;
+    }
+    .localizacao-info strong { color: var(--cor-texto); }
+    .contact-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 0;
+      border-bottom: 1px solid rgba(201,169,122,0.15);
+    }
+    .contact-item:first-of-type { border-top: 1px solid rgba(201,169,122,0.15); margin-top: 32px; }
+    .contact-icon {
+      width: 44px; height: 44px;
+      background: var(--cor-rosa-claro);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 18px;
+    }
+    .contact-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--cor-texto-claro); }
+    .contact-value { font-size: 14px; font-weight: 400; color: var(--cor-texto); margin-top: 2px; }
+    .mapa-placeholder {
+      width: 100%;
+      aspect-ratio: 4/3;
+      background: #ede4d8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--fonte-titulo);
+      font-style: italic;
+      color: rgba(120,80,40,0.4);
+      font-size: 1rem;
+      letter-spacing: 1px;
+    }
+    /* Para inserir Google Maps real, substitua .mapa-placeholder por <iframe> */
+
+    /* ============================================
+       NEWSLETTER
+    ============================================ */
+    .newsletter {
+      padding: 80px 0;
+      background: linear-gradient(135deg, #3a2e25 0%, #5a4535 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .newsletter::before {
+      content: '';
+      position: absolute;
+      top: -80px; right: -80px;
+      width: 350px; height: 350px;
+      border-radius: 50%;
+      background: rgba(201,169,122,0.1);
+      pointer-events: none;
+    }
+    .newsletter-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+    .newsletter-text .section-tag { color: var(--cor-primaria); }
+    .newsletter-text .section-title { color: var(--cor-branco); }
+    .newsletter-text p {
+      color: rgba(255,255,255,0.6);
+      font-size: 14px;
+      font-weight: 300;
+      margin-top: 12px;
+      max-width: 400px;
+    }
+    .newsletter-form {
+      display: flex;
+      gap: 0;
+      max-width: 420px;
+      width: 100%;
+    }
+    .newsletter-form input {
+      flex: 1;
+      padding: 16px 20px;
+      border: 1.5px solid rgba(201,169,122,0.4);
+      background: rgba(255,255,255,0.05);
+      color: var(--cor-branco);
+      font-family: var(--fonte-corpo);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .newsletter-form input::placeholder { color: rgba(255,255,255,0.4); }
+    .newsletter-form input:focus { border-color: var(--cor-primaria); }
+    .newsletter-form button {
+      padding: 16px 28px;
+      background: var(--cor-primaria);
+      color: var(--cor-branco);
+      border: none;
+      font-family: var(--fonte-corpo);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .newsletter-form button:hover { background: var(--cor-primaria-escura); }
+
+    /* ============================================
+       FOOTER
+    ============================================ */
+    .footer {
+      background: #2a2018;
+      color: rgba(255,255,255,0.7);
+      padding: 60px 0 30px;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr 1fr;
+      gap: 40px;
+      padding-bottom: 50px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      margin-bottom: 30px;
+    }
+    .footer-brand .logo { color: var(--cor-branco); font-size: 1.4rem; margin-bottom: 16px; display: block; }
+    .footer-brand p { font-size: 13px; font-weight: 300; line-height: 1.8; max-width: 260px; }
+    .footer-social { display: flex; gap: 12px; margin-top: 24px; }
+    .footer-social a {
+      width: 38px; height: 38px;
+      border: 1px solid rgba(201,169,122,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: var(--cor-primaria);
+      transition: all 0.2s;
+    }
+    .footer-social a:hover { background: var(--cor-primaria); color: var(--cor-branco); }
+    .footer-col h4 {
+      font-family: var(--fonte-corpo);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--cor-primaria);
+      margin-bottom: 20px;
+    }
+    .footer-col ul li { margin-bottom: 10px; }
+    .footer-col ul li a {
+      font-size: 13px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.6);
+      transition: color 0.2s;
+    }
+    .footer-col ul li a:hover { color: var(--cor-primaria); }
+    .footer-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .footer-bottom p { font-size: 12px; font-weight: 300; color: rgba(255,255,255,0.4); }
+    .footer-bottom a { color: rgba(255,255,255,0.4); }
+    .footer-bottom a:hover { color: var(--cor-primaria); }
+
+    /* ============================================
+       WHATSAPP FLUTUANTE
+    ============================================ */
+    .whatsapp-float {
+      position: fixed;
+      bottom: 30px; right: 30px;
+      width: 56px; height: 56px;
+      background: #25d366;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(37,211,102,0.4);
+      z-index: 9999;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+    .whatsapp-float:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(37,211,102,0.5); }
+    .whatsapp-float svg { width: 28px; fill: white; }
+
+    /* ============================================
+       RESPONSIVO
+    ============================================ */
+    @media (max-width: 900px) {
+      .nav { display: none; }
+      .menu-toggle { display: flex; }
+      .hero-inner { grid-template-columns: 1fr; }
+      .hero-image { display: none; }
+      .sobre-inner { grid-template-columns: 1fr; }
+      .sobre-image { display: none; }
+      .localizacao-inner { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .instagram-grid { grid-template-columns: repeat(2, 1fr); }
+      .pilares { grid-template-columns: 1fr; }
+      .newsletter-inner { flex-direction: column; }
+      .newsletter-form { max-width: 100%; }
+    }
+    @media (max-width: 560px) {
+      .footer-grid { grid-template-columns: 1fr; }
+      .depoimentos-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* ============================================
+       ANIMAÇÕES DE ENTRADA
+    ============================================ */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .fade-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ============================================
+       MOBILE NAV
+    ============================================ */
+    .mobile-nav {
+      position: fixed;
+      inset: 0;
+      background: var(--cor-fundo);
+      z-index: 9998;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+    }
+    .mobile-nav.open { opacity: 1; visibility: visible; }
+    .mobile-nav a {
+      font-family: var(--fonte-titulo);
+      font-size: 2rem;
+      font-weight: 300;
+      color: var(--cor-texto);
+      transition: color 0.2s;
+    }
+    .mobile-nav a:hover { color: var(--cor-primaria); }
+    .mobile-nav-close {
+      position: absolute;
+      top: 28px; right: 24px;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--cor-texto);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ========== HEADER ========== -->
+  <header class="header" id="header">
+    <div class="container">
+      <div class="header-inner">
+        <!-- LOGO: substitua pelo <img> do seu cliente -->
+        <a href="#" class="logo">Clínica <span>Nome</span></a>
+
+        <nav class="nav">
+          <a href="#inicio">Início</a>
+          <a href="#sobre">A Clínica</a>
+          <div class="nav-dropdown">
+            <a href="#procedimentos">Procedimentos ▾</a>
+            <div class="dropdown-menu">
+              <div class="dropdown-col">
+                <h4>Rosto</h4>
+                <a href="#">Toxina Botulínica</a>
+                <a href="#">Preenchimento Labial</a>
+                <a href="#">Bioestimuladores</a>
+                <a href="#">Rinomodelação</a>
+                <a href="#">Fios de Sustentação</a>
+              </div>
+              <div class="dropdown-col">
+                <h4>Corpo</h4>
+                <a href="#">Body Sculpting</a>
+                <a href="#">Drenagem Linfática</a>
+                <a href="#">Intradermoterapia</a>
+                <h4 style="margin-top:16px">Tecnologias</h4>
+                <a href="#">Ultraformer</a>
+                <a href="#">Laser</a>
+              </div>
+            </div>
+          </div>
+          <a href="#contato">Contato</a>
+          <a href="https://wa.me/5500000000000" class="nav-cta" target="_blank">Agendar Consulta</a>
+        </nav>
+
+        <div class="menu-toggle" id="menuToggle">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Nav -->
+  <div class="mobile-nav" id="mobileNav">
+    <span class="mobile-nav-close" id="mobileNavClose">✕</span>
+    <a href="#inicio" class="mobile-link">Início</a>
+    <a href="#sobre" class="mobile-link">A Clínica</a>
+    <a href="#procedimentos" class="mobile-link">Procedimentos</a>
+    <a href="#contato" class="mobile-link">Contato</a>
+    <a href="https://wa.me/5500000000000" class="mobile-link" style="color:var(--cor-primaria)">Agendar Consulta</a>
+  </div>
+
+  <!-- ========== HERO ========== -->
+  <section class="hero" id="inicio">
+    <div class="container">
+      <div class="hero-inner">
+        <div class="hero-content">
+          <span class="hero-eyebrow">Clínica de Estética</span>
+          <h1 class="hero-title">
+            Cada rosto é um
+            <em>universo!</em>
+          </h1>
+          <p class="hero-subtitle">
+            Nosso foco é embelezamento e individualização, com técnicas avançadas
+            e profissionais altamente qualificados para realçar sua beleza natural.
+          </p>
+          <div class="hero-actions">
+            <a href="https://wa.me/5500000000000" class="btn btn-filled" target="_blank">Agendar Consulta</a>
+            <a href="#procedimentos" class="btn">Ver Procedimentos</a>
+          </div>
+        </div>
+        <div class="hero-image">
+          <div class="hero-image-frame">
+            <div class="hero-deco"></div>
+            <!-- SUBSTITUA pelo <img src="foto-profissional.jpg" alt="Dra. Nome"> -->
+            <div class="hero-img-placeholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              <span style="font-size:0.75rem">Foto da Profissional<br>aqui</span>
+            </div>
+            <div class="hero-badge">
+              <div class="hero-badge-num">+500</div>
+              <div class="hero-badge-txt">Pacientes Satisfeitas</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== PROCEDIMENTOS ========== -->
+  <section class="procedimentos" id="procedimentos">
+    <div class="container">
+      <div class="procedimentos-header fade-up">
+        <div>
+          <span class="section-tag">O que oferecemos</span>
+          <h2 class="section-title">Nossos <em>Procedimentos</em></h2>
+        </div>
+        <a href="#" class="btn">Ver Todos</a>
+      </div>
+
+      <!-- Tabs de categoria -->
+      <div class="proc-tabs">
+        <button class="proc-tab active" onclick="showTab('rosto', this)">Rosto</button>
+        <button class="proc-tab" onclick="showTab('corpo', this)">Corpo</button>
+        <button class="proc-tab" onclick="showTab('tecnologia', this)">Tecnologias</button>
+      </div>
+
+      <!-- ROSTO -->
+      <div class="proc-panel active" id="tab-rosto">
+        <!-- Repita este card para cada procedimento -->
+        <div class="proc-card fade-up">
+          <div class="proc-card-img">
+            <!-- <img src="img/toxina.jpg" alt="Toxina Botulínica"> -->
+            <span class="proc-card-img-placeholder">foto aqui</span>
+          </div>
+          <div class="proc-card-body">
+            <h3>Toxina Botulínica</h3>
+            <p>Promove rejuvenescimento facial com resultados naturais.</p>
+            <a href="#" class="proc-card-link">Saiba mais</a>
+          </div>
+        </div>
+        <div class="proc-card fade-up">
+          <div class="proc-card-img"><span class="proc-card-img-placeholder">foto aqui</span></div>
+          <div class="proc-card-body">
+            <h3>Preenchimento Labial</h3>
+            <p>Volume e definição para lábios mais harmoniosos.</p>
+            <a href="#" class="proc-card-link">Saiba mais</a>
+          </div>
+        </div>
+        <div class="proc-card fade-up">
+          <div class="proc-card-img"><span class="proc-card-img-placeholder">foto aqui</span></div>
+          <div class="proc-card-body">
+            <h3>Bioestimuladores de Colágeno</h3>
+            <p>Estimula a produção de colágeno e promove rejuvenescimento.</p>
+            <a href="#" class="proc-card-link">Saiba mais</a>
+          </div>
+        </div>
+        <div class="proc-card fade-up">
+          <div class="proc-card-img"><span class="proc-card-img-placeholder">foto aqui</span></div>
+          <div class="proc-card-body">
+            <h3>Rinomodelação</h3>
+            <p>Transforme seu perfil sem cirurgia, com resultados imediatos.</p>
+            <a href="#" class="proc-card-link">Saiba mais</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- CORPO -->
+      <div class="proc-panel" id="tab-corpo">
+        <div class="proc-card fade-up">
+          <div class="proc-card-img"><span class="proc-card-img-placeholder">foto aqui</span></div>
+          <div class="proc-card-body">
+            <h3>Body Sculpting</h3>
+            <p>Modelagem corporal com tecnologia de ponta.</p>
+            <a href="#" class="proc-card-link">Saiba mais</a>
+          </div>
+        </div>
+        <div class="proc-card fade-up">
+          <div class="proc-card-img"><span class="proc-card-img-placeholder">foto aqui</span></div>
+          <div class="proc-card-body">
+            <h3>Drenagem Linfática</h3>
+            <p>Redução de inchaço e melhora da circulação.</p>
+            <a href="#" class="proc-card-link">Saiba mais</a>
+          </div>
+        </div>
+        <div class="proc-card fade-up">
+          <div class="proc-card-img"><span class="proc-card-img-placeholder">foto aqui</span></div>
+          <div class="proc-card-body">
+            <h3>Intradermoterapia</h3>
+            <p>Tratamento localizado para redução de medidas.</p>
+            <a href="#" class="proc-card-link">Saiba mais</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- TECNOLOGIAS -->
+      <div class="proc-panel" id="tab-tecnologia">
+        <div class="proc-card fade-up">
+          <div class="proc-card-img"><span class="proc-card-img-placeholder">foto aqui</span></div>
+          <div class="proc-card-body">
+            <h3>Ultraformer</h3>
+            <p>Ultrassom microfocado para lifting sem cirurgia.</p>
+            <a href="#" class="proc-card-link">Saiba mais</a>
+          </div>
+        </div>
+        <div class="proc-card fade-up">
+          <div class="proc-card-img"><span class="proc-card-img-placeholder">foto aqui</span></div>
+          <div class="proc-card-body">
+            <h3>Laser</h3>
+            <p>Tratamentos precisos com tecnologia laser avançada.</p>
+            <a href="#" class="proc-card-link">Saiba mais</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== SOBRE ========== -->
+  <section class="sobre" id="sobre">
+    <div class="container">
+      <div class="sobre-inner">
+        <div class="sobre-image fade-up">
+          <!-- SUBSTITUA por <img src="img/dra-foto.jpg" alt="Dra. Nome"> -->
+          <div class="sobre-img-frame">Foto da Dra.</div>
+          <div class="sobre-deco"></div>
+          <div class="sobre-deco-2"></div>
+        </div>
+        <div class="sobre-content fade-up">
+          <span class="section-tag">Quem somos</span>
+          <h2 class="section-title">Sobre a <em>Clínica</em></h2>
+          <div class="divider"></div>
+          <p>
+            A <strong>Clínica [Nome]</strong> é uma referência em estética fundada pela
+            <strong>Dra. [Nome]</strong>. Sua paixão pela harmonização facial
+            direcionou a clínica a se especializar nesse campo, oferecendo procedimentos
+            seguros, naturais e de alta qualidade.
+          </p>
+          <p>
+            Com um compromisso inabalável com a naturalidade, saúde e bem-estar,
+            a clínica reúne os melhores profissionais e tecnologias para entregar
+            resultados que respeitam a individualidade de cada paciente.
+          </p>
+
+          <div class="pilares">
+            <div class="pilar"><div class="pilar-icon">🛡️</div><div class="pilar-text">Estética com segurança</div></div>
+            <div class="pilar"><div class="pilar-icon">✨</div><div class="pilar-text">Foco em naturalidade</div></div>
+            <div class="pilar"><div class="pilar-icon">💛</div><div class="pilar-text">Acolhimento e respeito</div></div>
+            <div class="pilar"><div class="pilar-icon">📚</div><div class="pilar-text">Conhecimento constante</div></div>
+          </div>
+
+          <a href="https://wa.me/5500000000000" class="btn btn-filled" target="_blank">Agendar Consulta</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== DEPOIMENTOS / CLIENTES ========== -->
+  <section class="depoimentos">
+    <div class="container">
+      <div class="depoimentos-header fade-up">
+        <span class="section-tag">Nossas Pacientes</span>
+        <h2 class="section-title">Resultados que <em>Falam</em></h2>
+        <div class="divider"></div>
+        <p style="color:var(--cor-texto-claro);font-weight:300;font-size:15px;max-width:500px;margin:0 auto">
+          Pacientes reais, resultados reais. Veja as transformações que realizamos.
+        </p>
+      </div>
+      <div class="depoimentos-grid">
+        <!-- Repita para cada paciente/depoimento -->
+        <div class="dep-card fade-up">
+          <div class="dep-card-img">
+            <!-- <img src="img/paciente1.jpg" alt="@handle"> -->
+            <div class="dep-img-placeholder">Foto paciente</div>
+          </div>
+          <div class="dep-card-overlay"><span class="dep-card-handle">@handle_instagram</span></div>
+          <div class="dep-card-label">@handle</div>
+        </div>
+        <div class="dep-card fade-up">
+          <div class="dep-card-img"><div class="dep-img-placeholder">Foto paciente</div></div>
+          <div class="dep-card-overlay"><span class="dep-card-handle">@handle_instagram</span></div>
+          <div class="dep-card-label">@handle</div>
+        </div>
+        <div class="dep-card fade-up">
+          <div class="dep-card-img"><div class="dep-img-placeholder">Foto paciente</div></div>
+          <div class="dep-card-overlay"><span class="dep-card-handle">@handle_instagram</span></div>
+          <div class="dep-card-label">@handle</div>
+        </div>
+        <div class="dep-card fade-up">
+          <div class="dep-card-img"><div class="dep-img-placeholder">Foto paciente</div></div>
+          <div class="dep-card-overlay"><span class="dep-card-handle">@handle_instagram</span></div>
+          <div class="dep-card-label">@handle</div>
+        </div>
+        <div class="dep-card fade-up">
+          <div class="dep-card-img"><div class="dep-img-placeholder">Foto paciente</div></div>
+          <div class="dep-card-overlay"><span class="dep-card-handle">@handle_instagram</span></div>
+          <div class="dep-card-label">@handle</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== INSTAGRAM ========== -->
+  <section class="instagram">
+    <div class="container">
+      <div class="instagram-handle fade-up">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="2" width="20" height="20" rx="5"/>
+          <circle cx="12" cy="12" r="4"/>
+          <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor"/>
+        </svg>
+        <a href="https://instagram.com/handle_da_clinica" target="_blank">@handle_da_clinica</a>
+      </div>
+      <p class="instagram-sub fade-up">Acompanhe nosso Instagram</p>
+      <div class="instagram-grid">
+        <!-- Substitua por <img> dos posts reais -->
+        <div class="insta-post fade-up">
+          <div class="insta-placeholder">Post 1</div>
+          <div class="insta-post-overlay">
+            <svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
+          </div>
+        </div>
+        <div class="insta-post fade-up"><div class="insta-placeholder">Post 2</div><div class="insta-post-overlay"><svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg></div></div>
+        <div class="insta-post fade-up"><div class="insta-placeholder">Post 3</div><div class="insta-post-overlay"><svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg></div></div>
+        <div class="insta-post fade-up"><div class="insta-placeholder">Post 4</div><div class="insta-post-overlay"><svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg></div></div>
+      </div>
+      <a href="https://instagram.com/handle_da_clinica" class="btn" target="_blank">Ver mais no Instagram</a>
+    </div>
+  </section>
+
+  <!-- ========== LOCALIZAÇÃO ========== -->
+  <section class="localizacao" id="contato">
+    <div class="container">
+      <div class="localizacao-inner">
+        <div class="fade-up">
+          <span class="section-tag">Onde estamos</span>
+          <h2 class="section-title">Venha nos <em>Visitar</em></h2>
+          <div class="divider"></div>
+
+          <div class="contact-item">
+            <div class="contact-icon">📍</div>
+            <div>
+              <div class="contact-label">Endereço</div>
+              <div class="contact-value">Rua Exemplo, 123 — Bairro, Cidade - UF</div>
+            </div>
+          </div>
+          <div class="contact-item">
+            <div class="contact-icon">📱</div>
+            <div>
+              <div class="contact-label">WhatsApp</div>
+              <div class="contact-value">(00) 00000-0000</div>
+            </div>
+          </div>
+          <div class="contact-item">
+            <div class="contact-icon">🕐</div>
+            <div>
+              <div class="contact-label">Horário de Atendimento</div>
+              <div class="contact-value">Seg–Sex: 9h–18h | Sáb: 9h–13h</div>
+            </div>
+          </div>
+          <div class="contact-item">
+            <div class="contact-icon">✉️</div>
+            <div>
+              <div class="contact-label">E-mail</div>
+              <div class="contact-value">contato@clinica.com.br</div>
+            </div>
+          </div>
+
+          <a href="https://wa.me/5500000000000" class="btn btn-filled" style="margin-top:32px" target="_blank">
+            Agendar pelo WhatsApp
+          </a>
+        </div>
+        <div class="fade-up">
+          <!-- SUBSTITUA por <iframe> do Google Maps -->
+          <div class="mapa-placeholder">Mapa Google Maps aqui</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== NEWSLETTER ========== -->
+  <section class="newsletter">
+    <div class="container">
+      <div class="newsletter-inner">
+        <div class="newsletter-text fade-up">
+          <span class="section-tag">Fique por dentro</span>
+          <h2 class="section-title" style="color:#fff">Inscreva-se na nossa <em>Newsletter</em></h2>
+          <p>Receba novidades, promoções exclusivas e dicas de beleza diretamente no seu e-mail.</p>
+        </div>
+        <div class="newsletter-form fade-up">
+          <input type="email" placeholder="Seu melhor e-mail">
+          <button type="button">Assinar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== FOOTER ========== -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="#" class="logo">Clínica <span style="color:var(--cor-primaria)">Nome</span></a>
+          <p>Sua clínica de referência em estética e harmonização facial, com foco em naturalidade, segurança e bem-estar.</p>
+          <div class="footer-social">
+            <a href="#" target="_blank" title="Instagram">
+              <svg viewBox="0 0 24 24" width="16" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07..."/></svg>
+              IG
+            </a>
+            <a href="#" target="_blank" title="WhatsApp">WA</a>
+            <a href="#" target="_blank" title="Facebook">FB</a>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h4>Links</h4>
+          <ul>
+            <li><a href="#">Início</a></li>
+            <li><a href="#">A Clínica</a></li>
+            <li><a href="#">Procedimentos</a></li>
+            <li><a href="#">Contato</a></li>
+            <li><a href="#">Política de Privacidade</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Procedimentos</h4>
+          <ul>
+            <li><a href="#">Toxina Botulínica</a></li>
+            <li><a href="#">Preenchimento Labial</a></li>
+            <li><a href="#">Bioestimuladores</a></li>
+            <li><a href="#">Rinomodelação</a></li>
+            <li><a href="#">Body Sculpting</a></li>
+            <li><a href="#">Ultraformer</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Contato</h4>
+          <ul>
+            <li><a href="#">📍 Rua Exemplo, 123</a></li>
+            <li><a href="#">📱 (00) 00000-0000</a></li>
+            <li><a href="#">✉️ contato@clinica.com</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2025 Clínica Nome — Todos os direitos reservados.</p>
+        <p><a href="#">Política de Privacidade</a> · <a href="#">Termos de Uso</a></p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- WhatsApp Flutuante -->
+  <a href="https://wa.me/5500000000000" class="whatsapp-float" target="_blank" title="Fale pelo WhatsApp">
+    <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  </a>
+
+  <!-- ========== SCRIPTS ========== -->
+  <script>
+    // Header scroll
+    const header = document.getElementById('header');
+    window.addEventListener('scroll', () => {
+      header.classList.toggle('scrolled', window.scrollY > 60);
+    });
+
+    // Mobile menu
+    document.getElementById('menuToggle').addEventListener('click', () => {
+      document.getElementById('mobileNav').classList.add('open');
+    });
+    document.getElementById('mobileNavClose').addEventListener('click', () => {
+      document.getElementById('mobileNav').classList.remove('open');
+    });
+    document.querySelectorAll('.mobile-link').forEach(link => {
+      link.addEventListener('click', () => document.getElementById('mobileNav').classList.remove('open'));
+    });
+
+    // Tabs de procedimentos
+    function showTab(tab, btn) {
+      document.querySelectorAll('.proc-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.proc-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    // Animações de scroll (fade-up)
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry, i) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => entry.target.classList.add('visible'), i * 80);
+        }
+      });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+  </script>
+
+</body>
+</html>

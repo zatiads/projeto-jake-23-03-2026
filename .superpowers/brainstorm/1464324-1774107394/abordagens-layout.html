@@ -1,0 +1,106 @@
+<h2>Fábrica de Criativos — Abordagem de Layout</h2>
+<p class="subtitle">Qual estrutura de tela faz mais sentido para o fluxo de geração?</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Wizard Passo a Passo</h3>
+      <p>Fluxo linear guiado: ① Tipo de saída → ② Prompt (Claude expande) → ③ Modelo → ④ Resultado</p>
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <span style="background:rgba(105,240,174,.15);color:#69f0ae;border-radius:4px;padding:2px 8px;font-size:.75rem">✓ Fluxo claro</span>
+        <span style="background:rgba(105,240,174,.15);color:#69f0ae;border-radius:4px;padding:2px 8px;font-size:.75rem">✓ Sem sobrecarga visual</span>
+        <span style="background:rgba(255,82,82,.12);color:#ff5252;border-radius:4px;padding:2px 8px;font-size:.75rem">✗ Mais cliques</span>
+        <span style="background:rgba(255,82,82,.12);color:#ff5252;border-radius:4px;padding:2px 8px;font-size:.75rem">✗ Mais lento para uso repetido</span>
+      </div>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">Preview</div>
+        <div class="mockup-body" style="padding:12px">
+          <div style="display:flex;gap:6px;margin-bottom:10px">
+            <div style="flex:1;text-align:center;padding:6px;background:rgba(0,229,255,.15);border:1px solid #00e5ff;border-radius:6px;font-size:.75rem;color:#00e5ff">① Tipo</div>
+            <div style="flex:1;text-align:center;padding:6px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);border-radius:6px;font-size:.75rem;color:#666">② Prompt</div>
+            <div style="flex:1;text-align:center;padding:6px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);border-radius:6px;font-size:.75rem;color:#666">③ Modelo</div>
+            <div style="flex:1;text-align:center;padding:6px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);border-radius:6px;font-size:.75rem;color:#666">④ Resultado</div>
+          </div>
+          <div style="background:rgba(0,0,0,.2);border-radius:8px;padding:12px;font-size:.78rem;color:#b0bec5">
+            <div style="margin-bottom:6px;color:#00e5ff;font-size:.7rem">ETAPA ATUAL: Escolha o tipo de saída</div>
+            <div style="display:flex;gap:8px">
+              <div style="flex:1;padding:10px;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.4);border-radius:6px;text-align:center;font-size:.8rem">🖼️ Imagem</div>
+              <div style="flex:1;padding:10px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);border-radius:6px;text-align:center;font-size:.8rem;color:#666">🎬 Vídeo</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Painel Único Adaptável</h3>
+      <p>Tudo numa tela só. Seções aparecem/desaparecem conforme o tipo escolhido. Prompt + modelo + resultado em coluna única.</p>
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <span style="background:rgba(105,240,174,.15);color:#69f0ae;border-radius:4px;padding:2px 8px;font-size:.75rem">✓ Visão geral completa</span>
+        <span style="background:rgba(105,240,174,.15);color:#69f0ae;border-radius:4px;padding:2px 8px;font-size:.75rem">✓ Padrão atual do Jake OS</span>
+        <span style="background:rgba(255,82,82,.12);color:#ff5252;border-radius:4px;padding:2px 8px;font-size:.75rem">✗ Pode ficar longo</span>
+      </div>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">Preview</div>
+        <div class="mockup-body" style="padding:12px">
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <div style="flex:1;padding:6px;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);border-radius:6px;text-align:center;font-size:.75rem;color:#00e5ff">🖼️ Imagem</div>
+            <div style="flex:1;padding:6px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);border-radius:6px;text-align:center;font-size:.75rem;color:#666">🎬 Vídeo</div>
+          </div>
+          <div style="background:rgba(0,0,0,.2);border-radius:6px;padding:8px;margin-bottom:6px;font-size:.75rem;color:#b0bec5">📝 Prompt simples...</div>
+          <div style="background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.1);border-radius:6px;padding:8px;margin-bottom:6px;font-size:.72rem;color:#00e5ff">✨ Claude expandiu: "Professional studio lighting, cinematic composition, 8K resolution..."</div>
+          <div style="display:flex;gap:4px;margin-bottom:6px">
+            <div style="flex:1;padding:5px;background:rgba(0,229,255,.1);border-radius:4px;font-size:.7rem;text-align:center;color:#00e5ff">Flux 1.1 Pro ✓</div>
+            <div style="flex:1;padding:5px;background:rgba(0,0,0,.2);border-radius:4px;font-size:.7rem;text-align:center;color:#666">Recraft V3</div>
+            <div style="flex:1;padding:5px;background:rgba(0,0,0,.2);border-radius:4px;font-size:.7rem;text-align:center;color:#666">Ideogram</div>
+          </div>
+          <div style="background:rgba(0,229,255,.06);border-radius:6px;height:40px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#00e5ff">🚀 Gerar Criativo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Split View — Config + Resultado</h3>
+      <p>Esquerda: configuração (tipo, prompt, modelo, upload). Direita: preview do resultado. Prompt expandido aparece como painel antes de gerar.</p>
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <span style="background:rgba(105,240,174,.15);color:#69f0ae;border-radius:4px;padding:2px 8px;font-size:.75rem">✓ Config e resultado lado a lado</span>
+        <span style="background:rgba(105,240,174,.15);color:#69f0ae;border-radius:4px;padding:2px 8px;font-size:.75rem">✓ Fluido para ajustes</span>
+        <span style="background:rgba(255,82,82,.12);color:#ff5252;border-radius:4px;padding:2px 8px;font-size:.75rem">✗ Ocupa mais largura</span>
+      </div>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">Preview</div>
+        <div class="mockup-body" style="padding:12px">
+          <div style="display:flex;gap:8px">
+            <div style="flex:1;background:rgba(0,0,0,.2);border-radius:6px;padding:8px">
+              <div style="font-size:.7rem;color:#00e5ff;margin-bottom:6px">CONFIGURAÇÃO</div>
+              <div style="background:rgba(0,0,0,.2);border-radius:4px;padding:5px;margin-bottom:4px;font-size:.72rem;color:#b0bec5">📝 Prompt...</div>
+              <div style="display:flex;gap:4px;margin-bottom:4px">
+                <div style="flex:1;padding:4px;background:rgba(0,229,255,.1);border-radius:3px;font-size:.65rem;text-align:center;color:#00e5ff">🖼️</div>
+                <div style="flex:1;padding:4px;background:rgba(0,0,0,.15);border-radius:3px;font-size:.65rem;text-align:center;color:#666">🎬</div>
+              </div>
+              <div style="background:rgba(0,0,0,.15);border-radius:3px;padding:4px;font-size:.65rem;color:#666;margin-bottom:4px">Modelo: Flux 1.1 Pro ▾</div>
+              <div style="background:rgba(0,229,255,.08);border-radius:4px;padding:5px;text-align:center;font-size:.72rem;color:#00e5ff">🚀 Gerar</div>
+            </div>
+            <div style="flex:1;background:rgba(0,0,0,.15);border-radius:6px;padding:8px;display:flex;align-items:center;justify-content:center">
+              <div style="text-align:center;color:#444;font-size:.75rem">
+                <div style="font-size:1.5rem;margin-bottom:4px">🖼️</div>
+                Resultado aparece aqui
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px">💡 Minha recomendação: <strong>C (Split View)</strong> — permite ver o resultado enquanto ajusta o prompt, ideal para criativos onde a iteração é rápida. Mas B também funciona bem seguindo o padrão atual do Jake OS.</p>

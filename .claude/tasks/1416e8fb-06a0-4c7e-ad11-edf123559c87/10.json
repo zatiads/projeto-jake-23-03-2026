@@ -1,0 +1,9 @@
+{
+  "id": "10",
+  "subject": "Task 5: HTML da página de performance",
+  "description": "Substituir placeholder em dashboard.html pelo HTML completo (tabs, cards, tabela, drawer, estilos) e registrar performance.js.",
+  "activeForm": "Implementando HTML da página",
+  "status": "in_progress",
+  "blocks": [],
+  "blockedBy": []
+}

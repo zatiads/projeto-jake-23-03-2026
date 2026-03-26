@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jake IA — Acesso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:     #070b12;
+      --cyan:   #00e5ff;
+      --glow:   rgba(0,229,255,.45);
+      --card:   rgba(10,18,32,.85);
+      --border: rgba(0,229,255,.2);
+      --text:   #b0bec5;
+      --white:  #e0f7fa;
+      --red:    #ff5252;
+      --ff-h:   "Orbitron", sans-serif;
+      --ff-b:   "Rajdhani", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      font-family: var(--ff-b);
+      overflow: hidden;
+    }
+
+    /* ── Sphere blurred bg ── */
+    .bg-sphere {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .bg-s { position: absolute; border-radius: 50%; }
+    .bg-s1 {
+      width: 520px; height: 520px;
+      background: radial-gradient(circle, rgba(0,229,255,.18) 0%, transparent 70%);
+      animation: bgpulse 4s ease-in-out infinite;
+    }
+    .bg-s2 {
+      width: 340px; height: 340px;
+      background: radial-gradient(circle, rgba(255,255,255,.22) 0%, rgba(0,229,255,.15) 35%, transparent 75%);
+      animation: bgpulse 4s ease-in-out infinite reverse;
+      box-shadow: 0 0 100px rgba(0,229,255,.3);
+    }
+    .bg-s3 {
+      width: 180px; height: 180px;
+      background: radial-gradient(circle, #fff 0%, rgba(200,255,255,.9) 40%, rgba(0,229,255,.4) 75%, transparent 100%);
+      box-shadow: 0 0 80px rgba(255,255,255,.5), 0 0 140px rgba(0,229,255,.4);
+      animation: bgpulse 3s ease-in-out infinite;
+    }
+    @keyframes bgpulse {
+      0%,100% { transform: scale(1);    opacity: .9; }
+      50%     { transform: scale(1.08); opacity: .7; }
+    }
+
+    /* ── Grid background ── */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      z-index: 0;
+    }
+
+    /* ── Card ── */
+    .card {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 420px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      backdrop-filter: blur(24px);
+      box-shadow: 0 0 40px rgba(0,229,255,.08), 0 8px 40px rgba(0,0,0,.5);
+    }
+
+    .brand {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .brand-title {
+      font-family: var(--ff-h);
+      font-weight: 800;
+      font-size: 2.2rem;
+      letter-spacing: .15em;
+      color: var(--white);
+      text-shadow: 0 0 20px var(--glow);
+    }
+    .brand-os {
+      color: var(--cyan);
+      text-shadow: 0 0 15px var(--glow);
+    }
+    .brand-sub {
+      margin-top: .4rem;
+      font-size: .85rem;
+      letter-spacing: .3em;
+      text-transform: uppercase;
+      color: rgba(0,229,255,.6);
+    }
+
+    .scan-line {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      margin-bottom: 1.75rem;
+      opacity: .4;
+    }
+
+    label {
+      display: block;
+      font-family: var(--ff-h);
+      font-size: .7rem;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: rgba(0,229,255,.7);
+      margin-bottom: .4rem;
+    }
+
+    .field { margin-bottom: 1.25rem; }
+
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      background: rgba(0,0,0,.35);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .75rem 1rem;
+      color: var(--white);
+      font-family: var(--ff-b);
+      font-size: 1rem;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(0,229,255,.1);
+    }
+    input::placeholder { color: rgba(176,190,197,.4); }
+
+    .btn-login {
+      width: 100%;
+      margin-top: .5rem;
+      padding: .85rem;
+      background: var(--cyan);
+      border: none;
+      border-radius: 8px;
+      font-family: var(--ff-h);
+      font-weight: 600;
+      font-size: .9rem;
+      letter-spacing: .15em;
+      color: #070b12;
+      cursor: pointer;
+      transition: opacity .2s, box-shadow .2s;
+      box-shadow: 0 0 20px var(--glow);
+    }
+    .btn-login:hover {
+      opacity: .9;
+      box-shadow: 0 0 30px var(--glow);
+    }
+
+    .error-msg {
+      margin-top: 1rem;
+      padding: .65rem .9rem;
+      background: rgba(255,82,82,.1);
+      border: 1px solid rgba(255,82,82,.3);
+      border-radius: 6px;
+      color: var(--red);
+      font-size: .9rem;
+      text-align: center;
+      display: {% if error %}flex{% else %}none{% endif %};
+      align-items: center;
+      justify-content: center;
+      gap: .4rem;
+    }
+
+    .footer-text {
+      margin-top: 1.5rem;
+      text-align: center;
+      font-size: .78rem;
+      color: rgba(176,190,197,.35);
+      letter-spacing: .1em;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-sphere">
+    <div class="bg-s bg-s1"></div>
+    <div class="bg-s bg-s2"></div>
+    <div class="bg-s bg-s3"></div>
+  </div>
+
+  <div class="card">
+    <div class="brand">
+      <div class="brand-title">Jake <span class="brand-os">IA</span></div>
+      <div class="brand-sub">Central de Operações</div>
+    </div>
+
+    <div class="scan-line"></div>
+
+    <form method="POST" action="/auth/login">
+      <div class="field">
+        <label for="email">E-mail</label>
+        <input type="email" id="email" name="email" placeholder="seu@email.com" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Senha</label>
+        <input type="password" id="password" name="password" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn-login">Acessar Central →</button>
+    </form>
+
+    {% if error %}
+    <div class="error-msg">⚠ Credenciais incorretas. Tente novamente.</div>
+    {% endif %}
+
+    <p class="footer-text">Stark Industries © 2025 — Uso restrito</p>
+  </div>
+
+</body>
+</html>

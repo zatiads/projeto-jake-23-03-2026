@@ -1,0 +1,9 @@
+{
+  "id": "9",
+  "subject": "Task 4: Enriquecer /api/relatorios/analise com vault + delta",
+  "description": "Adicionar _slug(), helpers vault, modificar api_relatorios_analise para aceitar metricas_anterior/delta e ler/escrever vault Obsidian.",
+  "activeForm": "Enriquecendo análise IA",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

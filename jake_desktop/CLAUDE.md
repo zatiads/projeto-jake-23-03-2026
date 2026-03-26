@@ -1,0 +1,106 @@
+# CLAUDE.md
+
+## Regras de Leitura de Arquivos
+
+- **NUNCA** ler `app.py` inteiro de uma vez — usar `Read` com line ranges (ex: linhas 1-100)
+- **NUNCA** ler `dashboard.html` inteiro — idem, sempre em blocos
+- Ignorar completamente a pasta `venv/` e `.venv/`
+- Trabalhar sempre em blocos de no máximo **100 linhas**
+- Para localizar algo, usar `Grep` antes de ler o arquivo
+
+---
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Overview
+
+**Jake OS** is a Flask-based SaaS web platform styled as a Jarvis-like AI assistant. It runs at `http://localhost:5050` and is a single-page application (SPA) with session-based authentication.
+
+There is also a legacy desktop variant (`jake_sphere.py`) that renders a floating holographic sphere using PyQt5 — this is separate from the web app.
+
+## Running the App
+
+```bash
+# Recommended: use the .venv virtual environment
+source .venv/bin/activate
+python app.py
+```
+
+Or with the convenience scripts:
+```bash
+./run_web.sh       # Linux/Mac — creates venv if missing, installs flask+requests, runs app.py
+run_web.bat        # Windows equivalent
+```
+
+The app opens automatically in the browser on startup (port 5050).
+
+**Desktop sphere only (PyQt5):**
+```bash
+./run.sh    # or run.bat on Windows
+```
+
+## Environment Variables (`.env`)
+
+The app loads `.env` from the project directory and from the parent directory (`/root/.env`). Required keys:
+
+| Variable | Purpose |
+|---|---|
+| `OPENAI_API_KEY` | Chat (GPT-4o), Whisper STT, TTS, DALL-E 3 |
+| `ANTHROPIC_API_KEY` | Carousel copy, copywriting, image prompts, financial analysis, site architect |
+| `REPLICATE_API_TOKEN` | Flux 1.1 Pro image generation |
+| `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALERT_CHAT_ID` | Telegram tool in Jake chat |
+| `META_TOKEN_PILOTI` / `META_TOKEN_DENTTO` | Meta Ads API tokens per agency |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Login credentials (defaults: `admin@jakeos.local` / `Jake@2024!`) |
+| `SESSION_SECRET` | Flask session key (auto-generated if missing) |
+
+## Architecture
+
+### Backend (`app.py`)
+
+Single-file Flask app (~1200+ lines). All routes require `@login_required`. Key sections:
+
+- **Auth**: session-based (`/login`, `/auth/login`, `/auth/logout`)
+- **`/api/now`** and **`/api/weather`** — time (São Paulo timezone) and weather (Open-Meteo, lat/lon for SP)
+- **`/api/falar`** — Jake chat: accepts JSON `{text}` or multipart `audio` file → Whisper STT → GPT-4o with a Telegram tool → TTS response (base64 audio)
+- **`/api/carousel/copy`** — Instagram carousel generator (Claude `claude-sonnet-4-5`), returns 7-slide JSON
+- **`/api/carousel/generate-image`** — Image generation via Flux 1.1 Pro (Replicate) for carousel slides
+- **`/api/copys/gerar`** — Ad copy generator (Claude `claude-sonnet-4-6`) for Meta/Google/TikTok/YouTube
+- **`/api/relatorios/insights/<agency>/<account_id>`** — Meta Ads Graph API (v21.0), 30-min cache
+- **`/api/relatorios/analise`** — AI analysis of Meta Ads metrics (Claude `claude-sonnet-4-5`)
+- **`/api/prompts/gerar`** — AI image prompt engineer (Claude `claude-sonnet-4-5`), outputs English prompts
+- **`/api/generate-creative`** — Creative factory: generates 5 ad creatives (text via Claude/GPT-4o + image via Flux/DALL-E 3)
+- **`/api/financeiro/analise`** — Personal finance AI analysis (Claude preferred, GPT-4o fallback)
+- **`/api/architect/generate`** — Site Architect: generates full landing page HTML+TailwindCSS from a reference URL and business context
+
+Image uploads from the Architect feature are saved to `static/uploads/architect/`.
+
+### Frontend (SPA)
+
+- **`templates/dashboard.html`** — Main SPA shell. Contains all page `<div id="page-*">` sections
+- **`static/js/app.js`** — Hash-based SPA router; pages: `painel`, `architect`, `performance`, `anuncios`, `copys`, `criativos`, `relatorios`, `carrossel`, `prompts`, `financeiro`
+- **`static/js/main.js`** — Updates clock, weather, and greeting every 30–60s by polling `/api/now` and `/api/weather`
+- **`static/js/carousel.js`** — Carousel generator UI
+- **`static/js/copys.js`** — Ad copy generator UI
+- **`static/js/creative_factory.js`** — Creative factory UI
+- **`static/js/architect.js`** — Site Architect UI
+- **`static/js/relatorios.js`** — Reports/Meta Ads UI
+- **`static/js/financeiro.js`** — Personal finance UI
+- **`static/js/prompts.js`** — Image prompt generator UI
+- **`static/js/voice.js`** — Voice recording and audio playback for Jake chat
+- **`static/css/style.css`** + **`static/css/dashboard.css`** — Jarvis/dark theme styles
+
+### AI Model Usage
+
+| Feature | Model |
+|---|---|
+| Jake chat | GPT-4o (with tool use) |
+| Voice transcription | Whisper-1 |
+| Voice synthesis | TTS-1 (voice: onyx) |
+| Carousel copy | claude-sonnet-4-5 |
+| Ad copywriting | claude-sonnet-4-6 |
+| Reports analysis | claude-sonnet-4-5 |
+| Image prompts | claude-sonnet-4-5 |
+| Creative factory text | claude-sonnet-4-6 (or GPT-4o) |
+| Financial analysis | claude-sonnet-4-5 (GPT-4o fallback) |
+| Site architect | claude-sonnet-4-5 |
+| Image generation | Flux 1.1 Pro via Replicate (DALL-E 3 as fallback) |

@@ -1,0 +1,746 @@
+/* ─────────────────────────────────────────────────────
+   Jake OS — Módulo Rotinas & Agenda
+   Abas: Hoje | Agenda | Tarefas | Rotinas
+───────────────────────────────────────────────────── */
+(function () {
+
+  var state = {
+    tab: 'hoje',
+    view: 'semana',
+    hoje: new Date(),
+    dataAtual: new Date(),
+    tarefas: [],
+    rotinas: [],
+    editandoId: null,
+    editandoRotinaId: null
+  };
+
+  var CORES = {
+    piloti:     '#00e5ff',
+    dentto:     '#7c4dff',
+    zati:       '#ffd740',
+    trabalho:   '#4fc3f7',
+    pessoal:    '#ffab40',
+    academia:   '#69f0ae',
+    casa:       '#ce93d8',
+    financeiro: '#ff9800',
+    viagem:     '#80deea',
+    saude:      '#ff5252',
+    lazer:      '#f48fb1',
+    geral:      '#90a4ae'
+  };
+
+  var MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+               'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var DIAS_CURTOS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  var DIAS_NOMES  = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+
+  // ── UTILS ────────────────────────────────────────────────────────────────
+
+  function isoData(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function isoMes(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  }
+  function addDias(d, n) { var r = new Date(d); r.setDate(r.getDate()+n); return r; }
+  function inicioSemana(d) {
+    var r = new Date(d), dow = r.getDay();
+    r.setDate(r.getDate() + (dow === 0 ? -6 : 1 - dow));
+    return r;
+  }
+  function horaParaMinutos(h) {
+    if (!h) return null;
+    var p = h.split(':'); return parseInt(p[0])*60 + parseInt(p[1]);
+  }
+  function rotinaAtivaNodia(rot, data) {
+    var dow = data.getDay(), diaN = dow === 0 ? 7 : dow;
+    return rot.dias_semana.split(',').map(Number).indexOf(diaN) !== -1;
+  }
+  function labelDiasSemana(str) {
+    var nomes = {1:'Seg',2:'Ter',3:'Qua',4:'Qui',5:'Sex',6:'Sáb',7:'Dom'};
+    return str.split(',').map(function(d){ return nomes[d]||d; }).join(', ');
+  }
+
+  // ── API ──────────────────────────────────────────────────────────────────
+
+  function api(method, url, body) {
+    var opts = { method: method, headers: {'Content-Type':'application/json'} };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch(url, opts).then(function(r){ return r.json(); });
+  }
+
+  function carregarTudo(cb) {
+    var iso = isoData(state.hoje);
+    Promise.all([
+      api('GET', '/api/agenda/tarefas?mes=' + isoMes(state.dataAtual)),
+      api('GET', '/api/agenda/rotinas')
+    ]).then(function(rs) {
+      if (rs[0].success) state.tarefas = rs[0].data;
+      if (rs[1].success) state.rotinas = rs[1].data;
+      if (cb) cb();
+    });
+  }
+
+  function carregarSemana(cb) {
+    var seg = isoData(inicioSemana(state.dataAtual));
+    api('GET', '/api/agenda/semana?inicio=' + seg).then(function(res) {
+      if (res.success) { state.tarefas = res.tarefas; state.rotinas = res.rotinas; }
+      if (cb) cb();
+    });
+  }
+
+  function carregarDia(cb) {
+    var iso = isoData(state.dataAtual);
+    Promise.all([
+      api('GET', '/api/agenda/tarefas?data=' + iso),
+      api('GET', '/api/agenda/rotinas')
+    ]).then(function(rs) {
+      if (rs[0].success) state.tarefas = rs[0].data;
+      if (rs[1].success) state.rotinas = rs[1].data;
+      if (cb) cb();
+    });
+  }
+
+  // ── ABA: HOJE ────────────────────────────────────────────────────────────
+
+  function renderHoje() {
+    var agora = new Date();
+    var iso   = isoData(agora);
+    var hora  = agora.getHours();
+    var saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+    var diaSemana = DIAS_NOMES[agora.getDay()];
+    var dataFmt   = agora.getDate() + ' de ' + MESES[agora.getMonth()] + ' de ' + agora.getFullYear();
+
+    Promise.all([
+      api('GET', '/api/agenda/tarefas?data=' + iso),
+      api('GET', '/api/agenda/rotinas')
+    ]).then(function(rs) {
+      var tarefasHoje = rs[0].success ? rs[0].data : [];
+      var rotinas     = rs[1].success ? rs[1].data : [];
+      var rotinasHoje = rotinas.filter(function(r){ return rotinaAtivaNodia(r, agora); });
+
+      var pendentes   = tarefasHoje.filter(function(t){ return !t.concluida; });
+      var concluidas  = tarefasHoje.filter(function(t){ return t.concluida; });
+      var urgentes    = pendentes.filter(function(t){ return t.prioridade === 'urgente' || t.prioridade === 'alta'; });
+
+      var html = '';
+
+      // Saudação
+      html += '<div class="ag-hoje-greeting">' +
+        '<div class="ag-hoje-title">' + saudacao + ', Patrão! 👋</div>' +
+        '<div class="ag-hoje-sub">' + diaSemana + ', ' + dataFmt + '</div>' +
+        '</div>';
+
+      // KPIs rápidos
+      html += '<div class="ag-hoje-kpis">' +
+        '<div class="ag-hoje-kpi">' +
+          '<div class="ag-hoje-kpi-val">' + pendentes.length + '</div>' +
+          '<div class="ag-hoje-kpi-label">Pendentes</div>' +
+        '</div>' +
+        '<div class="ag-hoje-kpi ag-kpi-ok">' +
+          '<div class="ag-hoje-kpi-val">' + concluidas.length + '</div>' +
+          '<div class="ag-hoje-kpi-label">Concluídas</div>' +
+        '</div>' +
+        '<div class="ag-hoje-kpi ag-kpi-rot">' +
+          '<div class="ag-hoje-kpi-val">' + rotinasHoje.length + '</div>' +
+          '<div class="ag-hoje-kpi-label">Rotinas</div>' +
+        '</div>' +
+        (urgentes.length ? '<div class="ag-hoje-kpi ag-kpi-urg"><div class="ag-hoje-kpi-val">' + urgentes.length + '</div><div class="ag-hoje-kpi-label">Urgentes</div></div>' : '') +
+        '</div>';
+
+      // Rotinas do dia
+      if (rotinasHoje.length) {
+        html += '<div class="ag-hoje-section"><div class="ag-hoje-section-title">🔁 Rotinas de hoje</div>';
+        rotinasHoje.sort(function(a,b){ return (a.hora_inicio||'').localeCompare(b.hora_inicio||''); }).forEach(function(r) {
+          var cor = CORES[r.categoria] || CORES.geral;
+          var agora_min = agora.getHours()*60 + agora.getMinutes();
+          var hi_min = horaParaMinutos(r.hora_inicio);
+          var hf_min = r.hora_fim ? horaParaMinutos(r.hora_fim) : null;
+          var status = '';
+          if (hf_min && agora_min > hf_min) status = 'ag-rot-done';
+          else if (hi_min && agora_min >= hi_min && (!hf_min || agora_min <= hf_min)) status = 'ag-rot-now';
+          html += '<div class="ag-rot-item ' + status + '">' +
+            '<div class="ag-rot-cor" style="background:' + cor + '"></div>' +
+            '<div class="ag-rot-info">' +
+              '<div class="ag-rot-titulo">' + r.titulo + '</div>' +
+              '<div class="ag-rot-hora">' + r.hora_inicio + (r.hora_fim ? ' – ' + r.hora_fim : '') + '</div>' +
+            '</div>' +
+            (status === 'ag-rot-now' ? '<div class="ag-rot-badge">Agora</div>' : '') +
+            (status === 'ag-rot-done' ? '<div class="ag-rot-badge ag-rot-badge-done">✓ Feito</div>' : '') +
+            '</div>';
+        });
+        html += '</div>';
+      }
+
+      // Tarefas pendentes
+      html += '<div class="ag-hoje-section"><div class="ag-hoje-section-title">📌 Tarefas de hoje' +
+        '<button class="btn-neon-ag ag-btn-sm" style="margin-left:10px" onclick="window._agAbrirTarefa(\'' + iso + '\')">+ Adicionar</button>' +
+        '</div>';
+      if (pendentes.length === 0 && concluidas.length === 0) {
+        html += '<div class="ag-empty">Nenhuma tarefa para hoje. Aproveite! 🎉</div>';
+      } else {
+        pendentes.forEach(function(t) {
+          html += renderTarefaItem(t);
+        });
+        if (concluidas.length) {
+          html += '<div class="ag-concluidas-label">✓ Concluídas (' + concluidas.length + ')</div>';
+          concluidas.forEach(function(t) { html += renderTarefaItem(t); });
+        }
+      }
+      html += '</div>';
+
+      var container = document.getElementById('ag-hoje-container');
+      container.innerHTML = html;
+      bindTarefaItemEvents(container);
+    });
+  }
+
+  // ── ABA: AGENDA (calendário) ──────────────────────────────────────────────
+
+  function labelPeriodo() {
+    if (state.view === 'mes') return MESES[state.dataAtual.getMonth()] + ' ' + state.dataAtual.getFullYear();
+    if (state.view === 'dia') {
+      var d = state.dataAtual;
+      return DIAS_CURTOS[d.getDay()] + ', ' + d.getDate() + ' de ' + MESES[d.getMonth()];
+    }
+    var seg = inicioSemana(state.dataAtual), dom = addDias(seg,6);
+    if (seg.getMonth() === dom.getMonth())
+      return seg.getDate() + ' – ' + dom.getDate() + ' de ' + MESES[seg.getMonth()] + ' ' + seg.getFullYear();
+    return seg.getDate()+'/'+(seg.getMonth()+1)+' – '+dom.getDate()+'/'+(dom.getMonth()+1)+' '+dom.getFullYear();
+  }
+
+  function renderAgenda() {
+    document.getElementById('ag-periodo-label').textContent = labelPeriodo();
+    if (state.view === 'semana') renderSemana();
+    else if (state.view === 'mes') renderMes();
+    else renderDia();
+  }
+
+  function renderSemana() {
+    var seg = inicioSemana(state.dataAtual);
+    var hoje = isoData(state.hoje);
+    var HINI = 6, H = 60;
+
+    var html = '<div class="ag-semana-wrap">';
+    html += '<div class="ag-semana-header"><div class="ag-hora-col"></div>';
+    for (var i = 0; i < 7; i++) {
+      var d = addDias(seg,i), iso = isoData(d);
+      html += '<div class="ag-semana-col-hdr' + (iso===hoje?' ag-hoje':'') + '">' +
+        DIAS_CURTOS[d.getDay()] + '<span class="ag-dia-num">' + d.getDate() + '</span></div>';
+    }
+    html += '</div>';
+
+    // All-day
+    html += '<div class="ag-semana-allday"><div class="ag-hora-col" style="font-size:10px;color:#546e7a;padding:4px 6px">dia todo</div>';
+    for (var i = 0; i < 7; i++) {
+      var d = addDias(seg,i), iso = isoData(d);
+      var sf = state.tarefas.filter(function(t){ return t.data===iso && !t.hora_inicio; });
+      html += '<div class="ag-allday-col">';
+      sf.forEach(function(t) {
+        var cor = CORES[t.categoria]||CORES.geral;
+        html += '<div class="ag-pill'+(t.concluida?' ag-concluida':'')+'" style="background:'+cor+'" data-id="'+t.id+'">'+t.titulo+'</div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+
+    html += '<div class="ag-semana-body"><div class="ag-semana-horas">';
+    for (var h = HINI; h <= 23; h++) html += '<div class="ag-hora-label">'+String(h).padStart(2,'0')+':00</div>';
+    html += '</div><div class="ag-semana-cols">';
+
+    for (var i = 0; i < 7; i++) {
+      var d = addDias(seg,i), iso = isoData(d);
+      html += '<div class="ag-semana-col'+(iso===hoje?' ag-col-hoje':'')+'" data-data="'+iso+'">';
+      for (var h = HINI; h <= 23; h++)
+        html += '<div class="ag-hora-slot" data-data="'+iso+'" data-hora="'+String(h).padStart(2,'0')+':00"></div>';
+      state.rotinas.forEach(function(rot) {
+        if (!rotinaAtivaNodia(rot,d)) return;
+        var hi = horaParaMinutos(rot.hora_inicio), hf = rot.hora_fim?horaParaMinutos(rot.hora_fim):hi+60;
+        if (hi===null||hi<HINI*60) return;
+        var top=(hi-HINI*60)/60*H, height=Math.max(20,(hf-hi)/60*H);
+        var cor=CORES[rot.categoria]||CORES.geral;
+        html+='<div class="ag-bloco ag-bloco-rotina" style="top:'+top+'px;height:'+height+'px;background:'+cor+'22;border-left:3px solid '+cor+'" title="'+rot.titulo+'"><span style="color:'+cor+'">'+rot.hora_inicio+'</span> '+rot.titulo+'</div>';
+      });
+      state.tarefas.filter(function(t){return t.data===iso&&t.hora_inicio;}).forEach(function(t){
+        var hi=horaParaMinutos(t.hora_inicio), hf=t.hora_fim?horaParaMinutos(t.hora_fim):hi+60;
+        if(hi<HINI*60) return;
+        var top=(hi-HINI*60)/60*H, height=Math.max(24,(hf-hi)/60*H);
+        var cor=CORES[t.categoria]||CORES.geral;
+        html+='<div class="ag-bloco'+(t.concluida?' ag-concluida':'')+'" style="top:'+top+'px;height:'+height+'px;background:'+cor+';color:#050810" data-id="'+t.id+'"><strong>'+t.hora_inicio+'</strong> '+t.titulo+'</div>';
+      });
+      html += '</div>';
+    }
+    html += '</div></div></div>';
+    document.getElementById('agenda-container').innerHTML = html;
+    bindSemanaEvents();
+    atualizarLinhaAgora();
+  }
+
+  function atualizarLinhaAgora() {
+    document.querySelectorAll('.ag-linha-agora').forEach(function(el){el.remove();});
+    var agora = new Date(), seg = inicioSemana(state.dataAtual), isoHoje = isoData(agora);
+    for (var i = 0; i < 7; i++) {
+      if (isoData(addDias(seg,i)) !== isoHoje) continue;
+      var HINI=6, H=60, min=agora.getHours()*60+agora.getMinutes(), top=(min-HINI*60)/60*H;
+      if (top<0) return;
+      var cols=document.querySelectorAll('.ag-semana-col');
+      if (cols[i]) { var l=document.createElement('div'); l.className='ag-linha-agora'; l.style.top=top+'px'; cols[i].appendChild(l); }
+    }
+  }
+
+  function bindSemanaEvents() {
+    document.querySelectorAll('.ag-hora-slot').forEach(function(el){
+      el.addEventListener('click', function(){ abrirModalTarefa(this.dataset.data, this.dataset.hora); });
+    });
+    document.querySelectorAll('.ag-bloco[data-id]').forEach(function(el){
+      el.addEventListener('click', function(e){
+        e.stopPropagation();
+        var t=state.tarefas.find(function(x){return x.id==el.dataset.id;});
+        if(t) abrirModalTarefa(t.data,t.hora_inicio,t);
+      });
+    });
+    document.querySelectorAll('.ag-pill[data-id]').forEach(function(el){
+      el.addEventListener('click', function(e){
+        e.stopPropagation();
+        var t=state.tarefas.find(function(x){return x.id==el.dataset.id;});
+        if(t) abrirModalTarefa(t.data,null,t);
+      });
+    });
+  }
+
+  function renderMes() {
+    var ano=state.dataAtual.getFullYear(), mes=state.dataAtual.getMonth(), hoje=isoData(state.hoje);
+    var prim=new Date(ano,mes,1), dow=prim.getDay(), inicio=addDias(prim,dow===0?-6:1-dow);
+    var html='<div class="ag-mes-grid">';
+    ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].forEach(function(d){html+='<div class="ag-mes-hdr">'+d+'</div>';});
+    for(var r=0;r<6;r++) for(var c=0;c<7;c++){
+      var d=addDias(inicio,r*7+c), iso=isoData(d), outro=d.getMonth()!==mes, isHoje=iso===hoje;
+      var tf=state.tarefas.filter(function(t){return t.data===iso;});
+      var rf=state.rotinas.filter(function(r){return rotinaAtivaNodia(r,d);});
+      var evs=rf.map(function(r){return{titulo:r.titulo,categoria:r.categoria,rotina:true};}).concat(tf.map(function(t){return{titulo:t.titulo,categoria:t.categoria,concluida:t.concluida};}));
+      html+='<div class="ag-mes-cel'+(outro?' ag-outro-mes':'')+(isHoje?' ag-hoje-cel':'')+'" data-data="'+iso+'">';
+      html+='<div class="ag-mes-num">'+d.getDate()+'</div>';
+      evs.slice(0,3).forEach(function(ev){
+        var cor=CORES[ev.categoria]||CORES.geral;
+        html+='<div class="ag-mes-pill'+(ev.rotina?' ag-mes-pill-rotina':'')+(ev.concluida?' ag-concluida':'')+'" style="background:'+cor+'">'+ev.titulo+'</div>';
+      });
+      if(evs.length>3) html+='<div class="ag-mes-mais">+' +(evs.length-3)+' mais</div>';
+      html+='</div>';
+    }
+    html+='</div>';
+    document.getElementById('agenda-container').innerHTML=html;
+    document.getElementById('agenda-day-panel').classList.add('hidden');
+    document.querySelectorAll('.ag-mes-cel').forEach(function(el){
+      el.addEventListener('click',function(){
+        state.dataAtual=new Date(this.dataset.data+'T00:00:00');
+        mostrarDayPanel(this.dataset.data);
+      });
+    });
+  }
+
+  function mostrarDayPanel(iso) {
+    var panel=document.getElementById('agenda-day-panel');
+    var d=new Date(iso+'T00:00:00');
+    var tf=state.tarefas.filter(function(t){return t.data===iso;});
+    var rf=state.rotinas.filter(function(r){return rotinaAtivaNodia(r,d);});
+    var html='<div class="ag-panel-header"><span>'+d.getDate()+' de '+MESES[d.getMonth()]+'</span>' +
+      '<button class="btn-neon-ag ag-btn-sm" onclick="window._agAbrirTarefa(\''+iso+'\')">+ Tarefa</button></div>';
+    if(rf.length){
+      html+='<div class="ag-panel-section">🔁 Rotinas</div>';
+      rf.forEach(function(r){
+        var cor=CORES[r.categoria]||CORES.geral;
+        html+='<div class="ag-tarefa-item ag-rotina-item"><span class="ag-cat-dot" style="background:'+cor+'"></span><div class="ag-tarefa-info"><div class="ag-tarefa-titulo">'+r.titulo+'</div><div class="ag-tarefa-hora">'+r.hora_inicio+(r.hora_fim?'–'+r.hora_fim:'')+'</div></div></div>';
+      });
+    }
+    if(tf.length){
+      html+='<div class="ag-panel-section">📌 Tarefas</div>';
+      tf.forEach(function(t){html+=renderTarefaItem(t);});
+    }
+    if(!rf.length&&!tf.length) html+='<div class="ag-empty">Nenhum evento neste dia.</div>';
+    panel.innerHTML=html;
+    panel.classList.remove('hidden');
+    bindTarefaItemEvents(panel);
+  }
+
+  function renderDia() {
+    var iso=isoData(state.dataAtual), hoje=isoData(state.hoje), HINI=6, H=64;
+    var sf=state.tarefas.filter(function(t){return !t.hora_inicio;});
+    var html='<div class="ag-dia-wrap">';
+    if(sf.length){
+      html+='<div class="ag-dia-allday">';
+      sf.forEach(function(t){
+        var cor=CORES[t.categoria]||CORES.geral;
+        html+='<div class="ag-pill'+(t.concluida?' ag-concluida':'')+'" style="background:'+cor+'" data-id="'+t.id+'">'+t.titulo+'</div>';
+      });
+      html+='</div>';
+    }
+    html+='<div class="ag-dia-timeline">';
+    for(var h=HINI;h<=23;h++){
+      var hStr=String(h).padStart(2,'0')+':00';
+      html+='<div class="ag-dia-row"><div class="ag-hora-label-dia">'+hStr+'</div><div class="ag-dia-slot" data-data="'+iso+'" data-hora="'+hStr+'"></div></div>';
+    }
+    state.rotinas.forEach(function(rot){
+      if(!rotinaAtivaNodia(rot,state.dataAtual)) return;
+      var hi=horaParaMinutos(rot.hora_inicio), hf=rot.hora_fim?horaParaMinutos(rot.hora_fim):hi+60;
+      if(hi===null||hi<HINI*60) return;
+      var top=(hi-HINI*60)/60*H, height=Math.max(24,(hf-hi)/60*H);
+      var cor=CORES[rot.categoria]||CORES.geral;
+      html+='<div class="ag-dia-bloco ag-bloco-rotina" style="top:'+top+'px;height:'+height+'px;left:60px;right:8px;background:'+cor+'22;border-left:3px solid '+cor+'"><span style="color:'+cor+';font-size:10px">'+rot.hora_inicio+'</span> '+rot.titulo+'</div>';
+    });
+    state.tarefas.filter(function(t){return t.hora_inicio;}).forEach(function(t){
+      var hi=horaParaMinutos(t.hora_inicio), hf=t.hora_fim?horaParaMinutos(t.hora_fim):hi+60;
+      if(hi<HINI*60) return;
+      var top=(hi-HINI*60)/60*H, height=Math.max(28,(hf-hi)/60*H);
+      var cor=CORES[t.categoria]||CORES.geral;
+      html+='<div class="ag-dia-bloco'+(t.concluida?' ag-concluida':'')+'" style="top:'+top+'px;height:'+height+'px;left:60px;right:8px;background:'+cor+';color:#050810" data-id="'+t.id+'"><strong>'+t.hora_inicio+'</strong> '+t.titulo+'</div>';
+    });
+    if(iso===hoje){
+      var agora=new Date(), min=agora.getHours()*60+agora.getMinutes(), top=(min-HINI*60)/60*H;
+      if(top>=0) html+='<div class="ag-linha-agora-dia" style="top:'+top+'px"></div>';
+    }
+    html+='</div></div>';
+    document.getElementById('agenda-container').innerHTML=html;
+    document.getElementById('agenda-day-panel').classList.add('hidden');
+    document.querySelectorAll('.ag-dia-slot').forEach(function(el){
+      el.addEventListener('click',function(){abrirModalTarefa(this.dataset.data,this.dataset.hora);});
+    });
+    document.querySelectorAll('.ag-dia-bloco[data-id]').forEach(function(el){
+      el.addEventListener('click',function(e){
+        e.stopPropagation();
+        var t=state.tarefas.find(function(x){return x.id==el.dataset.id;});
+        if(t) abrirModalTarefa(t.data,t.hora_inicio,t);
+      });
+    });
+  }
+
+  // ── ABA: TAREFAS ─────────────────────────────────────────────────────────
+
+  function renderTabTarefas() {
+    var catFil = document.getElementById('ag-filtro-cat').value;
+    var stFil  = document.getElementById('ag-filtro-status').value;
+    var prFil  = document.getElementById('ag-filtro-pr').value;
+
+    api('GET', '/api/agenda/tarefas').then(function(res) {
+      var lista = res.success ? res.data : [];
+      if (catFil) lista = lista.filter(function(t){ return t.categoria === catFil; });
+      if (stFil === 'pendente') lista = lista.filter(function(t){ return !t.concluida; });
+      if (stFil === 'concluida') lista = lista.filter(function(t){ return t.concluida; });
+      if (prFil) lista = lista.filter(function(t){ return t.prioridade === prFil; });
+
+      if (!lista.length) {
+        document.getElementById('ag-tarefas-lista').innerHTML = '<div class="ag-empty" style="margin-top:30px">Nenhuma tarefa encontrada.</div>';
+        return;
+      }
+
+      // Agrupa por data
+      var grupos = {};
+      lista.forEach(function(t) {
+        if (!grupos[t.data]) grupos[t.data] = [];
+        grupos[t.data].push(t);
+      });
+
+      var html = '';
+      Object.keys(grupos).sort().forEach(function(data) {
+        var d = new Date(data + 'T00:00:00');
+        var hoje = isoData(new Date());
+        var label = data === hoje ? '📍 Hoje — ' + d.getDate() + ' de ' + MESES[d.getMonth()] :
+                    DIAS_CURTOS[d.getDay()] + ', ' + d.getDate() + ' de ' + MESES[d.getMonth()] + ' ' + d.getFullYear();
+        html += '<div class="ag-grupo-data"><div class="ag-grupo-label">' + label + '</div>';
+        grupos[data].forEach(function(t){ html += renderTarefaItem(t); });
+        html += '</div>';
+      });
+
+      var container = document.getElementById('ag-tarefas-lista');
+      container.innerHTML = html;
+      bindTarefaItemEvents(container);
+    });
+  }
+
+  // ── ABA: ROTINAS ─────────────────────────────────────────────────────────
+
+  function renderTabRotinas() {
+    api('GET', '/api/agenda/rotinas').then(function(res) {
+      var rotinas = res.success ? res.data : [];
+      var container = document.getElementById('ag-rotinas-lista');
+
+      if (!rotinas.length) {
+        container.innerHTML = '<div class="ag-empty" style="margin-top:30px">Nenhuma rotina cadastrada ainda.<br>Clique em "🔁 Nova Rotina" para começar.</div>';
+        return;
+      }
+
+      var html = '';
+      rotinas.forEach(function(r) {
+        var cor = CORES[r.categoria] || CORES.geral;
+        html += '<div class="ag-rotina-card">' +
+          '<div class="ag-rotina-card-cor" style="background:' + cor + '"></div>' +
+          '<div class="ag-rotina-card-info">' +
+            '<div class="ag-rotina-card-titulo">' + r.titulo + '</div>' +
+            '<div class="ag-rotina-card-meta">' +
+              '<span class="ag-cat-badge" style="background:' + cor + '22;color:' + cor + '">' + r.categoria + '</span>' +
+              '<span class="ag-rotina-hora">⏰ ' + r.hora_inicio + (r.hora_fim ? ' – ' + r.hora_fim : '') + '</span>' +
+              '<span class="ag-rotina-dias">📅 ' + labelDiasSemana(r.dias_semana) + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<button class="ag-edit-rotina-btn" data-id="' + r.id + '">✏️ Editar</button>' +
+          '<button class="ag-del-rotina-btn" data-id="' + r.id + '">✕ Remover</button>' +
+          '</div>';
+      });
+
+      container.innerHTML = html;
+      container.querySelectorAll('.ag-edit-rotina-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var id = parseInt(this.dataset.id);
+          var r = rotinas.find(function(x){ return x.id === id; });
+          if (r) abrirModalRotina(r);
+        });
+      });
+      container.querySelectorAll('.ag-del-rotina-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var id = parseInt(this.dataset.id);
+          if (!confirm('Remover esta rotina?')) return;
+          api('DELETE', '/api/agenda/rotinas/' + id).then(function() {
+            renderTabRotinas();
+          });
+        });
+      });
+    });
+  }
+
+  // ── TAREFA ITEM ──────────────────────────────────────────────────────────
+
+  function renderTarefaItem(t) {
+    var cor = CORES[t.categoria] || CORES.geral;
+    return '<div class="ag-tarefa-item' + (t.concluida ? ' ag-concluida' : '') + '" data-id="' + t.id + '">' +
+      '<div class="ag-check' + (t.concluida ? ' ag-checked' : '') + '" data-id="' + t.id + '">' + (t.concluida ? '✓' : '') + '</div>' +
+      '<span class="ag-cat-dot" style="background:' + cor + '"></span>' +
+      '<div class="ag-tarefa-info">' +
+        '<div class="ag-tarefa-titulo">' + t.titulo + '</div>' +
+        (t.hora_inicio ? '<div class="ag-tarefa-hora">' + t.hora_inicio + (t.hora_fim ? ' – ' + t.hora_fim : '') + '</div>' : '') +
+        (t.descricao ? '<div class="ag-tarefa-desc">' + t.descricao + '</div>' : '') +
+      '</div>' +
+      '<div class="ag-pr-dot ag-pr-' + t.prioridade + '"></div>' +
+      '<div class="ag-del-btn" data-id="' + t.id + '">✕</div>' +
+      '</div>';
+  }
+
+  function bindTarefaItemEvents(container) {
+    container.querySelectorAll('.ag-check').forEach(function(el) {
+      el.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var id = parseInt(this.dataset.id);
+        api('PATCH', '/api/agenda/tarefas/' + id + '/concluir').then(function() { recarregarAbaAtual(); });
+      });
+    });
+    container.querySelectorAll('.ag-del-btn').forEach(function(el) {
+      el.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var id = parseInt(this.dataset.id);
+        api('DELETE', '/api/agenda/tarefas/' + id).then(function() { recarregarAbaAtual(); });
+      });
+    });
+    container.querySelectorAll('.ag-tarefa-item:not(.ag-rotina-item)').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var id = parseInt(this.dataset.id);
+        var t = state.tarefas.find(function(x){ return x.id === id; });
+        if (!t) return;
+        abrirModalTarefa(t.data, t.hora_inicio, t);
+      });
+    });
+  }
+
+  // ── MODAIS ───────────────────────────────────────────────────────────────
+
+  function abrirModalTarefa(data, hora, tarefa) {
+    state.editandoId = tarefa ? tarefa.id : null;
+    document.getElementById('ag-modal-tarefa-title').textContent = tarefa ? 'Editar Tarefa' : 'Nova Tarefa';
+    document.getElementById('ag-tarefa-titulo').value    = tarefa ? tarefa.titulo : '';
+    document.getElementById('ag-tarefa-descricao').value = tarefa ? (tarefa.descricao||'') : '';
+    document.getElementById('ag-tarefa-categoria').value = tarefa ? tarefa.categoria : 'geral';
+    document.getElementById('ag-tarefa-prioridade').value= tarefa ? tarefa.prioridade : 'media';
+    document.getElementById('ag-tarefa-data').value      = data || isoData(state.dataAtual);
+    document.getElementById('ag-tarefa-hi').value        = (tarefa ? tarefa.hora_inicio : hora) || '';
+    document.getElementById('ag-tarefa-hf').value        = (tarefa ? tarefa.hora_fim : '') || '';
+    document.getElementById('modal-ag-tarefa').classList.remove('hidden');
+    document.getElementById('ag-tarefa-titulo').focus();
+  }
+
+  window._agAbrirTarefa = function(data) { abrirModalTarefa(data); };
+
+  function fecharModalTarefa() {
+    document.getElementById('modal-ag-tarefa').classList.add('hidden');
+    state.editandoId = null;
+  }
+
+  function salvarTarefa() {
+    var titulo = document.getElementById('ag-tarefa-titulo').value.trim();
+    if (!titulo) { document.getElementById('ag-tarefa-titulo').focus(); return; }
+    var body = {
+      titulo:      titulo,
+      descricao:   document.getElementById('ag-tarefa-descricao').value.trim(),
+      categoria:   document.getElementById('ag-tarefa-categoria').value,
+      prioridade:  document.getElementById('ag-tarefa-prioridade').value,
+      data:        document.getElementById('ag-tarefa-data').value,
+      hora_inicio: document.getElementById('ag-tarefa-hi').value || null,
+      hora_fim:    document.getElementById('ag-tarefa-hf').value || null
+    };
+    var req = state.editandoId
+      ? api('PUT', '/api/agenda/tarefas/' + state.editandoId, body)
+      : api('POST', '/api/agenda/tarefas', body);
+    req.then(function(res) {
+      if (res.success) { fecharModalTarefa(); recarregarAbaAtual(); }
+    });
+  }
+
+  function abrirModalRotina(rotina) {
+    state.editandoRotinaId = rotina ? rotina.id : null;
+    document.getElementById('ag-modal-rotina-title').textContent = rotina ? 'Editar Rotina' : 'Nova Rotina';
+    document.getElementById('ag-rotina-titulo').value = rotina ? rotina.titulo : '';
+    document.getElementById('ag-rotina-hi').value = rotina ? (rotina.hora_inicio || '') : '';
+    document.getElementById('ag-rotina-hf').value = rotina ? (rotina.hora_fim || '') : '';
+    document.getElementById('ag-rotina-categoria').value = rotina ? rotina.categoria : 'geral';
+    var diasAtivos = rotina ? rotina.dias_semana.split(',').map(String) : [];
+    document.querySelectorAll('#ag-dias-selector .dia-btn').forEach(function(b){
+      b.classList.toggle('ativo', diasAtivos.indexOf(b.dataset.dia) !== -1);
+    });
+    document.getElementById('modal-ag-rotina').classList.remove('hidden');
+    document.getElementById('ag-rotina-titulo').focus();
+  }
+
+  function fecharModalRotina() { document.getElementById('modal-ag-rotina').classList.add('hidden'); }
+
+  function salvarRotina() {
+    var titulo = document.getElementById('ag-rotina-titulo').value.trim();
+    var hi     = document.getElementById('ag-rotina-hi').value;
+    if (!titulo || !hi) return;
+    var dias = [];
+    document.querySelectorAll('#ag-dias-selector .dia-btn.ativo').forEach(function(b){ dias.push(b.dataset.dia); });
+    if (!dias.length) { alert('Selecione ao menos um dia da semana.'); return; }
+    var cat = document.getElementById('ag-rotina-categoria').value;
+    var body = {
+      titulo: titulo, categoria: cat,
+      hora_inicio: hi,
+      hora_fim: document.getElementById('ag-rotina-hf').value || null,
+      dias_semana: dias.join(','),
+      cor: CORES[cat] || '#00e5ff'
+    };
+    var req = state.editandoRotinaId
+      ? api('PUT', '/api/agenda/rotinas/' + state.editandoRotinaId, body)
+      : api('POST', '/api/agenda/rotinas', body);
+    req.then(function(res) {
+      if (res.success) { fecharModalRotina(); recarregarAbaAtual(); }
+    });
+  }
+
+  // ── NAVEGAÇÃO ────────────────────────────────────────────────────────────
+
+  function recarregarAbaAtual() {
+    if (state.tab === 'hoje') renderHoje();
+    else if (state.tab === 'agenda') {
+      if (state.view === 'semana') carregarSemana(renderAgenda);
+      else if (state.view === 'dia') carregarDia(renderAgenda);
+      else carregarTudo(renderAgenda);
+    }
+    else if (state.tab === 'tarefas') renderTabTarefas();
+    else if (state.tab === 'rotinas') renderTabRotinas();
+  }
+
+  function mudarAba(tab) {
+    state.tab = tab;
+    document.querySelectorAll('.ag-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === tab); });
+    document.querySelectorAll('.ag-tab-pane').forEach(function(p){ p.classList.toggle('active', p.id === 'ag-pane-' + tab); });
+    recarregarAbaAtual();
+  }
+
+  // ── INIT ─────────────────────────────────────────────────────────────────
+
+  function initAgenda() {
+    // Abas
+    document.querySelectorAll('.ag-tab').forEach(function(btn) {
+      btn.addEventListener('click', function() { mudarAba(this.dataset.tab); });
+    });
+
+    // View toggle (calendário)
+    document.querySelectorAll('.btn-view').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.btn-view').forEach(function(b){ b.classList.remove('active'); });
+        this.classList.add('active');
+        state.view = this.dataset.view;
+        if (state.view === 'semana') carregarSemana(renderAgenda);
+        else if (state.view === 'dia') carregarDia(renderAgenda);
+        else carregarTudo(renderAgenda);
+      });
+    });
+
+    // Navegação de período
+    document.getElementById('ag-prev').addEventListener('click', function() {
+      if (state.view === 'mes') state.dataAtual.setMonth(state.dataAtual.getMonth()-1);
+      else if (state.view === 'dia') state.dataAtual = addDias(state.dataAtual,-1);
+      else state.dataAtual = addDias(state.dataAtual,-7);
+      if (state.view === 'semana') carregarSemana(renderAgenda);
+      else if (state.view === 'dia') carregarDia(renderAgenda);
+      else carregarTudo(renderAgenda);
+    });
+    document.getElementById('ag-next').addEventListener('click', function() {
+      if (state.view === 'mes') state.dataAtual.setMonth(state.dataAtual.getMonth()+1);
+      else if (state.view === 'dia') state.dataAtual = addDias(state.dataAtual,1);
+      else state.dataAtual = addDias(state.dataAtual,7);
+      if (state.view === 'semana') carregarSemana(renderAgenda);
+      else if (state.view === 'dia') carregarDia(renderAgenda);
+      else carregarTudo(renderAgenda);
+    });
+    document.getElementById('ag-hoje-btn').addEventListener('click', function() {
+      state.dataAtual = new Date(state.hoje);
+      recarregarAbaAtual();
+    });
+
+    // Botões globais
+    document.getElementById('ag-btn-tarefa').addEventListener('click', function(){ abrirModalTarefa(); });
+    document.getElementById('ag-btn-rotina').addEventListener('click', abrirModalRotina);
+
+    // Modal tarefa
+    document.getElementById('ag-salvar-tarefa').addEventListener('click', salvarTarefa);
+    document.getElementById('ag-cancelar-tarefa').addEventListener('click', fecharModalTarefa);
+
+    // Modal rotina
+    document.getElementById('ag-salvar-rotina').addEventListener('click', salvarRotina);
+    document.getElementById('ag-cancelar-rotina').addEventListener('click', fecharModalRotina);
+    document.querySelectorAll('#ag-dias-selector .dia-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(){ this.classList.toggle('ativo'); });
+    });
+
+    // Filtros da aba tarefas
+    ['ag-filtro-cat','ag-filtro-status','ag-filtro-pr'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', renderTabTarefas);
+    });
+
+    // Escape fecha modais
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { fecharModalTarefa(); fecharModalRotina(); }
+    });
+
+    // Atualiza linha do agora
+    setInterval(atualizarLinhaAgora, 60000);
+
+    // Inicia na aba Hoje
+    mudarAba('hoje');
+  }
+
+  // ── OBSERVER ─────────────────────────────────────────────────────────────
+  var _iniciado = false;
+  var obs = new MutationObserver(function(muts) {
+    muts.forEach(function(m) {
+      if (m.target.id === 'page-agenda' && m.target.classList.contains('active')) {
+        if (!_iniciado) { _iniciado = true; initAgenda(); }
+        else recarregarAbaAtual();
+      }
+    });
+  });
+  var pageAg = document.getElementById('page-agenda');
+  if (pageAg) {
+    obs.observe(pageAg, { attributes: true, attributeFilter: ['class'] });
+    if (pageAg.classList.contains('active')) { _iniciado = true; initAgenda(); }
+  }
+
+})();

@@ -1,0 +1,13 @@
+{
+  "ignorePatterns": [
+    "venv/**",
+    "**/venv/**",
+    "**/__pycache__/**",
+    "**/node_modules/**",
+    ".local/**",
+    ".npm/**",
+    ".cache/**",
+    "*.pyc",
+    "*.pyo"
+  ]
+}

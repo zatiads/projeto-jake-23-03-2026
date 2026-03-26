@@ -1,0 +1,27 @@
+---
+tags: [roadmap, planejamento, jake-os]
+---
+# Roadmap Jake IA
+
+Planejamento de evoluções futuras do sistema.
+
+## Próximos passos
+- Domínio próprio para [[cloudflared]] (URL pública permanente)
+- Multi-usuário no [[Jake OS]]
+- Dashboard unificado de todos os clientes
+- Agendamento automático de posts
+- Integração com WhatsApp Business API
+
+## Em andamento
+- [[Módulo Financeiro]] — mobile sync ✅
+- [[jake-brain]] — enriquecimento do vault ✅
+
+## Concluído
+- [[Módulo Copys]] ✅
+- [[Módulo Carrossel]] ✅
+- [[Módulo Criativos]] ✅
+- [[Módulo Relatórios]] ✅
+- [[Módulo Site Architect]] ✅
+
+## Links
+[[Arquitetura]] | [[App-Rotas]] | [[banco-de-dados]] | [[cloudflared]] | [[jake-principal]] | [[jake-brain]]

@@ -1,0 +1,8 @@
+o financeiro pessoal, eu quero q fique em segundo lugar na ordem. em baixo de painel inicial. E no financeiro queroa lguns ajustes quero que tire a parte de         
+lançamentos, porque não to usando, eu subo as coisas pela tabela raio x. então qualquer gráfico, ou visualização do financeiro pessoal, tem que ter integração       
+dinâmica, para assim que mudar na tabela, mudar no restante dos dados sacou? na parte de projeções, eu quero que mostre onde hj ta 3 meses so, colocar até dezembro  
+de 2026, quero todos os meses, e os gastos e ganhos fixos tem qta atualizado com a planilha também. e no projeto 1 milhão, eu quero poder passar ou mouse ali no     
+gráfico, e ver o patrimônio, e a idade, sacou? horizontal idade vertical patrimônio.                                                                                 
+e na aba principal da visão geral, joga a caixa do mês de analise ali, la pra cima, na msm linha do projeto 1 milhão so que no canto igual ele ta sacou? da uma      
+olhada em questão de layout o que você pode melhorar pra mim pf. e ve se tem alguma biblioteca que você precisa para deixar tudo mais profissional, e com design bem 
+ top

@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "plugins": {
+    "superpowers@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/root/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.5",
+        "version": "5.0.5",
+        "installedAt": "2026-03-20T17:08:05.602Z",
+        "lastUpdated": "2026-03-20T17:08:05.602Z",
+        "gitCommitSha": "8ea39819eed74fe2a0338e71789f06b30e953041"
+      }
+    ]
+  }
+}
