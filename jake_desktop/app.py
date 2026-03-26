@@ -1143,6 +1143,39 @@ def _file_to_data_url(f) -> str:
     return f"data:{mime};base64,{b64}"
 
 
+def _generate_kontext(instruction: str, input_image_data_url: str, token: str) -> str:
+    """Edita uma imagem com Flux Kontext Pro. Retorna URL da imagem editada."""
+    headers = {**_replicate_headers(), "Prefer": "wait=120"}
+    resp = requests.post(
+        f"{_REPLICATE_BASE}/models/black-forest-labs/flux-kontext-pro/predictions",
+        headers=headers,
+        json={"input": {
+            "prompt": instruction,
+            "input_image": input_image_data_url,
+            "output_format": "webp",
+            "output_quality": 90,
+        }},
+        timeout=120,
+    )
+    if not resp.ok:
+        raise ValueError(f"Replicate Kontext {resp.status_code}: {resp.text[:300]}")
+    pred = resp.json()
+    if pred.get("status") == "succeeded":
+        out = pred.get("output")
+        return out[0] if isinstance(out, list) else out
+    get_url = (pred.get("urls") or {}).get("get", "")
+    hdrs = {"Authorization": headers["Authorization"]}
+    for _ in range(30):
+        time.sleep(4)
+        p = requests.get(get_url, headers=hdrs, timeout=15).json()
+        if p.get("status") == "succeeded":
+            out = p.get("output")
+            return out[0] if isinstance(out, list) else out
+        if p.get("status") == "failed":
+            raise ValueError("Kontext: geração falhou")
+    raise ValueError("Kontext: timeout")
+
+
 def _generate_creative_images(mode: str, image_engine: str, prompt: str, image_file):
     """
     Gera até 5 imagens (ou reutiliza a mesma) dependendo do modo.
@@ -1150,7 +1183,29 @@ def _generate_creative_images(mode: str, image_engine: str, prompt: str, image_f
     """
     images: list[str] = []
 
-    # Upload: devolve a mesma foto base em todos os criativos (lado a lado com as promessas).
+    # Kontext: upload + instrução → edição consistente da imagem de referência
+    if mode == "upload" and image_file and prompt:
+        replicate_token = os.environ.get("REPLICATE_API_TOKEN", "").strip()
+        if replicate_token:
+            try:
+                image_file.seek(0)
+                input_data_url = _file_to_data_url(image_file)
+                edited_url = _generate_kontext(prompt, input_data_url, replicate_token)
+                edited_data_url = _url_to_data_url(edited_url)
+                return [edited_data_url] * 5
+            except Exception as exc:
+                print("[Jake] Kontext falhou, usando imagem original:", exc)
+                image_file.seek(0)
+        # fallback: devolve imagem original
+        try:
+            image_file.seek(0)
+            data_url = _file_to_data_url(image_file)
+            return [data_url] * 5
+        except Exception as exc:
+            print("[Jake] Erro ao converter imagem de upload:", exc)
+            return []
+
+    # Upload sem instrução: devolve a foto base em todos os criativos
     if mode == "upload" and image_file:
         try:
             data_url = _file_to_data_url(image_file)
@@ -1250,15 +1305,215 @@ def api_generate_creative():
             "image": img,
         })
 
+    # Detecta se o caminho Kontext foi usado
+    effective_image_engine = image_engine
+    if mode == "upload" and prompt:
+        effective_image_engine = "kontext"
+
     return jsonify({
         "creatives": creatives,
         "meta": {
             "mode": mode,
-            "image_engine": image_engine,
+            "image_engine": effective_image_engine,
             "text_engine": text_engine,
             "campaign_focus": campaign_focus,
         },
     })
+
+# ── Engenheiro de Prompts ─────────────────────────────────────────────────────
+
+_PROMPT_ENGINEER_SYSTEM = """Você é um Engenheiro de Prompts Sênior com mais de 20 anos de experiência criando prompts estruturados de alta performance para os mais diversos contextos: marketing, tecnologia, educação, jurídico, criativo, negócios e muito mais.
+
+Seu fluxo de trabalho tem DUAS ETAPAS obrigatórias:
+
+---
+
+**ETAPA 1 — PERGUNTAS ESTRATÉGICAS**
+
+Quando o usuário apresentar uma ideia ou projeto, você NUNCA gera o prompt direto. Primeiro, você faz de 5 a 7 perguntas estratégicas e objetivas para entender:
+- O objetivo principal do prompt
+- O público-alvo ou destinatário
+- O contexto de uso (plataforma, ferramenta, situação)
+- Tom e linguagem desejados
+- Restrições ou requisitos específicos
+- Exemplos de resultados esperados (se houver)
+
+Formate as perguntas assim (JSON obrigatório):
+{"type":"questions","questions":["Pergunta 1?","Pergunta 2?","Pergunta 3?","Pergunta 4?","Pergunta 5?"]}
+
+---
+
+**ETAPA 2 — GERAÇÃO DO PROMPT ESTRUTURADO**
+
+Após o usuário responder, gere o prompt final:
+
+{"type":"prompt","title":"Título descritivo curto (máx 50 chars)","prompt":"O prompt completo e estruturado aqui, rico em detalhes, com persona se aplicável, contexto, formato de saída esperado, restrições e exemplos relevantes."}
+
+---
+
+**REGRAS:**
+- Responda SEMPRE em português brasileiro
+- Nunca gere o prompt sem fazer as perguntas primeiro
+- Se a resposta for insuficiente, faça perguntas de refinamento (mesma estrutura JSON)
+- Fora dos JSONs, pode conversar normalmente — o texto será exibido como mensagem normal"""
+
+
+@app.route("/api/prompts/sessoes", methods=["GET"])
+@login_required
+def prompts_listar_sessoes():
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, titulo, criado_em, atualizado_em FROM prompt_sessions "
+            "ORDER BY atualizado_em DESC LIMIT 100"
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        return jsonify({"sessoes": rows})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/prompts/sessoes", methods=["POST"])
+@login_required
+def prompts_criar_sessao():
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO prompt_sessions (titulo) VALUES (NULL) RETURNING id, criado_em, atualizado_em"
+        )
+        row = dict(cur.fetchone())
+        conn.commit()
+        return jsonify(row)
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/prompts/sessoes/<int:sid>/mensagens", methods=["GET"])
+@login_required
+def prompts_listar_mensagens(sid):
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, role, content, criado_em FROM prompt_messages "
+            "WHERE session_id = %s ORDER BY criado_em ASC",
+            (sid,)
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        return jsonify({"mensagens": rows})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/prompts/sessoes/<int:sid>/chat", methods=["POST"])
+@login_required
+def prompts_chat(sid):
+    d = request.get_json() or {}
+    user_msg = (d.get("message") or "").strip()
+    if not user_msg:
+        return jsonify({"error": "Mensagem vazia"}), 400
+
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+
+        # Verifica que a sessão existe
+        cur.execute("SELECT id FROM prompt_sessions WHERE id = %s", (sid,))
+        if not cur.fetchone():
+            return jsonify({"error": "Sessão não encontrada"}), 404
+
+        # Carrega histórico
+        cur.execute(
+            "SELECT role, content FROM prompt_messages "
+            "WHERE session_id = %s ORDER BY criado_em ASC",
+            (sid,)
+        )
+        history = [{"role": r["role"], "content": r["content"]} for r in cur.fetchall()]
+
+        # Adiciona nova mensagem do usuário ao histórico
+        history.append({"role": "user", "content": user_msg})
+
+        # Chama Claude
+        client = _anthropic_client_46()
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            system=_PROMPT_ENGINEER_SYSTEM,
+            messages=history
+        )
+        reply = response.content[0].text
+
+        # Salva par user + assistant
+        cur.execute(
+            "INSERT INTO prompt_messages (session_id, role, content) VALUES (%s, %s, %s)",
+            (sid, "user", user_msg)
+        )
+        cur.execute(
+            "INSERT INTO prompt_messages (session_id, role, content) VALUES (%s, %s, %s)",
+            (sid, "assistant", reply)
+        )
+
+        # Atualiza atualizado_em da sessão
+        cur.execute(
+            "UPDATE prompt_sessions SET atualizado_em = NOW() WHERE id = %s", (sid,)
+        )
+        conn.commit()
+        return jsonify({"reply": reply})
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/prompts/sessoes/<int:sid>/titulo", methods=["PATCH"])
+@login_required
+def prompts_atualizar_titulo(sid):
+    d = request.get_json() or {}
+    titulo = (d.get("titulo") or "").strip()
+    if not titulo:
+        return jsonify({"error": "Título vazio"}), 400
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE prompt_sessions SET titulo = %s, atualizado_em = NOW() WHERE id = %s",
+            (titulo, sid)
+        )
+        conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/prompts/sessoes/<int:sid>", methods=["DELETE"])
+@login_required
+def prompts_deletar_sessao(sid):
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM prompt_sessions WHERE id = %s", (sid,))
+        conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
 
 # ── Inicialização ────────────────────────────────────────────────────────────
 def _local_ip():
@@ -2601,13 +2856,27 @@ def criativos_upload_imagem():
         return jsonify({"error": str(e)}), 500
 
 
+_CRIATIVOS_SYSTEM_PROMPT_KONTEXT = (
+    "You are an expert in AI image editing. "
+    "The user has a reference image and wants to modify it. "
+    "Transform the user's simple request into a clear EDITING INSTRUCTION. "
+    "Format: describe ONLY what should change, never the whole image. "
+    "Use direct action verbs: 'Change', 'Replace', 'Remove', 'Add', 'Keep'. "
+    "Always add: 'Keep the [unchanged elements] exactly the same.' "
+    "Example output: 'Change the product label text to focus on postpartum women. "
+    "Keep the product, lighting, background and composition exactly the same.' "
+    "Maximum 2 sentences. Always in English."
+)
+
+
 @app.route("/api/criativos/expandir-prompt", methods=["POST"])
 @login_required
 def criativos_expandir_prompt():
     d = request.get_json() or {}
-    prompt = (d.get("prompt") or "").strip()
-    modo   = d.get("modo", "criativo")
-    tipo   = d.get("tipo", "imagem")
+    prompt         = (d.get("prompt") or "").strip()
+    modo           = d.get("modo", "criativo")
+    tipo           = d.get("tipo", "imagem")
+    tem_referencia = bool(d.get("tem_referencia", False))
     if not prompt:
         return jsonify({"error": "Campo 'prompt' obrigatório"}), 400
     if modo not in _CRIATIVOS_MODOS:
@@ -2617,20 +2886,26 @@ def criativos_expandir_prompt():
     if not client:
         return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
 
-    system = _CRIATIVOS_SYSTEM_PROMPTS[modo]
-    tipo_hint = " Optimize for motion, camera movement, and temporal consistency." if tipo == "video" else ""
+    if tem_referencia:
+        system = _CRIATIVOS_SYSTEM_PROMPT_KONTEXT
+        user_msg = f"Transform this editing request into a Kontext instruction: {prompt}"
+    else:
+        tipo_hint = " Optimize for motion, camera movement, and temporal consistency." if tipo == "video" else ""
+        system = _CRIATIVOS_SYSTEM_PROMPTS[modo] + tipo_hint
+        user_msg = f"Expand this prompt: {prompt}"
+
     try:
         msg = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=200,
-            system=system + tipo_hint,
-            messages=[{"role": "user", "content": f"Expand this prompt: {prompt}"}],
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
         )
         prompt_expandido = msg.content[0].text.strip()
         brain.salvar(
             modulo="Criativos",
-            titulo=f"Prompt expandido {modo} {tipo}",
-            inputs={"prompt": prompt, "modo": modo, "tipo": tipo},
+            titulo=f"Prompt expandido {modo} {tipo}" + (" [kontext]" if tem_referencia else ""),
+            inputs={"prompt": prompt, "modo": modo, "tipo": tipo, "tem_referencia": tem_referencia},
             output=prompt_expandido,
             model="claude-sonnet-4-6",
         )
@@ -2689,10 +2964,29 @@ def criativos_analisar_referencia():
 @login_required
 def criativos_gerar_imagem():
     d = request.get_json() or {}
-    prompt  = (d.get("prompt_expandido") or "").strip()
-    modelo  = d.get("modelo", "flux-1.1-pro")
+    prompt         = (d.get("prompt_expandido") or "").strip()
+    modelo         = d.get("modelo", "flux-1.1-pro")
+    imagem_url     = (d.get("imagem_url") or "").strip()
+    tem_referencia = bool(d.get("tem_referencia", False))
+
     if not prompt:
         return jsonify({"error": "prompt_expandido obrigatório"}), 400
+
+    # Modo Kontext: ignora o modelo enviado e usa flux-kontext-pro
+    if tem_referencia and imagem_url:
+        try:
+            url = _generate_kontext(prompt, imagem_url, os.environ.get("REPLICATE_API_TOKEN", "").strip())
+            brain.salvar(
+                modulo="Criativos",
+                titulo="Imagem editada flux-kontext-pro",
+                inputs={"modelo": "flux-kontext-pro", "prompt": prompt, "input_image": imagem_url},
+                output=url,
+                model="flux-kontext-pro",
+            )
+            return jsonify({"url": url, "ok": True})
+        except Exception as e:
+            return jsonify({"error": f"Kontext Pro: {e}"}), 500
+
     if modelo not in _CRIATIVOS_MODELOS_IMAGEM:
         return jsonify({"error": f"modelo inválido. Válidos: {list(_CRIATIVOS_MODELOS_IMAGEM)}"}), 400
 
@@ -2722,7 +3016,7 @@ def criativos_gerar_imagem():
                 model=modelo,
             )
             return jsonify({"url": url, "ok": True})
-        # Fallback polling (raro) — usa time já importado no topo do arquivo
+        # Fallback polling (raro)
         get_url = (pred.get("urls") or {}).get("get", "")
         hdrs = {"Authorization": headers["Authorization"]}
         for _ in range(20):
