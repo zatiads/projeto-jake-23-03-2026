@@ -1,9 +1,0 @@
-{
-  "id": "8",
-  "subject": "Task 3: Rota GET /api/performance/semana-anterior",
-  "description": "Testes e implementação da rota que retorna métricas das duas semanas para comparação.",
-  "activeForm": "Implementando rota de semana anterior",
-  "status": "completed",
-  "blocks": [],
-  "blockedBy": []
-}

@@ -1,9 +1,0 @@
-{
-  "id": "12",
-  "subject": "Task 7: Smoke test",
-  "description": "Reiniciar Jake OS, verificar que sobe sem erro, checar logs.",
-  "activeForm": "Executando smoke test",
-  "status": "pending",
-  "blocks": [],
-  "blockedBy": []
-}

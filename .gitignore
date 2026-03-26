@@ -25,3 +25,13 @@ venv/
 # Cursor / IDE
 .cursor/
 .cursor-server/
+
+# Claude Code
+.claude/
+.claude.json
+.config/
+.netrc
+.gitconfig
+.local/
+.npm/
+.superpowers/

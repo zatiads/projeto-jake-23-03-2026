@@ -1,9 +1,0 @@
-{
-  "id": "11",
-  "subject": "Task 6: Frontend performance.js",
-  "description": "Criar performance.js com AGENCIES config, fetch paralelo, cards globais, tabela, drawer com comparação semanal e análise IA, MutationObserver para init SPA.",
-  "activeForm": "Implementando performance.js",
-  "status": "pending",
-  "blocks": [],
-  "blockedBy": []
-}

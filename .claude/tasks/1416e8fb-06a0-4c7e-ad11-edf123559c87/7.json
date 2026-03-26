@@ -1,9 +1,0 @@
-{
-  "id": "7",
-  "subject": "Task 2: Rota POST /api/performance/alerta-saldo",
-  "description": "Testes e implementação da rota de alerta Telegram com deduplicação 1h.",
-  "activeForm": "Implementando rota de alerta",
-  "status": "completed",
-  "blocks": [],
-  "blockedBy": []
-}

@@ -1,9 +1,0 @@
-# Credenciais — NUNCA commitar
-.env
-.env.*
-!.env.example
-__pycache__/
-*.py[cod]
-venv/
-*.log
-.cursor-server/data/User/History/
