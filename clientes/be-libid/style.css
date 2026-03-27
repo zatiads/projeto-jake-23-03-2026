@@ -196,3 +196,51 @@ section { padding: 64px 24px; }
 }
 
 .beneficios li:last-child { border-bottom: none; }
+
+/* DEPOIMENTOS */
+#depoimentos { background: var(--bg-alt); }
+
+.card-depo {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.depo-texto {
+  font-size: 0.9375rem;
+  font-style: italic;
+  color: var(--text);
+  line-height: 1.7;
+  flex: 1;
+}
+
+.depo-autor {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.depo-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.depo-verificado {
+  display: block;
+  font-size: 0.75rem;
+  color: #4caf7d;
+  margin-top: 2px;
+}
