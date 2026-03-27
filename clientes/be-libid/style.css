@@ -95,3 +95,55 @@ section { padding: 64px 24px; }
   outline: 3px solid var(--accent);
   outline-offset: 3px;
 }
+
+/* PROBLEMA */
+#problema {
+  background: var(--bg-alt);
+  text-align: center;
+}
+
+.section-title {
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  font-weight: 900;
+  margin-bottom: 48px;
+}
+
+.cards-3 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  margin-bottom: 48px;
+}
+
+@media (min-width: 768px) {
+  .cards-3 { grid-template-columns: repeat(3, 1fr); }
+}
+
+.card-dor {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 32px 24px;
+}
+
+.card-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.card-dor h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.card-dor p {
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.problema-fechamento {
+  font-size: 1.125rem;
+  line-height: 1.8;
+}
