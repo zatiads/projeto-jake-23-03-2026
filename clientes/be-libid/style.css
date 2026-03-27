@@ -90,3 +90,8 @@ section { padding: 64px 24px; }
 }
 
 .btn-cta:hover { filter: brightness(1.1); }
+
+.btn-cta:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}

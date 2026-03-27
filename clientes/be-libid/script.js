@@ -2,24 +2,32 @@
   var DURATION_MS = 24 * 60 * 60 * 1000; // 24 horas
   var end = Date.now() + DURATION_MS;
 
+  var elH = document.getElementById('cd-hours');
+  var elM = document.getElementById('cd-minutes');
+  var elS = document.getElementById('cd-seconds');
+
+  if (!elH) return; // elementos do countdown ausentes, abortar
+
   function pad(n) { return String(n).padStart(2, '0'); }
+
+  var timer = setInterval(tick, 1000);
 
   function tick() {
     var diff = end - Date.now();
     if (diff <= 0) {
-      document.getElementById('cd-hours').textContent = '00';
-      document.getElementById('cd-minutes').textContent = '00';
-      document.getElementById('cd-seconds').textContent = '00';
+      elH.textContent = '00';
+      elM.textContent = '00';
+      elS.textContent = '00';
+      clearInterval(timer);
       return;
     }
     var h = Math.floor(diff / 3600000);
     var m = Math.floor((diff % 3600000) / 60000);
     var s = Math.floor((diff % 60000) / 1000);
-    document.getElementById('cd-hours').textContent = pad(h);
-    document.getElementById('cd-minutes').textContent = pad(m);
-    document.getElementById('cd-seconds').textContent = pad(s);
+    elH.textContent = pad(h);
+    elM.textContent = pad(m);
+    elS.textContent = pad(s);
   }
 
   tick();
-  setInterval(tick, 1000);
 })();
