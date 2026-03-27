@@ -31,3 +31,17 @@
 
   tick();
 })();
+
+(function() {
+  var stickyBar = document.getElementById('sticky-bar');
+  var hero = document.getElementById('hero');
+
+  function onScroll() {
+    if (window.innerWidth >= 768) return; // só mobile
+    var heroBottom = hero.getBoundingClientRect().bottom;
+    stickyBar.style.display = heroBottom < 0 ? 'flex' : 'none';
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();

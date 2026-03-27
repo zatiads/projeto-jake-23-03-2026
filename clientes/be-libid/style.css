@@ -404,3 +404,30 @@ section { padding: 64px 24px; }
 .footer-links a:hover { color: var(--text); }
 
 .footer-cnpj { color: var(--text-muted); font-size: 0.75rem; }
+
+/* STICKY BAR */
+#sticky-bar {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #111;
+  border-top: 1px solid var(--card-border);
+  padding: 12px 20px;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 100;
+}
+
+@media (max-width: 767px) {
+  #sticky-bar { display: flex; }
+}
+
+.sticky-preco { font-size: 0.9375rem; color: var(--text); }
+.sticky-preco strong { color: var(--accent); }
+
+.sticky-cta {
+  padding: 10px 20px;
+  font-size: 0.8125rem;
+}
