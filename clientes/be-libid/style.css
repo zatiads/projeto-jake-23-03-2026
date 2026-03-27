@@ -147,3 +147,52 @@ section { padding: 64px 24px; }
   font-size: 1.125rem;
   line-height: 1.8;
 }
+
+/* SOLUÇÃO */
+#solucao { background: var(--bg); }
+
+.solucao-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 48px;
+}
+
+@media (min-width: 768px) {
+  .solucao-inner { flex-direction: row; gap: 64px; }
+}
+
+.solucao-img { flex: 1; text-align: center; }
+
+.img-placeholder {
+  background: var(--card-bg);
+  border: 2px dashed var(--card-border);
+  border-radius: 12px;
+  padding: 80px 40px;
+  color: var(--text-muted);
+  font-size: 1.25rem;
+}
+
+.solucao-texto { flex: 1; }
+
+.solucao-texto h2 {
+  font-size: clamp(1.5rem, 3.5vw, 2rem);
+  font-weight: 900;
+  margin-bottom: 32px;
+  line-height: 1.3;
+}
+
+.accent { color: var(--accent); }
+
+.beneficios {
+  list-style: none;
+  margin-bottom: 40px;
+}
+
+.beneficios li {
+  font-size: 1.0625rem;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.beneficios li:last-child { border-bottom: none; }
