@@ -1,14 +1,16 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #0a0a0a;
-  --bg-alt: #111111;
-  --card-bg: #1a1a1a;
-  --card-border: #2a2a2a;
+  --bg: #160308;
+  --bg-alt: #1f040c;
+  --card-bg: #2a0a12;
+  --card-border: #4a1020;
   --text: #f5f5f5;
-  --text-muted: #888888;
-  --accent: #e8872a;
-  --font: 'Inter', sans-serif;
+  --text-muted: #c9a0a8;
+  --accent: #E03A60;
+  --accent-cta: #EB6209;
+  --font: 'Roboto', sans-serif;
+  --font-slab: 'Roboto Slab', serif;
 }
 
 body {
@@ -28,7 +30,7 @@ section { padding: 64px 24px; }
 
 /* HERO */
 #hero {
-  background: linear-gradient(135deg, #0a0a0a 60%, #1a0010 100%);
+  background: linear-gradient(135deg, #160308 50%, #3a0818 100%);
   text-align: center;
   padding: 80px 24px;
 }
@@ -44,7 +46,8 @@ section { padding: 64px 24px; }
 
 .hero-title {
   font-size: clamp(2rem, 6vw, 3.5rem);
-  font-weight: 900;
+  font-family: var(--font-slab);
+  font-weight: 700;
   line-height: 1.15;
   margin-bottom: 20px;
 }
@@ -77,7 +80,7 @@ section { padding: 64px 24px; }
 
 .btn-cta {
   display: inline-block;
-  background: var(--accent);
+  background: var(--accent-cta);
   color: #fff;
   font-size: 1rem;
   font-weight: 700;
@@ -89,10 +92,10 @@ section { padding: 64px 24px; }
   transition: filter 0.2s;
 }
 
-.btn-cta:hover { filter: brightness(1.1); }
+.btn-cta:hover { filter: brightness(1.12); }
 
 .btn-cta:focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--accent-cta);
   outline-offset: 3px;
 }
 
@@ -104,7 +107,8 @@ section { padding: 64px 24px; }
 
 .section-title {
   font-size: clamp(1.5rem, 4vw, 2.25rem);
-  font-weight: 900;
+  font-family: var(--font-slab);
+  font-weight: 700;
   margin-bottom: 48px;
 }
 
@@ -241,7 +245,7 @@ section { padding: 64px 24px; }
 .depo-verificado {
   display: block;
   font-size: 0.75rem;
-  color: #4caf7d;
+  color: #7de0a0;
   margin-top: 2px;
 }
 
@@ -329,8 +333,8 @@ section { padding: 64px 24px; }
 
 .kit-bonus {
   font-size: 0.875rem;
-  background: rgba(232,135,42,0.1);
-  border: 1px solid rgba(232,135,42,0.3);
+  background: rgba(224,58,96,0.12);
+  border: 1px solid rgba(224,58,96,0.35);
   border-radius: 4px;
   padding: 8px 12px;
   margin-bottom: 24px;
@@ -389,7 +393,7 @@ section { padding: 64px 24px; }
 
 /* FOOTER */
 #footer {
-  background: #050505;
+  background: #0d0206;
   padding: 40px 24px;
   text-align: center;
 }
@@ -412,7 +416,7 @@ section { padding: 64px 24px; }
   bottom: 0;
   left: 0;
   right: 0;
-  background: #111;
+  background: #1f040c;
   border-top: 1px solid var(--card-border);
   padding: 12px 20px;
   justify-content: space-between;
