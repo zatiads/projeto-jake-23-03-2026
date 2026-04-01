@@ -47,6 +47,85 @@ def _get_db():
         raise RuntimeError("DATABASE_URL não definido no .env")
     return psycopg2.connect(db_url, cursor_factory=psycopg2.extras.RealDictCursor)
 
+
+def _init_rotina_tables():
+    """Cria as tabelas do módulo Rotina se não existirem."""
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS habits (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                icon TEXT DEFAULT '✓',
+                active BOOLEAN DEFAULT TRUE
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS habit_logs (
+                id SERIAL PRIMARY KEY,
+                habit_id INTEGER REFERENCES habits(id) ON DELETE CASCADE,
+                date DATE NOT NULL,
+                completed BOOLEAN DEFAULT FALSE,
+                notes TEXT,
+                UNIQUE(habit_id, date)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS maconha_log (
+                id SERIAL PRIMARY KEY,
+                date DATE NOT NULL,
+                used BOOLEAN DEFAULT TRUE,
+                period TEXT CHECK(period IN ('dia','noite')),
+                UNIQUE(date, period)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS streaks (
+                habit_id INTEGER PRIMARY KEY REFERENCES habits(id) ON DELETE CASCADE,
+                current_streak INTEGER DEFAULT 0,
+                best_streak INTEGER DEFAULT 0,
+                last_updated DATE
+            )
+        """)
+        conn.commit()
+        _seed_habits(cur, conn)
+    finally:
+        conn.close()
+
+
+def _seed_habits(cur, conn):
+    """Popula hábitos iniciais se a tabela estiver vazia."""
+    cur.execute("SELECT COUNT(*) as c FROM habits")
+    if cur.fetchone()["c"] > 0:
+        return
+    habits = [
+        ("Luz natural ao acordar", "MANHÃ", "☀️"),
+        ("500ml água ao acordar", "MANHÃ", "💧"),
+        ("Passeio com Odin (manhã)", "MANHÃ", "🐕"),
+        ("Café da manhã com proteína", "MANHÃ", "🥚"),
+        ("Pausa ativa 10h (sem tela)", "TRABALHO", "🧘"),
+        ("Almoço sem tela", "TRABALHO", "🍽️"),
+        ("Pausa ativa 15h", "TRABALHO", "🧘"),
+        ("Encerrei expediente no horário", "TRABALHO", "✅"),
+        ("Treinei (academia/bike/caminhada)", "TARDE/NOITE", "🏋️"),
+        ("Jantar leve", "TARDE/NOITE", "🥗"),
+        ("30 min fora de tela", "TARDE/NOITE", "🎨"),
+        ("Tela OFF às 21h30", "TARDE/NOITE", "📵"),
+        ("Dormi no horário", "TARDE/NOITE", "😴"),
+        ("Meal prep feito", "SEMANA", "🍳"),
+        ("Reserva financeira transferida", "SEMANA", "💰"),
+        ("Gastos registrados no app", "SEMANA", "📊"),
+    ]
+    for name, category, icon in habits:
+        cur.execute(
+            "INSERT INTO habits (name, category, icon) VALUES (%s, %s, %s)",
+            (name, category, icon)
+        )
+    conn.commit()
+
+
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.environ.get("SESSION_SECRET") or _secrets.token_hex(32)
 
@@ -3284,4 +3363,5 @@ if __name__ == "__main__":
     if os.environ.get("OPEN_BROWSER", "").lower() in ("1", "true", "yes"):
         threading.Thread(target=_open_browser_delayed, args=(port,), daemon=True).start()
     debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
+    _init_rotina_tables()
     app.run(host="0.0.0.0", port=port, debug=debug)
