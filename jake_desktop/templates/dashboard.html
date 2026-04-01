@@ -10,6 +10,54 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/anuncios.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/criativos.css') }}">
+  <style id="rotina-styles">
+    /* ── ROTINA MODULE ──────────────────────── */
+    .rot-page { padding: 32px; min-height: 100vh; }
+    .rot-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .rot-saudacao { font-family: 'Orbitron', sans-serif; font-size: 1.4rem; color: #00e5ff; }
+    .rot-data { font-size: 0.85rem; color: rgba(255,255,255,0.4); margin-top: 4px; }
+    .rot-header-badge { font-family: 'Rajdhani', sans-serif; font-size: 0.75rem; letter-spacing: 2px; text-transform: uppercase; color: #00e5ff; border: 1px solid rgba(0,229,255,0.3); padding: 6px 14px; border-radius: 20px; }
+    .rot-grid { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
+    .rot-glass-card { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); border: 1px solid rgba(0,229,255,0.12); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .rot-section-title { font-family: 'Rajdhani', sans-serif; font-size: 0.8rem; letter-spacing: 2px; text-transform: uppercase; color: #00e5ff; margin-bottom: 16px; }
+    .rot-category { margin-bottom: 28px; }
+    .rot-cat-label { font-size: 0.7rem; letter-spacing: 3px; text-transform: uppercase; color: rgba(0,229,255,0.5); margin-bottom: 10px; padding-left: 4px; }
+    .rot-habits-grid { display: flex; flex-direction: column; gap: 8px; }
+    .rot-habit-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; overflow: hidden; transition: all 0.2s ease; position: relative; }
+    .rot-habit-card.done { background: rgba(0,229,255,0.06); border-color: rgba(0,229,255,0.2); }
+    .rot-toggle { width: 100%; background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-align: left; color: #fff; }
+    .rot-icon { font-size: 1.1rem; width: 24px; }
+    .rot-name { flex: 1; font-family: 'Rajdhani', sans-serif; font-size: 0.95rem; }
+    .rot-habit-card.done .rot-name { color: rgba(255,255,255,0.5); text-decoration: line-through; }
+    .rot-check { color: #00e5ff; font-size: 1rem; font-weight: bold; }
+    .rot-streak { position: absolute; right: 12px; bottom: 8px; font-size: 0.7rem; color: #ff7043; }
+    .rot-mac-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .rot-mac-title { font-family: 'Rajdhani',sans-serif; font-size: 0.85rem; letter-spacing: 1px; color: #00e5ff; }
+    .rot-mac-semana { font-size: 0.75rem; color: rgba(255,255,255,0.4); }
+    .rot-mac-meta { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-bottom: 12px; }
+    .rot-mac-meta strong { color: #fff; }
+    .rot-mac-progress { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; margin-bottom: 16px; overflow: hidden; }
+    .rot-mac-bar { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+    .rot-mac-days { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+    .rot-mac-day { flex: 1; min-width: 36px; text-align: center; padding: 6px 4px; border-radius: 6px; font-size: 0.7rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; gap: 4px; }
+    .rot-mac-day.used { background: rgba(255,82,82,0.15); border-color: rgba(255,82,82,0.3); }
+    .rot-mac-day.clean { background: rgba(0,229,255,0.1); border-color: rgba(0,229,255,0.3); }
+    .rot-mac-btn { width: 100%; padding: 10px; background: rgba(0,229,255,0.1); border: 1px solid rgba(0,229,255,0.3); border-radius: 8px; color: #00e5ff; font-family: 'Rajdhani',sans-serif; font-size: 0.85rem; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; }
+    .rot-mac-btn:hover { background: rgba(0,229,255,0.2); }
+    .rot-streak-card { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .rot-streak-card:last-child { border-bottom: none; }
+    .rot-streak-icon { width: 24px; }
+    .rot-streak-name { flex: 1; font-size: 0.85rem; color: rgba(255,255,255,0.7); }
+    .rot-streak-num { color: #ff7043; font-weight: bold; font-size: 0.9rem; }
+    .rot-bars { display: flex; gap: 8px; align-items: flex-end; height: 120px; }
+    .rot-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+    .rot-bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 4px; position: relative; transition: height 0.4s ease; }
+    .rot-bar-val { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; color: rgba(255,255,255,0.5); white-space: nowrap; }
+    .rot-bar-label { font-size: 0.65rem; color: rgba(255,255,255,0.3); }
+    .rot-loading { color: rgba(255,255,255,0.3); font-size: 0.85rem; padding: 12px 0; }
+    .rot-empty { color: rgba(255,255,255,0.3); font-size: 0.85rem; }
+    @media (max-width: 900px) { .rot-grid { grid-template-columns: 1fr; } .rot-col-side { order: -1; } }
+  </style>
 </head>
 <body>
 
@@ -59,6 +107,10 @@
         <a class="nav-item" data-page="carrossel" href="#">
           <span class="nav-icon">◫</span>
           <span class="nav-label">Gerador de Carrossel</span>
+        </a>
+        <a class="nav-item" data-page="rotina" href="#">
+          <span class="nav-icon">🔄</span>
+          <span class="nav-label">Rotina</span>
         </a>
         <a class="nav-item" data-page="prompts" href="#">
           <span class="nav-icon">🧠</span>
@@ -1556,7 +1608,57 @@
         </div><!-- /.pe-layout -->
       </section>
 
-      <!-- ROTINAS & AGENDA ───────────────────────────── -->
+      <!-- ========== ROTINA ========== -->
+      <section class="page" id="page-rotina" style="display:none">
+        <div class="rot-page">
+
+          <!-- HEADER -->
+          <div class="rot-header">
+            <div>
+              <div id="rot-saudacao" class="rot-saudacao"></div>
+              <div id="rot-data" class="rot-data"></div>
+            </div>
+            <div class="rot-header-badge">Jake Rotina</div>
+          </div>
+
+          <div class="rot-grid">
+
+            <!-- CHECKLIST -->
+            <div class="rot-col-main">
+              <div class="rot-section-title">📋 Checklist do Dia</div>
+              <div id="rot-checklist">
+                <div class="rot-loading">Carregando hábitos...</div>
+              </div>
+            </div>
+
+            <!-- SIDEBAR -->
+            <div class="rot-col-side">
+
+              <!-- TRACKER MACONHA -->
+              <div id="rot-maconha" class="rot-glass-card">
+                <div class="rot-loading">Carregando tracker...</div>
+              </div>
+
+              <!-- STREAKS -->
+              <div class="rot-glass-card">
+                <div class="rot-section-title">🔥 Streaks Ativos</div>
+                <div id="rot-streaks">
+                  <div class="rot-loading">Carregando streaks...</div>
+                </div>
+              </div>
+
+              <!-- GRÁFICO SEMANAL -->
+              <div class="rot-glass-card">
+                <div class="rot-section-title">📊 Últimos 7 Dias</div>
+                <div id="rot-chart-wrap" class="rot-chart-wrap"></div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </section>
+
     </main><!-- /.content -->
   </div><!-- /.layout -->
 
@@ -1601,5 +1703,26 @@
   <script src="{{ url_for('static', filename='js/financeiro.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance.js') }}"></script>
   <script src="{{ url_for('static', filename='js/prompts.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/rotina.js') }}"></script>
+  <script>
+    (function(){
+      document.querySelectorAll('.nav-item').forEach(function(item){
+        item.addEventListener('click', function(){
+          if(this.dataset.page === 'rotina' && typeof rotinaInit === 'function'){
+            setTimeout(function(){
+              var s = document.getElementById('rot-saudacao');
+              var d = document.getElementById('rot-data');
+              if(s && typeof window._rotSaudacao === 'function') s.textContent = window._rotSaudacao();
+              if(d) d.textContent = new Date().toLocaleDateString('pt-BR', {weekday:'long', day:'numeric', month:'long'});
+              rotinaInit();
+            }, 50);
+          }
+        });
+      });
+      if(location.hash === '#rotina' && typeof rotinaInit === 'function'){
+        setTimeout(rotinaInit, 300);
+      }
+    })();
+  </script>
 </body>
 </html>
