@@ -3397,6 +3397,8 @@ def rotina_check():
     from datetime import date, timedelta
     data = request.get_json()
     habit_id = data.get("habit_id")
+    if not habit_id:
+        return jsonify({"error": "habit_id required"}), 400
     log_date = data.get("date", date.today().isoformat())
     completed = data.get("completed", True)
     conn = _get_db()
@@ -3494,6 +3496,8 @@ def rotina_maconha_post():
     data = request.get_json()
     log_date = data.get("date", date.today().isoformat())
     period = data.get("period", "noite")
+    if period not in ("dia", "noite"):
+        return jsonify({"error": "period must be 'dia' or 'noite'"}), 400
     used = data.get("used", True)
     conn = _get_db()
     try:
