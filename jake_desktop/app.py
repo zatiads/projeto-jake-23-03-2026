@@ -3616,6 +3616,16 @@ def _sb_buscar_meta_ads(meta_account_id, meta_agency="piloti"):
 
         ads_raw = r.json().get("data", [])
         criativos = []
+
+        def _find_act(arr, *types):
+            for e in arr:
+                if e.get("action_type") in types:
+                    try:
+                        return float(e.get("value", 0) or 0)
+                    except Exception:
+                        return 0.0
+            return 0.0
+
         for ad in ads_raw:
             insights_data = ad.get("insights", {}).get("data", [])
             if not insights_data:
@@ -3628,15 +3638,6 @@ def _sb_buscar_meta_ads(meta_account_id, meta_agency="piloti"):
 
             actions = ins.get("actions") or []
             costs = ins.get("cost_per_action_type") or []
-
-            def _find_act(arr, *types):
-                for e in arr:
-                    if e.get("action_type") in types:
-                        try:
-                            return float(e.get("value", 0) or 0)
-                        except Exception:
-                            return 0.0
-                return 0.0
 
             leads = _find_act(actions, "lead", "onsite_conversion.messaging_conversation_started_7d")
             cpl = _find_act(costs, "lead", "onsite_conversion.messaging_conversation_started_7d")
@@ -3814,6 +3815,9 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
     Gera HTML autocontido com todos os clientes. Login screen + sidebar + seções por cliente.
     todos_dados: list de {'cliente': dict, 'analise': dict, 'dados_meta': dict}
     """
+    import html as _html_mod
+    _e = _html_mod.escape
+
     login_user = os.environ.get("SOCIAL_BRIEF_LOGIN", "social")
     login_senha = os.environ.get("SOCIAL_BRIEF_SENHA", "piloti2026")
     primeiro_slug = todos_dados[0]["cliente"]["slug"] if todos_dados else "cliente"
@@ -3831,9 +3835,9 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
         slug = cl["slug"]
 
         menu_items_html += (
-            f'<a class="menu-item" data-slug="{slug}" href="#" '
-            f'onclick="mostrarCliente(\'{slug}\'); return false;">'
-            f'\U0001f7e2 {cl["nome"]}</a>'
+            f'<a class="menu-item" data-slug="{_e(slug)}" href="#" '
+            f'onclick="mostrarCliente(\'{_e(slug)}\'); return false;">'
+            f'\U0001f7e2 {_e(cl["nome"])}</a>'
         )
 
         resumo_meta = dm.get("resumo", {})
@@ -3862,8 +3866,8 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
                 f'<div style="font-size:28px;margin-right:16px;flex-shrink:0;">{med}</div>'
                 f'{thumb_tag}'
                 '<div style="flex:1;">'
-                f'<div style="font-weight:600;margin-bottom:4px;">{cri.get("nome","")}</div>'
-                f'<div style="font-size:13px;color:#555;margin-bottom:8px;">{cri.get("destaque","")}</div>'
+                f'<div style="font-weight:600;margin-bottom:4px;">{_e(cri.get("nome",""))}</div>'
+                f'<div style="font-size:13px;color:#555;margin-bottom:8px;">{_e(cri.get("destaque",""))}</div>'
                 '<div style="display:flex;gap:12px;flex-wrap:wrap;">'
                 f'<span style="background:#e8f5e9;color:#2e7d32;padding:2px 10px;border-radius:20px;font-size:12px;">CTR {met.get("ctr","—")}</span>'
                 f'<span style="background:#e3f2fd;color:#1565c0;padding:2px 10px;border-radius:20px;font-size:12px;">Cliques {met.get("cliques","—")}</span>'
@@ -3873,11 +3877,11 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
             )
 
         fun_html = "".join(
-            f'<div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">\u2705 {x}</div>'
+            f'<div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">\u2705 {_e(x)}</div>'
             for x in an.get("o_que_funcionou", [])
         )
         nao_fun_html = "".join(
-            f'<div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">\u274c {x}</div>'
+            f'<div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">\u274c {_e(x)}</div>'
             for x in an.get("o_que_nao_funcionou", [])
         )
 
@@ -3890,8 +3894,8 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
             label = labels_map.get(tipo, tipo)
             items = "".join(
                 f'<div style="background:#f5f5f5;border-radius:8px;padding:12px;margin-bottom:8px;position:relative;">'
-                f'{h}'
-                f'<button onclick="copiar(this)" data-text="{h.replace(chr(34), chr(39))}" '
+                f'{_e(h)}'
+                f'<button onclick="copiar(this)" data-text="{_e(h)}" '
                 f'style="position:absolute;right:8px;top:8px;background:#1a237e;color:#fff;'
                 f'border:none;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;">'
                 f'\U0001f4cb</button></div>'
@@ -3910,8 +3914,8 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
             icon_label = cta_icons.get(k, k)
             ctas_itens = "".join(
                 f'<div style="background:#f5f5f5;border-radius:8px;padding:10px;margin-bottom:6px;font-size:13px;position:relative;">'
-                f'{cta}'
-                f'<button onclick="copiar(this)" data-text="{cta.replace(chr(34), chr(39))}" '
+                f'{_e(cta)}'
+                f'<button onclick="copiar(this)" data-text="{_e(cta)}" '
                 f'style="position:absolute;right:6px;top:6px;background:#1a237e;color:#fff;'
                 f'border:none;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;">'
                 f'\U0001f4cb</button></div>'
@@ -3925,10 +3929,10 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
         # Sugestões
         sug_html = "".join(
             f'<div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:16px;margin-bottom:12px;">'
-            f'<div style="font-size:12px;color:#ff6b35;font-weight:600;margin-bottom:4px;">{sg.get("tipo","").upper()}</div>'
-            f'<div style="font-weight:600;margin-bottom:4px;">{sg.get("conceito","")}</div>'
-            f'<div style="font-size:13px;color:#555;margin-bottom:4px;"><b>Hook:</b> {sg.get("hook","")}</div>'
-            f'<div style="font-size:13px;color:#777;"><b>Referência:</b> {sg.get("referencia","")}</div>'
+            f'<div style="font-size:12px;color:#ff6b35;font-weight:600;margin-bottom:4px;">{_e(sg.get("tipo","")).upper()}</div>'
+            f'<div style="font-weight:600;margin-bottom:4px;">{_e(sg.get("conceito",""))}</div>'
+            f'<div style="font-size:13px;color:#555;margin-bottom:4px;"><b>Hook:</b> {_e(sg.get("hook",""))}</div>'
+            f'<div style="font-size:13px;color:#777;"><b>Referência:</b> {_e(sg.get("referencia",""))}</div>'
             f'</div>'
             for sg in an.get("sugestoes_criativos", [])[:4]
         )
@@ -3936,18 +3940,18 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
         # Concorrentes
         conc_html = "".join(
             f'<div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:16px;margin-bottom:12px;">'
-            f'<div style="font-weight:600;margin-bottom:6px;">\U0001f3e2 {cc.get("nome","")}</div>'
-            f'<div style="font-size:13px;margin-bottom:4px;"><b>O que fazem:</b> {cc.get("o_que_fazem","")}</div>'
-            f'<div style="font-size:13px;color:#2e7d32;"><b>Oportunidade:</b> {cc.get("oportunidade","")}</div>'
+            f'<div style="font-weight:600;margin-bottom:6px;">\U0001f3e2 {_e(cc.get("nome",""))}</div>'
+            f'<div style="font-size:13px;margin-bottom:4px;"><b>O que fazem:</b> {_e(cc.get("o_que_fazem",""))}</div>'
+            f'<div style="font-size:13px;color:#2e7d32;"><b>Oportunidade:</b> {_e(cc.get("oportunidade",""))}</div>'
             f'</div>'
             for cc in an.get("analise_concorrentes", [])
         )
 
         # Campanhas
         camp_rows = "".join(
-            f'<tr><td style="padding:10px;border-bottom:1px solid #f0f0f0;">{c.get("tipo","")}</td>'
-            f'<td style="padding:10px;border-bottom:1px solid #f0f0f0;">{c.get("objetivo","")}</td>'
-            f'<td style="padding:10px;border-bottom:1px solid #f0f0f0;">{c.get("recomendacao","")}</td></tr>'
+            f'<tr><td style="padding:10px;border-bottom:1px solid #f0f0f0;">{_e(c.get("tipo",""))}</td>'
+            f'<td style="padding:10px;border-bottom:1px solid #f0f0f0;">{_e(c.get("objetivo",""))}</td>'
+            f'<td style="padding:10px;border-bottom:1px solid #f0f0f0;">{_e(c.get("recomendacao",""))}</td></tr>'
             for c in an.get("campanhas_ativas", [])
         )
 
@@ -3958,8 +3962,8 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
         secoes_html += (
             f'<div class="cliente-secao" id="cliente-{slug}" style="display:none;">'
             f'<div style="margin-bottom:32px;">'
-            f'<h2 style="font-size:28px;font-weight:700;color:#1a237e;margin:0 0 4px;">{cl["nome"]}</h2>'
-            f'<div style="color:#666;font-size:14px;">\U0001f4c2 {cl.get("nicho","—")} &nbsp;&bull;&nbsp; '
+            f'<h2 style="font-size:28px;font-weight:700;color:#1a237e;margin:0 0 4px;">{_e(cl["nome"])}</h2>'
+            f'<div style="color:#666;font-size:14px;">\U0001f4c2 {_e(cl.get("nicho","—"))} &nbsp;&bull;&nbsp; '
             f'\U0001f4c5 Semana de {semana_inicio} a {semana_fim} &nbsp;&bull;&nbsp; '
             f'\U0001f504 Atualizado em {hoje_str}</div></div>'
             # KPIs
@@ -3976,7 +3980,7 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
             # Resumo
             f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
             f'<h3 style="font-size:16px;font-weight:600;margin:0 0 12px;color:#1a237e;">\U0001f4dd Resumo da Semana</h3>'
-            f'<p style="color:#444;line-height:1.7;margin:0;">{an.get("resumo_semana","")}</p></div>'
+            f'<p style="color:#444;line-height:1.7;margin:0;">{_e(an.get("resumo_semana",""))}</p></div>'
             # Ranking
             f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
             f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f3c6 Ranking de Criativos</h3>'
@@ -3996,19 +4000,19 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
             f'<div style="background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">'
             f'<div style="font-size:20px;margin-bottom:4px;">\U0001f464</div>'
             f'<div style="font-size:11px;color:#888;margin-bottom:4px;">Gênero</div>'
-            f'<div style="font-weight:600;font-size:13px;">{perf_pub.get("genero_predominante","—")}</div></div>'
+            f'<div style="font-weight:600;font-size:13px;">{_e(perf_pub.get("genero_predominante","—"))}</div></div>'
             f'<div style="background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">'
             f'<div style="font-size:20px;margin-bottom:4px;">\U0001f382</div>'
             f'<div style="font-size:11px;color:#888;margin-bottom:4px;">Faixa Etária</div>'
-            f'<div style="font-weight:600;font-size:13px;">{perf_pub.get("faixa_etaria","—")}</div></div>'
+            f'<div style="font-weight:600;font-size:13px;">{_e(perf_pub.get("faixa_etaria","—"))}</div></div>'
             f'<div style="background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">'
             f'<div style="font-size:20px;margin-bottom:4px;">\U0001f4f1</div>'
             f'<div style="font-size:11px;color:#888;margin-bottom:4px;">Posicionamento</div>'
-            f'<div style="font-weight:600;font-size:13px;">{perf_pub.get("melhor_posicionamento","—")}</div></div>'
+            f'<div style="font-weight:600;font-size:13px;">{_e(perf_pub.get("melhor_posicionamento","—"))}</div></div>'
             f'<div style="background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">'
             f'<div style="font-size:20px;margin-bottom:4px;">\U0001f4b0</div>'
             f'<div style="font-size:11px;color:#888;margin-bottom:4px;">CPL Médio</div>'
-            f'<div style="font-weight:600;font-size:13px;">{perf_pub.get("cpl_medio","—")}</div></div>'
+            f'<div style="font-weight:600;font-size:13px;">{_e(str(perf_pub.get("cpl_medio","—")))}</div></div>'
             f'</div></div>'
             # Hooks
             f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
@@ -4216,6 +4220,11 @@ def sb_clientes_update(cid):
     data = request.get_json()
     if not data:
         return jsonify({"error": "body obrigatório"}), 400
+    if not data.get("nome") or not data.get("slug"):
+        return jsonify({"error": "nome e slug obrigatórios"}), 400
+    import re as _re_put
+    if not _re_put.match(r'^[a-z0-9-]+$', data["slug"]):
+        return jsonify({"error": "slug deve conter apenas letras minúsculas, números e hifens"}), 400
     conn = _get_db()
     try:
         cur = conn.cursor()
@@ -4253,6 +4262,8 @@ def sb_clientes_delete(cid):
         cur = conn.cursor()
         cur.execute("DELETE FROM social_brief_clientes WHERE id=%s", (cid,))
         conn.commit()
+        if cur.rowcount == 0:
+            return jsonify({"error": "cliente não encontrado"}), 404
         return jsonify({"ok": True})
     except Exception as e:
         conn.rollback()
@@ -4466,9 +4477,53 @@ if __name__ == "__main__":
                     hoje = _dj.today()
                     seg = hoje - _tdj(days=hoje.weekday())
                     html = _sb_gerar_html_portal(todos_dados, seg.strftime("%d/%m/%Y"), (seg + _tdj(days=6)).strftime("%d/%m/%Y"))
+                    # Salva geração no banco
+                    geracao_id = None
+                    conn2 = _get_db()
+                    try:
+                        cur2 = conn2.cursor()
+                        cur2.execute(
+                            """INSERT INTO social_brief_geracoes
+                               (semana_inicio, semana_fim, html_completo, publicado, clientes_incluidos)
+                               VALUES (%s, %s, %s, %s, %s) RETURNING id""",
+                            (
+                                seg.isoformat(),
+                                (seg + _tdj(days=6)).isoformat(),
+                                html,
+                                False,
+                                json.dumps([{"id": d["cliente"]["id"], "nome": d["cliente"]["nome"]} for d in todos_dados]),
+                            )
+                        )
+                        geracao_id = cur2.fetchone()["id"]
+                        for item in todos_dados:
+                            cur2.execute(
+                                """INSERT INTO social_brief_cliente_dados
+                                   (geracao_id, cliente_id, analise_json, dados_meta)
+                                   VALUES (%s, %s, %s, %s)""",
+                                (geracao_id, item["cliente"]["id"],
+                                 json.dumps(item["analise"]), json.dumps(item["dados_meta"]))
+                            )
+                        conn2.commit()
+                    except Exception as e:
+                        conn2.rollback()
+                        print(f"[Social Brief] Erro ao salvar no banco: {e}")
+                    finally:
+                        conn2.close()
+                    # Publica no Surge e atualiza URL
                     try:
                         url = _sb_publicar_surge(html)
                         print(f"[Social Brief] Portal publicado: {url}")
+                        if geracao_id:
+                            conn3 = _get_db()
+                            try:
+                                cur3 = conn3.cursor()
+                                cur3.execute(
+                                    "UPDATE social_brief_geracoes SET surge_url=%s, publicado=TRUE WHERE id=%s",
+                                    (url, geracao_id)
+                                )
+                                conn3.commit()
+                            finally:
+                                conn3.close()
                     except Exception as e:
                         print(f"[Social Brief] Erro ao publicar: {e}")
         _sched = _BGScheduler(timezone="America/Sao_Paulo")

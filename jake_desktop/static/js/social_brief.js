@@ -9,6 +9,12 @@
     gerando: false,
   };
 
+  // ── Utils ──────────────────────────────────────────────────────────────────
+
+  function esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   // ── Init ───────────────────────────────────────────────────────────────────
 
   window.initSocialBrief = function () {
@@ -71,25 +77,25 @@
     }
     grid.innerHTML = SBState.clientes.map(function (c) {
       var concList = (c.concorrentes || []).slice(0, 3).map(function (cc) {
-        return '<span class="sb-tag">' + cc + '</span>';
+        return '<span class="sb-tag">' + esc(cc) + '</span>';
       }).join('');
       var campList = Object.keys(c.tipos_campanha || {}).filter(function (k) { return c.tipos_campanha[k]; }).map(function (k) {
         var icons = { mensagem: '💬', visita_perfil: '👤', lead: '📋', trafego: '🌐', conversao: '🎯' };
-        return '<span class="sb-tag sb-tag-camp">' + (icons[k] || '📌') + ' ' + k + '</span>';
+        return '<span class="sb-tag sb-tag-camp">' + (icons[k] || '📌') + ' ' + esc(k) + '</span>';
       }).join('');
       var metaMasked = c.meta_account_id ? c.meta_account_id.replace(/(\d{3})\d+(\d{3})/, '$1...$2') : '—';
       return '<div class="sb-card">' +
         '<div class="sb-card-header">' +
         '<div class="sb-card-status">' + (c.ativo ? '🟢' : '🔴') + '</div>' +
-        '<div class="sb-card-nome">' + c.nome + '</div>' +
+        '<div class="sb-card-nome">' + esc(c.nome) + '</div>' +
         '</div>' +
-        '<div class="sb-card-nicho">📂 ' + (c.nicho || '—') + '</div>' +
-        '<div class="sb-card-meta">📊 Meta: ' + metaMasked + '</div>' +
+        '<div class="sb-card-nicho">📂 ' + esc(c.nicho || '—') + '</div>' +
+        '<div class="sb-card-meta">📊 Meta: ' + esc(metaMasked) + '</div>' +
         '<div class="sb-tags-row">' + concList + '</div>' +
         '<div class="sb-tags-row">' + campList + '</div>' +
         '<div class="sb-card-acoes">' +
         '<button class="btn-sb-edit" onclick="sbAbrirModalCliente(' + c.id + ')">✏️ Editar</button>' +
-        '<button class="btn-sb-del" onclick="sbDeletarCliente(' + c.id + ', \'' + c.nome.replace(/'/g, '') + '\')">🗑️</button>' +
+        '<button class="btn-sb-del" onclick="sbDeletarCliente(' + c.id + ', \'' + esc(c.nome).replace(/'/g, '&#39;') + '\')">🗑️</button>' +
         '</div>' +
         '</div>';
     }).join('');
