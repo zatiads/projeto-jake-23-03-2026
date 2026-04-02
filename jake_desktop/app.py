@@ -126,6 +126,52 @@ def _seed_habits(cur, conn):
     conn.commit()
 
 
+def _init_social_brief_tables():
+    """Cria tabelas do módulo Social Brief se não existirem."""
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS social_brief_clientes (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(200) NOT NULL,
+                slug VARCHAR(100) UNIQUE NOT NULL,
+                nicho VARCHAR(100),
+                meta_account_id VARCHAR(100),
+                meta_agency VARCHAR(50) DEFAULT 'piloti',
+                concorrentes TEXT[] DEFAULT '{}',
+                tipos_campanha JSONB DEFAULT '{}',
+                ativo BOOLEAN DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS social_brief_geracoes (
+                id SERIAL PRIMARY KEY,
+                semana_inicio DATE NOT NULL,
+                semana_fim DATE NOT NULL,
+                html_completo TEXT,
+                surge_url VARCHAR(300),
+                publicado BOOLEAN DEFAULT FALSE,
+                clientes_incluidos JSONB DEFAULT '[]',
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS social_brief_cliente_dados (
+                id SERIAL PRIMARY KEY,
+                geracao_id INTEGER REFERENCES social_brief_geracoes(id) ON DELETE CASCADE,
+                cliente_id INTEGER REFERENCES social_brief_clientes(id) ON DELETE CASCADE,
+                analise_json JSONB,
+                dados_meta JSONB,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.environ.get("SESSION_SECRET") or _secrets.token_hex(32)
 
@@ -3544,4 +3590,5 @@ if __name__ == "__main__":
         threading.Thread(target=_open_browser_delayed, args=(port,), daemon=True).start()
     debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
     _init_rotina_tables()
+    _init_social_brief_tables()
     app.run(host="0.0.0.0", port=port, debug=debug)
