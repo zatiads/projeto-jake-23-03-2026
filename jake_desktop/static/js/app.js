@@ -20,7 +20,7 @@
 
   // Carrega a página correta se houver hash na URL
   var hash = location.hash.replace("#", "");
-  var valid = ["painel","architect","performance","anuncios","copys","criativos","relatorios","carrossel","prompts","financeiro","agenda","rotina"];
+  var valid = ["painel","architect","performance","anuncios","copys","criativos","relatorios","carrossel","prompts","financeiro","agenda","rotina","social-brief"];
   if (hash && valid.indexOf(hash) !== -1) showPage(hash);
   else showPage("painel");
 })();

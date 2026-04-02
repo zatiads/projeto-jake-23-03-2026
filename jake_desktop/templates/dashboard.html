@@ -58,6 +58,49 @@
     .rot-empty { color: rgba(255,255,255,0.3); font-size: 0.85rem; }
     @media (max-width: 900px) { .rot-grid { grid-template-columns: 1fr; } .rot-col-side { order: -1; } }
   </style>
+  <style id="social-brief-styles">
+    .sb-page { padding: 24px; max-width: 1200px; }
+    .sb-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .sb-header h1 { font-family: 'Rajdhani', sans-serif; font-size: 28px; color: #00e5ff; }
+    .sb-acoes { display: flex; gap: 10px; }
+    .sb-status-card { background: rgba(255,255,255,.05); border: 1px solid rgba(0,229,255,.2); border-radius: 14px; padding: 16px 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .sb-status-label { color: rgba(255,255,255,.5); font-size: 13px; margin-bottom: 4px; }
+    .sb-portal-link { color: #00e5ff; font-weight: 600; }
+    .sb-portal-meta { font-size: 13px; color: rgba(255,255,255,.5); }
+    .sb-portal-btns { display: flex; gap: 8px; align-items: center; }
+    .sb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .sb-card { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); border-radius: 16px; padding: 20px; transition: border-color .2s; }
+    .sb-card:hover { border-color: rgba(0,229,255,.3); }
+    .sb-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .sb-card-status { font-size: 16px; }
+    .sb-card-nome { font-weight: 700; font-size: 16px; color: #fff; }
+    .sb-card-nicho, .sb-card-meta { font-size: 13px; color: rgba(255,255,255,.5); margin-bottom: 6px; }
+    .sb-tags-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .sb-tag { background: rgba(0,229,255,.1); color: #00e5ff; border-radius: 20px; padding: 2px 10px; font-size: 11px; }
+    .sb-tag-camp { background: rgba(255,107,53,.1); color: #ff6b35; }
+    .sb-tag-rem { background: rgba(255,255,255,.08); color: rgba(255,255,255,.7); display: flex; align-items: center; gap: 4px; }
+    .sb-tag-rem button { background: none; border: none; color: rgba(255,255,255,.5); cursor: pointer; font-size: 14px; padding: 0; }
+    .sb-card-acoes { display: flex; gap: 8px; margin-top: 12px; }
+    .btn-sb-edit { background: rgba(0,229,255,.1); color: #00e5ff; border: 1px solid rgba(0,229,255,.3); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
+    .btn-sb-edit:hover { background: rgba(0,229,255,.2); }
+    .btn-sb-del { background: rgba(255,82,82,.1); color: #ff5252; border: 1px solid rgba(255,82,82,.3); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 13px; }
+    .btn-sb-del:hover { background: rgba(255,82,82,.2); }
+    .sb-hidden { display: none !important; }
+    .sb-modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .sb-modal-box { background: #0d1117; border: 1px solid rgba(0,229,255,.2); border-radius: 20px; padding: 32px; width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; }
+    .sb-modal-box h2 { font-family: 'Rajdhani', sans-serif; color: #00e5ff; font-size: 22px; margin-bottom: 20px; }
+    .sb-input { width: 100%; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.15); border-radius: 10px; padding: 10px 14px; color: #fff; font-size: 14px; margin-bottom: 12px; outline: none; }
+    .sb-input:focus { border-color: #00e5ff; }
+    .sb-label { color: rgba(255,255,255,.5); font-size: 12px; margin-bottom: 6px; display: block; }
+    .sb-checkboxes { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+    .sb-checkboxes label { color: rgba(255,255,255,.7); font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .sb-modal-acoes { display: flex; gap: 10px; margin-top: 16px; }
+    .sb-prog-item { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 14px; color: rgba(255,255,255,.7); }
+    .sb-prog-barra-wrap { margin: 16px 0 8px; }
+    .sb-prog-barra { background: rgba(255,255,255,.1); border-radius: 20px; height: 8px; overflow: hidden; }
+    .sb-prog-fill { height: 100%; background: linear-gradient(90deg, #00e5ff, #69f0ae); border-radius: 20px; transition: width .4s; }
+    .sb-prog-texto { font-size: 13px; color: rgba(255,255,255,.5); text-align: center; }
+  </style>
 </head>
 <body>
 
@@ -73,6 +116,14 @@
         <a class="nav-item active" data-page="painel" href="#">
           <span class="nav-icon">⬡</span>
           <span class="nav-label">Painel Inicial</span>
+        </a>
+        <a class="nav-item" data-page="rotina" href="#">
+          <span class="nav-icon">🔄</span>
+          <span class="nav-label">Rotina</span>
+        </a>
+        <a class="nav-item" data-page="social-brief" href="#">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Social Brief</span>
         </a>
         <a class="nav-item" data-page="financeiro" href="#">
           <span class="nav-icon">₿</span>
@@ -107,10 +158,6 @@
         <a class="nav-item" data-page="carrossel" href="#">
           <span class="nav-icon">◫</span>
           <span class="nav-label">Gerador de Carrossel</span>
-        </a>
-        <a class="nav-item" data-page="rotina" href="#">
-          <span class="nav-icon">🔄</span>
-          <span class="nav-label">Rotina</span>
         </a>
         <a class="nav-item" data-page="prompts" href="#">
           <span class="nav-icon">🧠</span>
@@ -1608,6 +1655,83 @@
         </div><!-- /.pe-layout -->
       </section>
 
+      <!-- ========== SOCIAL BRIEF ========== -->
+      <section class="page" id="page-social-brief">
+        <div class="sb-page">
+
+          <div class="sb-header">
+            <h1>📊 Social Media Brief</h1>
+            <div class="sb-acoes">
+              <button class="btn-neon" onclick="sbGerarPortal()">⚡ Gerar Portal</button>
+              <button class="btn-outline" onclick="sbAbrirModalCliente()">+ Novo Cliente</button>
+            </div>
+          </div>
+
+          <div class="sb-status-card">
+            <div>
+              <div class="sb-status-label">Portal atual</div>
+              <a id="sb-portal-url" href="#" target="_blank" class="sb-portal-link">— não gerado ainda —</a>
+              <div id="sb-portal-meta" class="sb-portal-meta"></div>
+            </div>
+            <div class="sb-portal-btns">
+              <button onclick="sbCopiarLinkPortal()" class="btn-sb-edit">📋 Copiar link</button>
+              <button id="sb-btn-abrir-portal" onclick="sbAbrirPortal()" class="btn-neon" style="display:none;">🔗 Abrir</button>
+            </div>
+          </div>
+
+          <div id="sb-clientes-grid" class="sb-grid"></div>
+
+          <!-- Modal progresso -->
+          <div id="sb-modal-geracao" class="sb-modal sb-hidden">
+            <div class="sb-modal-box" style="max-width:620px;">
+              <h2>⚡ Gerando Portal</h2>
+              <div id="sb-prog-lista"></div>
+              <div class="sb-prog-barra-wrap">
+                <div class="sb-prog-barra">
+                  <div id="sb-prog-fill" class="sb-prog-fill" style="width:0%"></div>
+                </div>
+              </div>
+              <div id="sb-prog-texto" class="sb-prog-texto">Iniciando...</div>
+              <div id="sb-modal-resultado" class="sb-hidden" style="margin-top:20px;text-align:center;"></div>
+              <div style="text-align:center;margin-top:16px;">
+                <button class="btn-outline" onclick="sbFecharModal('sb-modal-geracao')">Fechar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal cliente -->
+          <div id="sb-modal-cliente" class="sb-modal sb-hidden">
+            <div class="sb-modal-box">
+              <h2 id="sb-modal-titulo">Novo Cliente</h2>
+              <label class="sb-label">Nome do cliente *</label>
+              <input id="sb-cli-nome" class="sb-input" placeholder="Ex: Academia Saucker" />
+              <label class="sb-label">Slug (URL amigável) * — apenas letras minúsculas, números e hifens</label>
+              <input id="sb-cli-slug" class="sb-input" placeholder="Ex: saucker" />
+              <label class="sb-label">Nicho</label>
+              <input id="sb-cli-nicho" class="sb-input" placeholder="Ex: academia, odontologia, estética" />
+              <label class="sb-label">ID da conta Meta Ads (act_XXXXXXX)</label>
+              <input id="sb-cli-meta-id" class="sb-input" placeholder="act_360347436292903" />
+              <label class="sb-label">Concorrentes monitorados</label>
+              <div id="sb-tags-lista" class="sb-tags-row" style="margin-bottom:8px;min-height:28px;"></div>
+              <input id="sb-tag-input" class="sb-input" placeholder="Digite o nome e pressione Enter..." onkeydown="sbAdicionarTagConcorrente(event)" />
+              <label class="sb-label">Tipos de campanha ativos</label>
+              <div class="sb-checkboxes">
+                <label><input type="checkbox" id="sb-camp-mensagem"> 💬 Mensagem</label>
+                <label><input type="checkbox" id="sb-camp-visita"> 👤 Visita ao perfil</label>
+                <label><input type="checkbox" id="sb-camp-lead"> 📋 Leads</label>
+                <label><input type="checkbox" id="sb-camp-trafego"> 🌐 Tráfego</label>
+                <label><input type="checkbox" id="sb-camp-conversao"> 🎯 Conversão</label>
+              </div>
+              <div class="sb-modal-acoes">
+                <button class="btn-neon" onclick="sbSalvarCliente()">Salvar</button>
+                <button class="btn-outline" onclick="sbFecharModal('sb-modal-cliente')">Cancelar</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       <!-- ========== ROTINA ========== -->
       <section class="page" id="page-rotina">
         <div class="rot-page">
@@ -1703,6 +1827,7 @@
   <script src="{{ url_for('static', filename='js/financeiro.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance.js') }}"></script>
   <script src="{{ url_for('static', filename='js/prompts.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/social_brief.js') }}"></script>
   <script src="{{ url_for('static', filename='js/rotina.js') }}"></script>
   <script>
     (function(){
@@ -1721,6 +1846,18 @@
       });
       if(location.hash === '#rotina' && typeof rotinaInit === 'function'){
         setTimeout(rotinaInit, 300);
+      }
+      document.querySelectorAll('.nav-item').forEach(function(sbItem){
+        if(sbItem.dataset.page === 'social-brief'){
+          sbItem.addEventListener('click', function(){
+            setTimeout(function(){
+              if(typeof initSocialBrief === 'function') initSocialBrief();
+            }, 50);
+          });
+        }
+      });
+      if(location.hash === '#social-brief' && typeof initSocialBrief === 'function'){
+        setTimeout(initSocialBrief, 300);
       }
     })();
   </script>
