@@ -3577,6 +3577,166 @@ def rotina_maconha_mes():
         conn.close()
 
 
+# ── Social Brief — helpers de coleta ────────────────────────────────────────
+
+def _sb_buscar_meta_ads(meta_account_id, meta_agency="piloti"):
+    """
+    Busca top 10 criativos por CTR na última semana via Meta Ads API.
+    Retorna dict com 'periodo', 'criativos', 'resumo'.
+    """
+    import re as _re_meta
+    if not meta_account_id or not _re_meta.match(r'^act_\d+$', meta_account_id):
+        return {"erro": "meta_account_id inválido", "criativos": [], "resumo": {}}
+
+    token_fn = _META_TOKENS.get(meta_agency)
+    if not token_fn:
+        return {"erro": f"Agência '{meta_agency}' não configurada", "criativos": [], "resumo": {}}
+    token = token_fn()
+    if not token:
+        return {"erro": "Token Meta não configurado", "criativos": [], "resumo": {}}
+
+    try:
+        r = requests.get(
+            f"https://graph.facebook.com/v21.0/{meta_account_id}/ads",
+            params={
+                "fields": (
+                    "id,name,"
+                    "creative{id,name,thumbnail_url,body,title,call_to_action_type},"
+                    "insights.date_preset(last_7d)"
+                    "{impressions,clicks,ctr,spend,cpm,actions,cost_per_action_type}"
+                ),
+                "limit": 50,
+                "access_token": token,
+            },
+            timeout=20,
+        )
+        if not r.ok:
+            err = r.json().get("error", {})
+            return {"erro": err.get("message", f"Meta API {r.status_code}"), "criativos": [], "resumo": {}}
+
+        ads_raw = r.json().get("data", [])
+        criativos = []
+        for ad in ads_raw:
+            insights_data = ad.get("insights", {}).get("data", [])
+            if not insights_data:
+                continue
+            ins = insights_data[0]
+            ctr = float(ins.get("ctr") or 0)
+            cliques = int(ins.get("clicks") or 0)
+            impressoes = int(ins.get("impressions") or 0)
+            gasto = float(ins.get("spend") or 0)
+
+            actions = ins.get("actions") or []
+            costs = ins.get("cost_per_action_type") or []
+
+            def _find_act(arr, *types):
+                for e in arr:
+                    if e.get("action_type") in types:
+                        try:
+                            return float(e.get("value", 0) or 0)
+                        except Exception:
+                            return 0.0
+                return 0.0
+
+            leads = _find_act(actions, "lead", "onsite_conversion.messaging_conversation_started_7d")
+            cpl = _find_act(costs, "lead", "onsite_conversion.messaging_conversation_started_7d")
+
+            creative = ad.get("creative") or {}
+            criativos.append({
+                "id": ad.get("id", ""),
+                "nome": ad.get("name", ""),
+                "thumbnail_url": creative.get("thumbnail_url", ""),
+                "ctr": round(ctr, 2),
+                "cliques": cliques,
+                "impressoes": impressoes,
+                "gasto": round(gasto, 2),
+                "cpl": round(cpl, 2),
+                "leads": int(leads),
+                "tipo_campanha": creative.get("call_to_action_type", ""),
+            })
+
+        criativos.sort(key=lambda x: x["ctr"], reverse=True)
+        criativos = criativos[:10]
+
+        total_gasto = sum(c["gasto"] for c in criativos)
+        media_ctr = round(sum(c["ctr"] for c in criativos) / len(criativos), 2) if criativos else 0
+
+        from datetime import date as _date_meta, timedelta as _td_meta
+        hoje = _date_meta.today()
+        inicio = (hoje - _td_meta(days=7)).isoformat()
+        fim = hoje.isoformat()
+
+        return {
+            "periodo": {"inicio": inicio, "fim": fim},
+            "criativos": criativos,
+            "resumo": {
+                "total_gasto": round(total_gasto, 2),
+                "media_ctr": media_ctr,
+                "melhor_criativo": criativos[0] if criativos else {},
+                "pior_criativo": criativos[-1] if criativos else {},
+            }
+        }
+    except Exception as e:
+        return {"erro": str(e), "criativos": [], "resumo": {}}
+
+
+def _sb_buscar_concorrentes(nicho, concorrentes):
+    """
+    Pesquisa concorrentes via DuckDuckGo.
+    Retorna dict com 'conteudo_pesquisa'.
+    """
+    try:
+        try:
+            from ddgs import DDGS
+        except ImportError:
+            from duckduckgo_search import DDGS
+        from datetime import date as _dc
+        ano = _dc.today().year
+        resultados = []
+        queries = []
+        for conc in (concorrentes or [])[:3]:
+            queries.append(f"{conc} Instagram anúncios tráfego pago")
+        queries.append(f"{nicho} tráfego pago criativos {ano}")
+        queries.append(f"{nicho} hooks copy anúncios Meta Ads")
+
+        with DDGS() as ddg:
+            for query in queries:
+                try:
+                    res = list(ddg.text(query, max_results=3))
+                    for r in res:
+                        resultados.append(f"[{query}] {r.get('title','')} — {r.get('body','')}")
+                except Exception:
+                    pass
+
+        return {"conteudo_pesquisa": "\n".join(resultados[:20])}
+    except Exception as e:
+        return {"conteudo_pesquisa": f"Erro na pesquisa: {e}"}
+
+
+def _sb_ler_perfil_html(slug):
+    """
+    Tenta ler arquivo HTML de análise do cliente em static/reports/{slug}_relatorio.html.
+    Extrai texto via BeautifulSoup. Retorna string vazia se não encontrar.
+    """
+    try:
+        from bs4 import BeautifulSoup
+        caminhos = [
+            os.path.join(_basedir, "static", "reports", f"{slug}_relatorio.html"),
+            os.path.join(_basedir, "static", "uploads", f"{slug}_relatorio.html"),
+            os.path.join(_basedir, "static", f"{slug}_relatorio.html"),
+        ]
+        for caminho in caminhos:
+            if os.path.exists(caminho):
+                with open(caminho, "r", encoding="utf-8", errors="ignore") as f:
+                    html = f.read()
+                soup = BeautifulSoup(html, "html.parser")
+                texto = soup.get_text(separator=" ", strip=True)
+                return texto[:4000]
+        return ""
+    except Exception:
+        return ""
+
+
 # ── Social Brief — CRUD de clientes ─────────────────────────────────────────
 
 @app.route("/api/social-brief/clientes", methods=["GET"])
