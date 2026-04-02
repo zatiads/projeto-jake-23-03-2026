@@ -3679,6 +3679,9 @@ def sb_clientes_delete(cid):
         cur.execute("DELETE FROM social_brief_clientes WHERE id=%s", (cid,))
         conn.commit()
         return jsonify({"ok": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
 
