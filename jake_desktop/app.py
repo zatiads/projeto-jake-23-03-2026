@@ -4283,6 +4283,144 @@ def sb_ultima_geracao():
         conn.close()
 
 
+@app.route("/api/social-brief/gerar", methods=["GET"])
+@login_required
+def sb_gerar_portal():
+    """Endpoint SSE: gera portal completo com todos os clientes ativos."""
+    from flask import stream_with_context, Response as _Response
+    from datetime import date as _date_sse, timedelta as _td_sse
+
+    def _generate():
+        conn = _get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM social_brief_clientes WHERE ativo=TRUE ORDER BY nome")
+            clientes = [dict(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+
+        if not clientes:
+            yield f"data: {json.dumps({'status': 'erro', 'mensagem': 'Nenhum cliente ativo cadastrado'})}\n\n"
+            return
+
+        todos_dados = []
+        total = len(clientes)
+
+        for i, cliente in enumerate(clientes):
+            progresso = int((i / total) * 80)
+
+            yield f"data: {json.dumps({'cliente': cliente['nome'], 'etapa': 'Buscando Meta Ads...', 'progresso': progresso})}\n\n"
+            dados_meta = _sb_buscar_meta_ads(
+                cliente.get("meta_account_id", ""),
+                cliente.get("meta_agency", "piloti")
+            )
+
+            yield f"data: {json.dumps({'cliente': cliente['nome'], 'etapa': 'Lendo perfil...', 'progresso': progresso + 2})}\n\n"
+            perfil_texto = _sb_ler_perfil_html(cliente["slug"])
+
+            yield f"data: {json.dumps({'cliente': cliente['nome'], 'etapa': 'Pesquisando concorrentes...', 'progresso': progresso + 4})}\n\n"
+            pesquisa = _sb_buscar_concorrentes(
+                cliente.get("nicho", ""),
+                cliente.get("concorrentes") or []
+            )
+
+            yield f"data: {json.dumps({'cliente': cliente['nome'], 'etapa': 'Gerando análise com Claude...', 'progresso': progresso + 6})}\n\n"
+            analise = _sb_gerar_analise_claude(
+                cliente, dados_meta,
+                perfil_texto,
+                pesquisa.get("conteudo_pesquisa", "")
+            )
+
+            todos_dados.append({"cliente": cliente, "analise": analise, "dados_meta": dados_meta})
+
+            yield f"data: {json.dumps({'cliente': cliente['nome'], 'status': 'concluido', 'progresso': int(((i + 1) / total) * 80)})}\n\n"
+            time.sleep(1)
+
+        yield f"data: {json.dumps({'etapa': 'Gerando HTML final...', 'progresso': 85})}\n\n"
+
+        hoje = _date_sse.today()
+        dia_seg = hoje - _td_sse(days=hoje.weekday())
+        semana_inicio = dia_seg.strftime("%d/%m/%Y")
+        semana_fim = (dia_seg + _td_sse(days=6)).strftime("%d/%m/%Y")
+        html_portal = _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim)
+
+        conn = _get_db()
+        geracao_id = None
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """INSERT INTO social_brief_geracoes
+                   (semana_inicio, semana_fim, html_completo, publicado, clientes_incluidos)
+                   VALUES (%s, %s, %s, %s, %s)
+                   RETURNING id""",
+                (
+                    dia_seg.isoformat(),
+                    (dia_seg + _td_sse(days=6)).isoformat(),
+                    html_portal,
+                    False,
+                    json.dumps([{"id": d["cliente"]["id"], "nome": d["cliente"]["nome"]} for d in todos_dados]),
+                )
+            )
+            geracao_id = cur.fetchone()["id"]
+            for item in todos_dados:
+                cur.execute(
+                    """INSERT INTO social_brief_cliente_dados
+                       (geracao_id, cliente_id, analise_json, dados_meta)
+                       VALUES (%s, %s, %s, %s)""",
+                    (geracao_id, item["cliente"]["id"],
+                     json.dumps(item["analise"]), json.dumps(item["dados_meta"]))
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+        yield f"data: {json.dumps({'etapa': 'Publicando no Surge...', 'progresso': 90})}\n\n"
+
+        try:
+            url = _sb_publicar_surge(html_portal)
+            conn2 = _get_db()
+            try:
+                cur2 = conn2.cursor()
+                cur2.execute(
+                    "UPDATE social_brief_geracoes SET surge_url=%s, publicado=TRUE WHERE id=%s",
+                    (url, geracao_id)
+                )
+                conn2.commit()
+            finally:
+                conn2.close()
+            yield f"data: {json.dumps({'status': 'finalizado', 'url': url, 'progresso': 100})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'status': 'finalizado_sem_surge', 'erro_surge': str(e), 'geracao_id': geracao_id, 'progresso': 100})}\n\n"
+
+    return _Response(
+        stream_with_context(_generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/api/social-brief/download/<int:geracao_id>", methods=["GET"])
+@login_required
+def sb_download_html(geracao_id):
+    """Permite baixar o HTML de uma geração específica."""
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT html_completo FROM social_brief_geracoes WHERE id=%s", (geracao_id,)
+        )
+        row = cur.fetchone()
+        if not row or not row["html_completo"]:
+            return jsonify({"error": "Geração não encontrada"}), 404
+        from flask import make_response
+        resp = make_response(row["html_completo"])
+        resp.headers["Content-Type"] = "text/html; charset=utf-8"
+        resp.headers["Content-Disposition"] = f'attachment; filename="piloti-brief-{geracao_id}.html"'
+        return resp
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
     ip   = _local_ip()
@@ -4297,4 +4435,46 @@ if __name__ == "__main__":
     debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
     _init_rotina_tables()
     _init_social_brief_tables()
+    # APScheduler: Social Brief automático toda segunda às 08h
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
+        def _job_social_brief():
+            with app.app_context():
+                from datetime import date as _dj, timedelta as _tdj
+                conn = _get_db()
+                try:
+                    cur = conn.cursor()
+                    cur.execute("SELECT * FROM social_brief_clientes WHERE ativo=TRUE ORDER BY nome")
+                    clientes = [dict(r) for r in cur.fetchall()]
+                finally:
+                    conn.close()
+                if not clientes:
+                    print("[Social Brief] Nenhum cliente ativo")
+                    return
+                todos_dados = []
+                for cliente in clientes:
+                    try:
+                        dm = _sb_buscar_meta_ads(cliente.get("meta_account_id",""), cliente.get("meta_agency","piloti"))
+                        pt = _sb_ler_perfil_html(cliente["slug"])
+                        pq = _sb_buscar_concorrentes(cliente.get("nicho",""), cliente.get("concorrentes") or [])
+                        an = _sb_gerar_analise_claude(cliente, dm, pt, pq.get("conteudo_pesquisa",""))
+                        todos_dados.append({"cliente": cliente, "analise": an, "dados_meta": dm})
+                        time.sleep(2)
+                    except Exception as e:
+                        print(f"[Social Brief] Erro cliente {cliente['nome']}: {e}")
+                if todos_dados:
+                    hoje = _dj.today()
+                    seg = hoje - _tdj(days=hoje.weekday())
+                    html = _sb_gerar_html_portal(todos_dados, seg.strftime("%d/%m/%Y"), (seg + _tdj(days=6)).strftime("%d/%m/%Y"))
+                    try:
+                        url = _sb_publicar_surge(html)
+                        print(f"[Social Brief] Portal publicado: {url}")
+                    except Exception as e:
+                        print(f"[Social Brief] Erro ao publicar: {e}")
+        _sched = _BGScheduler(timezone="America/Sao_Paulo")
+        _sched.add_job(_job_social_brief, "cron", day_of_week="mon", hour=8, minute=0)
+        _sched.start()
+        print("[Social Brief] Agendador ativo — toda segunda às 08h")
+    except Exception as _sched_err:
+        print(f"[Social Brief] Aviso: agendador não iniciado — {_sched_err}")
     app.run(host="0.0.0.0", port=port, debug=debug)
