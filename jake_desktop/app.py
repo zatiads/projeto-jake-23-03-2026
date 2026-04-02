@@ -3837,298 +3837,477 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
         menu_items_html += (
             f'<a class="menu-item" data-slug="{_e(slug)}" href="#" '
             f'onclick="mostrarCliente(\'{_e(slug)}\'); return false;">'
-            f'\U0001f7e2 {_e(cl["nome"])}</a>'
+            f'{_e(cl["nome"])}</a>'
         )
 
         resumo_meta = dm.get("resumo", {})
         total_gasto = resumo_meta.get("total_gasto", 0)
         media_ctr = resumo_meta.get("media_ctr", 0)
+        total_leads = resumo_meta.get("total_leads", 0)
         perf_pub = an.get("perfil_publico", {})
-        cpl_medio = perf_pub.get("cpl_medio", "\u2014")
+        cpl_medio = perf_pub.get("cpl_medio", "—")
 
-        # Ranking criativos
+        # ── Ranking criativos ──────────────────────────────────────────
         ranking_html = ""
-        medalhas = ["\U0001f947", "\U0001f948", "\U0001f949"]
         for i, cri in enumerate(an.get("ranking_criativos", [])[:5]):
-            med = medalhas[i] if i < 3 else f"#{i+1}"
             met = cri.get("metricas", {})
             thumb = cri.get("thumbnail_url", "")
             thumb_tag = (
-                f'<img src="{thumb}" alt="criativo" '
-                f'style="width:80px;height:80px;object-fit:cover;border-radius:8px;margin-right:16px;">'
+                f'<img src="{_e(thumb)}" alt="criativo" '
+                f'style="width:64px;height:64px;object-fit:cover;border-radius:4px;'
+                f'flex-shrink:0;border:1px solid rgba(255,107,0,0.3);">'
                 if thumb else
-                '<div style="width:80px;height:80px;background:#ddd;border-radius:8px;'
-                'margin-right:16px;flex-shrink:0;"></div>'
+                '<div style="width:64px;height:64px;background:#1e1e1e;border-radius:4px;'
+                'flex-shrink:0;border:1px solid #2a2a2a;"></div>'
             )
+            max_ctr_raw = an.get("ranking_criativos", [{}])[0].get("metricas", {}).get("ctr", 1) or 1
+            ctr_raw = met.get("ctr", 0) or 0
+            try:
+                bar_pct = int(float(str(ctr_raw).replace("%", "").strip() or 0) /
+                              float(str(max_ctr_raw).replace("%", "").strip() or 1) * 100)
+            except Exception:
+                bar_pct = 100 if i == 0 else 60
             ranking_html += (
-                '<div style="display:flex;align-items:center;background:#fff;'
-                'border:1px solid #e0e0e0;border-radius:12px;padding:16px;margin-bottom:12px;">'
-                f'<div style="font-size:28px;margin-right:16px;flex-shrink:0;">{med}</div>'
+                f'<div style="display:flex;align-items:center;gap:14px;padding:14px 0;'
+                f'border-bottom:1px solid #1e1e1e;">'
+                f'<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;'
+                f'font-size:22px;color:#FF6B00;width:24px;flex-shrink:0;">#{i+1}</div>'
                 f'{thumb_tag}'
-                '<div style="flex:1;">'
-                f'<div style="font-weight:600;margin-bottom:4px;">{_e(cri.get("nome",""))}</div>'
-                f'<div style="font-size:13px;color:#555;margin-bottom:8px;">{_e(cri.get("destaque",""))}</div>'
-                '<div style="display:flex;gap:12px;flex-wrap:wrap;">'
-                f'<span style="background:#e8f5e9;color:#2e7d32;padding:2px 10px;border-radius:20px;font-size:12px;">CTR {met.get("ctr","—")}</span>'
-                f'<span style="background:#e3f2fd;color:#1565c0;padding:2px 10px;border-radius:20px;font-size:12px;">Cliques {met.get("cliques","—")}</span>'
-                f'<span style="background:#fff3e0;color:#e65100;padding:2px 10px;border-radius:20px;font-size:12px;">CPL {met.get("cpl","—")}</span>'
-                f'<span style="background:#f3e5f5;color:#6a1b9a;padding:2px 10px;border-radius:20px;font-size:12px;">Gasto {met.get("gasto","—")}</span>'
-                '</div></div></div>'
+                f'<div style="flex:1;min-width:0;">'
+                f'<div style="font-size:13px;font-weight:600;color:#F5F5F0;white-space:nowrap;'
+                f'overflow:hidden;text-overflow:ellipsis;">{_e(cri.get("nome",""))}</div>'
+                f'<div style="font-size:12px;color:#888;margin:2px 0 6px;">{_e(cri.get("destaque",""))}</div>'
+                f'<div style="display:flex;gap:10px;flex-wrap:wrap;">'
+                f'<span style="font-size:11px;color:#FF6B00;font-weight:600;">CTR {_e(str(met.get("ctr","—")))}</span>'
+                f'<span style="font-size:11px;color:#bbb;">Cliques {_e(str(met.get("cliques","—")))}</span>'
+                f'<span style="font-size:11px;color:#bbb;">CPL {_e(str(met.get("cpl","—")))}</span>'
+                f'<span style="font-size:11px;color:#bbb;">Gasto {_e(str(met.get("gasto","—")))}</span>'
+                f'</div>'
+                f'<div style="height:3px;background:#1e1e1e;border-radius:1px;margin-top:6px;">'
+                f'<div style="height:100%;width:{bar_pct}%;background:#FF6B00;border-radius:1px;"></div></div>'
+                f'</div></div>'
             )
 
+        # ── O que funcionou / não ──────────────────────────────────────
         fun_html = "".join(
-            f'<div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">\u2705 {_e(x)}</div>'
+            f'<div style="padding:10px 0;border-bottom:1px solid #1e1e1e;font-size:13px;color:#bbb;">'
+            f'<span style="color:#4caf50;margin-right:8px;">◆</span>{_e(x)}</div>'
             for x in an.get("o_que_funcionou", [])
         )
         nao_fun_html = "".join(
-            f'<div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">\u274c {_e(x)}</div>'
+            f'<div style="padding:10px 0;border-bottom:1px solid #1e1e1e;font-size:13px;color:#bbb;">'
+            f'<span style="color:#FF6B00;margin-right:8px;">◆</span>{_e(x)}</div>'
             for x in an.get("o_que_nao_funcionou", [])
         )
 
-        # Hooks
+        # ── Hooks ─────────────────────────────────────────────────────
         hooks = an.get("hooks_sugeridos", {})
         hook_tabs_html = ""
-        labels_map = {"localizacao": "\U0001f4cd Localização", "genero": "\U0001f464 Gênero",
-                      "idade": "\U0001f382 Idade", "dor_principal": "\U0001f48a Dor"}
+        labels_map = {
+            "localizacao": "📍 Localização", "genero": "👤 Gênero",
+            "idade": "🎂 Idade", "dor_principal": "💊 Dor Principal"
+        }
         for tipo, lista in hooks.items():
             label = labels_map.get(tipo, tipo)
-            items = "".join(
-                f'<div style="background:#f5f5f5;border-radius:8px;padding:12px;margin-bottom:8px;position:relative;">'
+            items_h = "".join(
+                f'<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px;'
+                f'padding:12px 44px 12px 14px;margin-bottom:8px;font-size:13px;color:#bbb;'
+                f'position:relative;line-height:1.5;">'
                 f'{_e(h)}'
                 f'<button onclick="copiar(this)" data-text="{_e(h)}" '
-                f'style="position:absolute;right:8px;top:8px;background:#1a237e;color:#fff;'
-                f'border:none;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;">'
-                f'\U0001f4cb</button></div>'
+                f'style="position:absolute;right:8px;top:50%;transform:translateY(-50%);'
+                f'background:#FF6B00;color:#0D0D0D;border:none;border-radius:3px;'
+                f'padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;">'
+                f'COPY</button></div>'
                 for h in lista
             )
             hook_tabs_html += (
                 f'<div style="margin-bottom:20px;">'
-                f'<div style="font-weight:600;color:#1a237e;margin-bottom:8px;">{label}</div>'
-                f'{items}</div>'
+                f'<div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;'
+                f'color:#FF6B00;margin-bottom:10px;font-family:\'Barlow Condensed\',sans-serif;'
+                f'font-weight:600;">{_e(label)}</div>'
+                f'{items_h}</div>'
             )
 
-        # CTAs
+        # ── CTAs ──────────────────────────────────────────────────────
         ctas_html = ""
-        cta_icons = {"mensagem": "\U0001f4ac Mensagem", "visita_perfil": "\U0001f464 Visita", "lead": "\U0001f4cb Lead"}
+        cta_labels = {"mensagem": "💬 MENSAGEM", "visita_perfil": "👤 VISITA", "lead": "📋 LEAD"}
         for k, v in an.get("ctas_sugeridos", {}).items():
-            icon_label = cta_icons.get(k, k)
+            icon_label = cta_labels.get(k, k.upper())
             ctas_itens = "".join(
-                f'<div style="background:#f5f5f5;border-radius:8px;padding:10px;margin-bottom:6px;font-size:13px;position:relative;">'
+                f'<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px;'
+                f'padding:10px 44px 10px 12px;margin-bottom:8px;font-size:13px;color:#bbb;'
+                f'position:relative;line-height:1.5;">'
                 f'{_e(cta)}'
                 f'<button onclick="copiar(this)" data-text="{_e(cta)}" '
-                f'style="position:absolute;right:6px;top:6px;background:#1a237e;color:#fff;'
-                f'border:none;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;">'
-                f'\U0001f4cb</button></div>'
+                f'style="position:absolute;right:6px;top:50%;transform:translateY(-50%);'
+                f'background:#FF6B00;color:#0D0D0D;border:none;border-radius:3px;'
+                f'padding:3px 6px;font-size:10px;font-weight:700;cursor:pointer;">COPY</button></div>'
                 for cta in v
             )
             ctas_html += (
-                f'<div><div style="font-weight:600;font-size:13px;color:#ff6b35;margin-bottom:8px;">'
-                f'{icon_label}</div>{ctas_itens}</div>'
+                f'<div style="margin-bottom:20px;">'
+                f'<div style="font-size:10px;letter-spacing:3px;font-weight:600;color:#FF6B00;'
+                f'margin-bottom:10px;font-family:\'Barlow Condensed\',sans-serif;">{_e(icon_label)}</div>'
+                f'{ctas_itens}</div>'
             )
 
-        # Sugestões
+        # ── Sugestões de criativos ─────────────────────────────────────
         sug_html = "".join(
-            f'<div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:16px;margin-bottom:12px;">'
-            f'<div style="font-size:12px;color:#ff6b35;font-weight:600;margin-bottom:4px;">{_e(sg.get("tipo","")).upper()}</div>'
-            f'<div style="font-weight:600;margin-bottom:4px;">{_e(sg.get("conceito",""))}</div>'
-            f'<div style="font-size:13px;color:#555;margin-bottom:4px;"><b>Hook:</b> {_e(sg.get("hook",""))}</div>'
-            f'<div style="font-size:13px;color:#777;"><b>Referência:</b> {_e(sg.get("referencia",""))}</div>'
+            f'<div style="background:#141414;border:1px solid rgba(255,107,0,0.2);border-radius:4px;'
+            f'padding:20px;margin-bottom:12px;position:relative;overflow:hidden;">'
+            f'<div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;"></div>'
+            f'<div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#FF6B00;'
+            f'font-weight:600;margin-bottom:8px;font-family:\'Barlow Condensed\',sans-serif;">'
+            f'{_e(sg.get("tipo","")).upper()}</div>'
+            f'<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:18px;'
+            f'color:#F5F5F0;margin-bottom:6px;letter-spacing:-0.5px;">{_e(sg.get("conceito",""))}</div>'
+            f'<div style="font-size:13px;color:#888;margin-bottom:4px;">'
+            f'<span style="color:#bbb;font-weight:600;">Hook:</span> {_e(sg.get("hook",""))}</div>'
+            f'<div style="font-size:12px;color:#666;">'
+            f'<span style="color:#888;font-weight:600;">Ref:</span> {_e(sg.get("referencia",""))}</div>'
             f'</div>'
             for sg in an.get("sugestoes_criativos", [])[:4]
         )
 
-        # Concorrentes
+        # ── Concorrentes ──────────────────────────────────────────────
         conc_html = "".join(
-            f'<div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:16px;margin-bottom:12px;">'
-            f'<div style="font-weight:600;margin-bottom:6px;">\U0001f3e2 {_e(cc.get("nome",""))}</div>'
-            f'<div style="font-size:13px;margin-bottom:4px;"><b>O que fazem:</b> {_e(cc.get("o_que_fazem",""))}</div>'
-            f'<div style="font-size:13px;color:#2e7d32;"><b>Oportunidade:</b> {_e(cc.get("oportunidade",""))}</div>'
+            f'<div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;'
+            f'padding:18px;margin-bottom:10px;">'
+            f'<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:16px;'
+            f'color:#F5F5F0;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">'
+            f'🏢 {_e(cc.get("nome",""))}</div>'
+            f'<div style="font-size:13px;color:#888;margin-bottom:6px;">'
+            f'<span style="color:#bbb;">O que fazem:</span> {_e(cc.get("o_que_fazem",""))}</div>'
+            f'<div style="font-size:13px;">'
+            f'<span style="color:#FF6B00;font-weight:600;">Oportunidade:</span> '
+            f'<span style="color:#bbb;">{_e(cc.get("oportunidade",""))}</span></div>'
             f'</div>'
             for cc in an.get("analise_concorrentes", [])
         )
 
-        # Campanhas
+        # ── Campanhas ativas ──────────────────────────────────────────
         camp_rows = "".join(
-            f'<tr><td style="padding:10px;border-bottom:1px solid #f0f0f0;">{_e(c.get("tipo",""))}</td>'
-            f'<td style="padding:10px;border-bottom:1px solid #f0f0f0;">{_e(c.get("objetivo",""))}</td>'
-            f'<td style="padding:10px;border-bottom:1px solid #f0f0f0;">{_e(c.get("recomendacao",""))}</td></tr>'
+            f'<tr>'
+            f'<td style="padding:12px;border-bottom:1px solid #1e1e1e;font-size:12px;'
+            f'letter-spacing:1px;text-transform:uppercase;color:#FF6B00;font-weight:600;">'
+            f'{_e(c.get("tipo",""))}</td>'
+            f'<td style="padding:12px;border-bottom:1px solid #1e1e1e;font-size:13px;color:#bbb;">'
+            f'{_e(c.get("objetivo",""))}</td>'
+            f'<td style="padding:12px;border-bottom:1px solid #1e1e1e;font-size:13px;color:#F5F5F0;">'
+            f'{_e(c.get("recomendacao",""))}</td></tr>'
             for c in an.get("campanhas_ativas", [])
         )
 
-        _fb_ranking = '<p style="color:#999;">Sem dados de criativo.</p>'
-        _fb_vazio = '<p style="color:#999;font-size:13px;">—</p>'
-        _fb_camp = '<tr><td colspan="3" style="padding:10px;color:#999;">—</td></tr>'
+        _fb = '<div style="font-size:13px;color:#444;padding:8px 0;">—</div>'
+        _fb_camp = '<tr><td colspan="3" style="padding:12px;color:#444;font-size:13px;">—</td></tr>'
 
-        secoes_html += (
-            f'<div class="cliente-secao" id="cliente-{slug}" style="display:none;">'
-            f'<div style="margin-bottom:32px;">'
-            f'<h2 style="font-size:28px;font-weight:700;color:#1a237e;margin:0 0 4px;">{_e(cl["nome"])}</h2>'
-            f'<div style="color:#666;font-size:14px;">\U0001f4c2 {_e(cl.get("nicho","—"))} &nbsp;&bull;&nbsp; '
-            f'\U0001f4c5 Semana de {semana_inicio} a {semana_fim} &nbsp;&bull;&nbsp; '
-            f'\U0001f504 Atualizado em {hoje_str}</div></div>'
-            # KPIs
-            f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px;">'
-            f'<div style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);text-align:center;">'
-            f'<div style="font-size:13px;color:#888;margin-bottom:6px;">\U0001f4b0 Total Gasto</div>'
-            f'<div style="font-size:26px;font-weight:700;color:#1a237e;">R$ {total_gasto:,.2f}</div></div>'
-            f'<div style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);text-align:center;">'
-            f'<div style="font-size:13px;color:#888;margin-bottom:6px;">\U0001f4c8 CTR Médio</div>'
-            f'<div style="font-size:26px;font-weight:700;color:#2e7d32;">{media_ctr}%</div></div>'
-            f'<div style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);text-align:center;">'
-            f'<div style="font-size:13px;color:#888;margin-bottom:6px;">\U0001f3af CPL Médio</div>'
-            f'<div style="font-size:26px;font-weight:700;color:#ff6b35;">{cpl_medio}</div></div></div>'
-            # Resumo
-            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
-            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 12px;color:#1a237e;">\U0001f4dd Resumo da Semana</h3>'
-            f'<p style="color:#444;line-height:1.7;margin:0;">{_e(an.get("resumo_semana",""))}</p></div>'
-            # Ranking
-            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
-            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f3c6 Ranking de Criativos</h3>'
-            f'{ranking_html or _fb_ranking}</div>'
-            # O que funcionou
-            f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">'
-            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
-            f'<h3 style="font-size:15px;font-weight:600;margin:0 0 16px;color:#2e7d32;">\u2705 O que funcionou</h3>'
-            f'{fun_html or _fb_vazio}</div>'
-            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
-            f'<h3 style="font-size:15px;font-weight:600;margin:0 0 16px;color:#c62828;">\u274c O que não funcionou</h3>'
-            f'{nao_fun_html or _fb_vazio}</div></div>'
-            # Perfil
-            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
-            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f465 Perfil do Público</h3>'
-            f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">'
-            f'<div style="background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">'
-            f'<div style="font-size:20px;margin-bottom:4px;">\U0001f464</div>'
-            f'<div style="font-size:11px;color:#888;margin-bottom:4px;">Gênero</div>'
-            f'<div style="font-weight:600;font-size:13px;">{_e(perf_pub.get("genero_predominante","—"))}</div></div>'
-            f'<div style="background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">'
-            f'<div style="font-size:20px;margin-bottom:4px;">\U0001f382</div>'
-            f'<div style="font-size:11px;color:#888;margin-bottom:4px;">Faixa Etária</div>'
-            f'<div style="font-weight:600;font-size:13px;">{_e(perf_pub.get("faixa_etaria","—"))}</div></div>'
-            f'<div style="background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">'
-            f'<div style="font-size:20px;margin-bottom:4px;">\U0001f4f1</div>'
-            f'<div style="font-size:11px;color:#888;margin-bottom:4px;">Posicionamento</div>'
-            f'<div style="font-weight:600;font-size:13px;">{_e(perf_pub.get("melhor_posicionamento","—"))}</div></div>'
-            f'<div style="background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">'
-            f'<div style="font-size:20px;margin-bottom:4px;">\U0001f4b0</div>'
-            f'<div style="font-size:11px;color:#888;margin-bottom:4px;">CPL Médio</div>'
-            f'<div style="font-weight:600;font-size:13px;">{_e(str(perf_pub.get("cpl_medio","—")))}</div></div>'
-            f'</div></div>'
-            # Hooks
-            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
-            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f4a1 Hooks Sugeridos</h3>'
-            f'{hook_tabs_html or _fb_vazio}</div>'
-            # CTAs
-            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
-            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f4e3 CTAs Sugeridos</h3>'
-            f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">{ctas_html}</div></div>'
-            # Sugestões criativos
-            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
-            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f3a8 Sugestões de Criativos</h3>'
-            f'{sug_html or _fb_vazio}</div>'
-            # Concorrentes
-            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
-            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f3e2 Análise de Concorrentes</h3>'
-            f'{conc_html or _fb_vazio}</div>'
-            # Campanhas
-            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
-            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f4ca Campanhas Ativas</h3>'
-            f'<table style="width:100%;border-collapse:collapse;font-size:14px;">'
-            f'<tr style="background:#f8f9fa;">'
-            f'<th style="padding:10px;text-align:left;">Tipo</th>'
-            f'<th style="padding:10px;text-align:left;">Objetivo</th>'
-            f'<th style="padding:10px;text-align:left;">Recomendação</th></tr>'
-            f'{camp_rows or _fb_camp}'
-            f'</table></div>'
-            f'</div>'  # end cliente-secao
+        perfil_cards = "".join(
+            f'<div style="background:#141414;border:1px solid rgba(255,107,0,0.2);border-radius:4px;'
+            f'padding:20px 16px;position:relative;overflow:hidden;text-align:center;">'
+            f'<div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;"></div>'
+            f'<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#888;margin-bottom:8px;">{_e(lb)}</div>'
+            f'<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:22px;color:#F5F5F0;">{_e(str(vl))}</div>'
+            f'</div>'
+            for lb, vl in [
+                ("Gênero", perf_pub.get("genero_predominante", "—")),
+                ("Faixa Etária", perf_pub.get("faixa_etaria", "—")),
+                ("Posicionamento", perf_pub.get("melhor_posicionamento", "—")),
+                ("CPL Médio", perf_pub.get("cpl_medio", "—")),
+            ]
         )
 
-    html = (
-        '<!DOCTYPE html><html lang="pt-BR"><head>'
-        '<meta charset="UTF-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
-        '<title>Piloti Agency — Social Media Brief</title>'
-        '<link rel="preconnect" href="https://fonts.googleapis.com">'
-        '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
-        '<style>'
-        '*{box-sizing:border-box;margin:0;padding:0;}body{font-family:\'Inter\',sans-serif;background:#f8f9fa;color:#333;}a{text-decoration:none;color:inherit;}'
-        '#tela-login{position:fixed;inset:0;background:#1a237e;display:flex;align-items:center;justify-content:center;z-index:9999;}'
-        '.login-box{background:#fff;border-radius:20px;padding:48px;width:360px;text-align:center;}'
-        '.login-box h1{color:#1a237e;font-size:22px;margin-bottom:8px;}'
-        '.login-box p{color:#888;font-size:13px;margin-bottom:28px;}'
-        '.login-input{width:100%;border:2px solid #e0e0e0;border-radius:10px;padding:12px 16px;font-size:15px;margin-bottom:12px;outline:none;}'
-        '.login-input:focus{border-color:#1a237e;}'
-        '.login-btn{width:100%;background:#1a237e;color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;}'
-        '.login-btn:hover{background:#283593;}'
-        '#erro-login{display:none;color:#c62828;font-size:13px;margin-top:8px;}'
+        secoes_html += f'''
+<div class="cliente-secao" id="cliente-{_e(slug)}" style="display:none;">
+
+  <!-- Header -->
+  <div style="position:relative;overflow:hidden;background:#0D0D0D;
+              border:1px solid rgba(255,107,0,0.15);border-radius:4px;
+              padding:36px 32px;margin-bottom:20px;">
+    <div style="position:absolute;inset:0;background-image:
+      linear-gradient(rgba(255,107,0,0.04) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,107,0,0.04) 1px,transparent 1px);
+      background-size:50px 50px;pointer-events:none;"></div>
+    <div style="position:absolute;top:16px;right:24px;
+                font-family:'Barlow Condensed',sans-serif;font-size:80px;font-weight:900;
+                color:rgba(255,107,0,0.04);line-height:1;letter-spacing:-4px;pointer-events:none;">
+      BRIEF</div>
+    <div style="position:relative;z-index:1;">
+      <div style="font-size:10px;letter-spacing:5px;text-transform:uppercase;color:#FF6B00;
+                  font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:8px;">
+        {_e(cl.get("nicho","—"))} &nbsp;·&nbsp; Semana {_e(semana_inicio)} — {_e(semana_fim)}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;
+                  font-size:clamp(32px,4vw,52px);text-transform:uppercase;
+                  letter-spacing:-1px;color:#F5F5F0;line-height:1;margin-bottom:20px;">
+        {_e(cl["nome"])}</div>
+      <div style="display:flex;gap:40px;flex-wrap:wrap;">
+        <div>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;
+                       font-size:28px;color:#FF6B00;display:block;">R$ {total_gasto:,.2f}</span>
+          <span style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#888;">Gasto</span>
+        </div>
+        <div>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;
+                       font-size:28px;color:#F5F5F0;display:block;">{_e(str(media_ctr))}%</span>
+          <span style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#888;">CTR Médio</span>
+        </div>
+        <div>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;
+                       font-size:28px;color:#00C2FF;display:block;">{_e(str(total_leads))}</span>
+          <span style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#888;">Leads</span>
+        </div>
+        <div>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;
+                       font-size:28px;color:#F5F5F0;display:block;">{_e(str(cpl_medio))}</span>
+          <span style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#888;">CPL Médio</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resumo -->
+  <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:24px;
+              margin-bottom:16px;position:relative;overflow:hidden;">
+    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;opacity:0.4;"></div>
+    <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
+                font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:14px;">
+      📝 Resumo da Semana</div>
+    <p style="font-size:14px;color:#bbb;line-height:1.8;margin:0;">{_e(an.get("resumo_semana",""))}</p>
+  </div>
+
+  <!-- Ranking + Funcionou -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+    <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:24px;
+                position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;"></div>
+      <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
+                  font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:16px;">
+        🏆 Ranking de Criativos</div>
+      {ranking_html or _fb}
+    </div>
+    <div style="display:grid;grid-template-rows:1fr 1fr;gap:16px;">
+      <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:20px;
+                  position:relative;overflow:hidden;">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#4caf50;opacity:0.7;"></div>
+        <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#4caf50;
+                    font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:12px;">
+          ◆ O que funcionou</div>
+        {fun_html or _fb}
+      </div>
+      <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:20px;
+                  position:relative;overflow:hidden;">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;opacity:0.7;"></div>
+        <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
+                    font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:12px;">
+          ◆ O que não funcionou</div>
+        {nao_fun_html or _fb}
+      </div>
+    </div>
+  </div>
+
+  <!-- Perfil público (4 stat cards) -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+    {perfil_cards}
+  </div>
+
+  <!-- Separator -->
+  <div style="height:40px;background:#FF6B00;display:flex;align-items:center;padding:0 24px;
+              margin-bottom:16px;border-radius:4px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:16px;
+                letter-spacing:4px;text-transform:uppercase;color:#0D0D0D;">◆ CONTEÚDO PARA A SEMANA</div>
+  </div>
+
+  <!-- Hooks + CTAs -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+    <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:24px;
+                position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;"></div>
+      <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
+                  font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:20px;">
+        💡 Hooks Sugeridos</div>
+      {hook_tabs_html or _fb}
+    </div>
+    <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:24px;
+                position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;"></div>
+      <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
+                  font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:20px;">
+        📣 CTAs Sugeridos</div>
+      {ctas_html or _fb}
+    </div>
+  </div>
+
+  <!-- Sugestões de criativos -->
+  <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:24px;
+              margin-bottom:16px;position:relative;overflow:hidden;">
+    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;"></div>
+    <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
+                font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:20px;">
+      🎨 Sugestões de Criativos</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+      {sug_html or _fb}
+    </div>
+  </div>
+
+  <!-- Concorrentes + Campanhas -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px;">
+    <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:24px;
+                position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;opacity:0.4;"></div>
+      <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
+                  font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:20px;">
+        🏢 Análise de Concorrentes</div>
+      {conc_html or _fb}
+    </div>
+    <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:24px;
+                position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;opacity:0.4;"></div>
+      <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
+                  font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:20px;">
+        📊 Campanhas Ativas</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr style="border-bottom:1px solid #2a2a2a;">
+          <th style="padding:8px;text-align:left;font-size:10px;letter-spacing:2px;
+                     text-transform:uppercase;color:#666;font-weight:600;">Tipo</th>
+          <th style="padding:8px;text-align:left;font-size:10px;letter-spacing:2px;
+                     text-transform:uppercase;color:#666;font-weight:600;">Objetivo</th>
+          <th style="padding:8px;text-align:left;font-size:10px;letter-spacing:2px;
+                     text-transform:uppercase;color:#666;font-weight:600;">Recomendação</th>
+        </tr>
+        {camp_rows or _fb_camp}
+      </table>
+    </div>
+  </div>
+
+</div>'''
+
+    css = (
+        '*{box-sizing:border-box;margin:0;padding:0;}'
+        'html{scroll-behavior:smooth;}'
+        "body{font-family:'Barlow',sans-serif;background:#0D0D0D;color:#F5F5F0;overflow-x:hidden;}"
+        'a{text-decoration:none;color:inherit;}'
+        '#tela-login{position:fixed;inset:0;background:#0D0D0D;display:flex;align-items:center;'
+        'justify-content:center;z-index:9999;}'
+        '.login-bg{position:absolute;inset:0;background-image:'
+        'linear-gradient(rgba(255,107,0,0.05) 1px,transparent 1px),'
+        'linear-gradient(90deg,rgba(255,107,0,0.05) 1px,transparent 1px);'
+        'background-size:60px 60px;}'
+        '.login-box{position:relative;z-index:1;width:360px;text-align:center;}'
+        ".login-kicker{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:5px;"
+        'text-transform:uppercase;color:#FF6B00;margin-bottom:16px;}'
+        ".login-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:52px;"
+        'text-transform:uppercase;letter-spacing:-1px;color:#F5F5F0;line-height:1;margin-bottom:32px;}'
+        '.login-line{width:40px;height:2px;background:#FF6B00;margin:0 auto 32px;}'
+        '.login-input{width:100%;background:#141414;border:1px solid rgba(255,107,0,0.3);border-radius:4px;'
+        "padding:14px 16px;font-size:14px;color:#F5F5F0;margin-bottom:12px;outline:none;font-family:'Barlow',sans-serif;}"
+        '.login-input::placeholder{color:#444;}'
+        '.login-input:focus{border-color:#FF6B00;}'
+        '.login-btn{width:100%;background:#FF6B00;color:#0D0D0D;border:none;border-radius:4px;padding:14px;'
+        "font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:3px;"
+        'text-transform:uppercase;cursor:pointer;transition:opacity .2s;}'
+        '.login-btn:hover{opacity:.85;}'
+        '#erro-login{display:none;color:#FF6B00;font-size:12px;margin-top:10px;letter-spacing:1px;}'
         '#app{display:none;min-height:100vh;}'
-        '.sidebar{width:240px;background:#1a237e;color:#fff;padding:24px 0;position:fixed;height:100vh;overflow-y:auto;left:0;top:0;}'
-        '.sidebar-logo{padding:0 20px 24px;border-bottom:1px solid rgba(255,255,255,.1);}'
-        '.sidebar-logo h2{font-size:16px;font-weight:700;}'
-        '.sidebar-logo p{font-size:12px;opacity:.7;margin-top:4px;}'
-        '.sidebar-semana{padding:16px 20px;font-size:12px;opacity:.7;border-bottom:1px solid rgba(255,255,255,.1);}'
-        '.sidebar-clientes{padding:16px 0;}'
-        '.sidebar-label{padding:0 20px 8px;font-size:11px;font-weight:600;opacity:.5;letter-spacing:1px;}'
-        '.menu-item{display:block;padding:10px 20px;font-size:14px;cursor:pointer;border-left:3px solid transparent;transition:all .2s;}'
-        '.menu-item:hover,.menu-item.ativo{background:rgba(255,107,53,.2);border-left-color:#ff6b35;color:#fff;}'
-        '.sidebar-logout{padding:16px 20px;border-top:1px solid rgba(255,255,255,.1);}'
-        '.sidebar-logout button{background:transparent;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;width:100%;}'
-        '.sidebar-logout button:hover{background:rgba(255,255,255,.1);color:#fff;}'
-        '.main-content{margin-left:240px;padding:32px;min-height:100vh;}'
-        '</style></head><body>'
-        '<div id="tela-login">'
-        '<div class="login-box">'
-        '<h1>\U0001f680 Piloti Agency</h1>'
-        '<p>Social Media Brief Semanal</p>'
-        '<input id="inp-login" class="login-input" type="text" placeholder="Usuário" />'
-        '<input id="inp-senha" class="login-input" type="password" placeholder="Senha" '
-        'onkeydown="if(event.key===\'Enter\')tentarLogin()" />'
-        '<button class="login-btn" onclick="tentarLogin()">Entrar</button>'
-        '<div id="erro-login">Usuário ou senha incorretos.</div>'
-        '</div></div>'
-        '<div id="app">'
-        '<div class="sidebar">'
-        '<div class="sidebar-logo"><h2>\U0001f680 Piloti Agency</h2><p>Social Media Brief</p></div>'
-        f'<div class="sidebar-semana">\U0001f4c5 Semana de {semana_inicio} a {semana_fim}</div>'
-        '<div class="sidebar-clientes">'
-        '<div class="sidebar-label">CLIENTES</div>'
-        f'{menu_items_html}'
-        '</div>'
-        '<div class="sidebar-logout"><button onclick="logout()">\u21a9 Sair</button></div>'
-        '</div>'
-        f'<div class="main-content">{secoes_html}</div>'
-        '</div>'
-        f'<script>'
-        f'var LOGIN="{login_user}";var SENHA="{login_senha}";'
-        f'var PRIMEIRO="{primeiro_slug}";'
-        'function tentarLogin(){{'
-        'var u=document.getElementById("inp-login").value;'
-        'var s=document.getElementById("inp-senha").value;'
-        'if(u===LOGIN&&s===SENHA){{'
-        'localStorage.setItem("piloti_brief_auth","ok");'
-        'document.getElementById("tela-login").style.display="none";'
-        'document.getElementById("app").style.display="flex";'
-        'mostrarCliente(PRIMEIRO);'
-        '}}else{{document.getElementById("erro-login").style.display="block";}}'
-        '}}'
-        'function verificarLogin(){{'
-        'if(localStorage.getItem("piloti_brief_auth")==="ok"){{'
-        'document.getElementById("tela-login").style.display="none";'
-        'document.getElementById("app").style.display="flex";'
-        'mostrarCliente(PRIMEIRO);}}}}'
-        'function logout(){{localStorage.removeItem("piloti_brief_auth");location.reload();}}'
-        'function mostrarCliente(slug){{'
-        'document.querySelectorAll(".cliente-secao").forEach(function(s){{s.style.display="none";}});'
-        'var el=document.getElementById("cliente-"+slug);if(el)el.style.display="block";'
-        'document.querySelectorAll(".menu-item").forEach(function(m){{m.classList.remove("ativo");}});'
-        'var mi=document.querySelector("[data-slug=\'"+slug+"\']");if(mi)mi.classList.add("ativo");}}'
-        'function copiar(btn){{'
-        'var t=btn.getAttribute("data-text");'
-        'navigator.clipboard.writeText(t).then(function(){{'
-        'var o=btn.innerHTML;btn.innerHTML="\u2705";'
-        'setTimeout(function(){{btn.innerHTML=o;}},2000);}});}}'
-        'window.onload=function(){{verificarLogin();}};'
-        '</script></body></html>'
+        '.sidebar{width:220px;background:#0a0a0a;border-right:1px solid rgba(255,107,0,0.15);'
+        'padding:0;position:fixed;height:100vh;overflow-y:auto;left:0;top:0;display:flex;flex-direction:column;}'
+        '.sidebar-logo{padding:24px 20px;border-bottom:1px solid #1a1a1a;}'
+        ".sidebar-brand{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:18px;"
+        'letter-spacing:4px;text-transform:uppercase;color:#FF6B00;}'
+        '.sidebar-tagline{font-size:10px;color:#444;letter-spacing:2px;text-transform:uppercase;margin-top:4px;}'
+        '.sidebar-week{padding:14px 20px;font-size:11px;color:#555;letter-spacing:1px;'
+        'border-bottom:1px solid #1a1a1a;text-transform:uppercase;}'
+        '.sidebar-section{padding:16px 20px 8px;font-size:9px;letter-spacing:3px;'
+        'text-transform:uppercase;color:#333;font-weight:600;}'
+        ".menu-item{display:block;padding:10px 20px;font-size:13px;color:#666;cursor:pointer;"
+        "border-left:2px solid transparent;transition:all .15s;font-family:'Barlow',sans-serif;}"
+        '.menu-item:hover{color:#F5F5F0;background:rgba(255,107,0,0.06);border-left-color:rgba(255,107,0,0.4);}'
+        '.menu-item.ativo{color:#FF6B00;background:rgba(255,107,0,0.08);border-left-color:#FF6B00;}'
+        '.sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid #1a1a1a;}'
+        '.btn-logout{background:transparent;color:#444;border:1px solid #2a2a2a;border-radius:3px;'
+        'padding:8px 16px;cursor:pointer;font-size:11px;letter-spacing:2px;text-transform:uppercase;'
+        "width:100%;font-family:'Barlow Condensed',sans-serif;font-weight:600;transition:all .2s;}"
+        '.btn-logout:hover{color:#FF6B00;border-color:#FF6B00;}'
+        '.main-content{margin-left:220px;padding:32px;min-height:100vh;background:#0D0D0D;}'
+        '@media(max-width:900px){'
+        '.sidebar{display:none;}'
+        '.main-content{margin-left:0;padding:20px;}}'
+    )
+
+    html = (
+        '<!DOCTYPE html>\n<html lang="pt-BR">\n<head>\n'
+        '<meta charset="UTF-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+        f'<title>Piloti — Social Brief · {_e(semana_inicio)} a {_e(semana_fim)}</title>\n'
+        '<link rel="preconnect" href="https://fonts.googleapis.com">\n'
+        '<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">\n'
+        f'<style>{css}</style>\n'
+        '</head>\n<body>\n\n'
+        '<!-- LOGIN -->\n'
+        '<div id="tela-login">\n'
+        '  <div class="login-bg"></div>\n'
+        '  <div class="login-box">\n'
+        '    <div class="login-kicker">Piloti Agency</div>\n'
+        '    <div class="login-title">Social Brief</div>\n'
+        '    <div class="login-line"></div>\n'
+        '    <input id="inp-login" class="login-input" type="text" placeholder="Usuário" autocomplete="username" />\n'
+        '    <input id="inp-senha" class="login-input" type="password" placeholder="Senha"\n'
+        '      onkeydown="if(event.key===\'Enter\')tentarLogin()" autocomplete="current-password" />\n'
+        '    <button class="login-btn" onclick="tentarLogin()">Entrar</button>\n'
+        '    <div id="erro-login">Credenciais inválidas.</div>\n'
+        '  </div>\n'
+        '</div>\n\n'
+        '<!-- APP -->\n'
+        '<div id="app">\n'
+        '  <div class="sidebar">\n'
+        '    <div class="sidebar-logo">\n'
+        '      <div class="sidebar-brand">Piloti</div>\n'
+        '      <div class="sidebar-tagline">Social Brief Semanal</div>\n'
+        '    </div>\n'
+        f'    <div class="sidebar-week">📅 {_e(semana_inicio)} — {_e(semana_fim)}</div>\n'
+        '    <div class="sidebar-section">Clientes</div>\n'
+        f'    {menu_items_html}\n'
+        '    <div class="sidebar-footer">\n'
+        '      <button class="btn-logout" onclick="logout()">↩ Sair</button>\n'
+        '    </div>\n'
+        '  </div>\n'
+        f'  <div class="main-content">{secoes_html}</div>\n'
+        '</div>\n\n'
+        '<script>\n'
+        f'var LOGIN="{_e(login_user)}";var SENHA="{_e(login_senha)}";\n'
+        f'var PRIMEIRO="{_e(primeiro_slug)}";\n'
+        'function tentarLogin(){{\n'
+        '  var u=document.getElementById("inp-login").value;\n'
+        '  var s=document.getElementById("inp-senha").value;\n'
+        '  if(u===LOGIN&&s===SENHA){{\n'
+        '    localStorage.setItem("piloti_brief_auth","ok");\n'
+        '    document.getElementById("tela-login").style.display="none";\n'
+        '    document.getElementById("app").style.display="flex";\n'
+        '    mostrarCliente(PRIMEIRO);\n'
+        '  }}else{{document.getElementById("erro-login").style.display="block";}}\n'
+        '}}\n'
+        'function verificarLogin(){{\n'
+        '  if(localStorage.getItem("piloti_brief_auth")==="ok"){{\n'
+        '    document.getElementById("tela-login").style.display="none";\n'
+        '    document.getElementById("app").style.display="flex";\n'
+        '    mostrarCliente(PRIMEIRO);\n'
+        '  }}\n'
+        '}}\n'
+        'function logout(){{localStorage.removeItem("piloti_brief_auth");location.reload();}}\n'
+        'function mostrarCliente(slug){{\n'
+        '  document.querySelectorAll(".cliente-secao").forEach(function(s){{s.style.display="none";}});\n'
+        '  var el=document.getElementById("cliente-"+slug);if(el)el.style.display="block";\n'
+        '  document.querySelectorAll(".menu-item").forEach(function(m){{m.classList.remove("ativo");}});\n'
+        "  var mi=document.querySelector(\".menu-item[data-slug='\"+slug+\"']\");if(mi)mi.classList.add(\"ativo\");\n"
+        '}}\n'
+        'function copiar(btn){{\n'
+        '  var t=btn.getAttribute("data-text");\n'
+        '  navigator.clipboard.writeText(t).then(function(){{\n'
+        '    var o=btn.innerHTML;btn.innerHTML="\u2713";\n'
+        '    setTimeout(function(){{btn.innerHTML=o;}},2000);\n'
+        '  }});\n'
+        '}}\n'
+        'window.onload=function(){{verificarLogin();}};\n'
+        '</script>\n</body>\n</html>'
     )
     return html
 
