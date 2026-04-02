@@ -3577,6 +3577,134 @@ def rotina_maconha_mes():
         conn.close()
 
 
+# ── Social Brief — CRUD de clientes ─────────────────────────────────────────
+
+@app.route("/api/social-brief/clientes", methods=["GET"])
+@login_required
+def sb_clientes_list():
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM social_brief_clientes ORDER BY nome")
+        clientes = [dict(r) for r in cur.fetchall()]
+        for c in clientes:
+            if c.get("concorrentes") is None:
+                c["concorrentes"] = []
+            if c.get("tipos_campanha") is None:
+                c["tipos_campanha"] = {}
+        return jsonify({"clientes": clientes})
+    finally:
+        conn.close()
+
+
+@app.route("/api/social-brief/clientes", methods=["POST"])
+@login_required
+def sb_clientes_create():
+    data = request.get_json()
+    if not data or not data.get("nome") or not data.get("slug"):
+        return jsonify({"error": "nome e slug obrigatórios"}), 400
+    import re as _re_slug
+    if not _re_slug.match(r'^[a-z0-9-]+$', data["slug"]):
+        return jsonify({"error": "slug deve conter apenas letras minúsculas, números e hifens"}), 400
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO social_brief_clientes
+               (nome, slug, nicho, meta_account_id, meta_agency,
+                concorrentes, tipos_campanha, ativo)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+               RETURNING id""",
+            (
+                data["nome"], data["slug"],
+                data.get("nicho", ""),
+                data.get("meta_account_id", ""),
+                data.get("meta_agency", "piloti"),
+                data.get("concorrentes", []),
+                json.dumps(data.get("tipos_campanha", {})),
+                data.get("ativo", True),
+            )
+        )
+        new_id = cur.fetchone()["id"]
+        conn.commit()
+        return jsonify({"ok": True, "id": new_id})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/social-brief/clientes/<int:cid>", methods=["PUT"])
+@login_required
+def sb_clientes_update(cid):
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "body obrigatório"}), 400
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """UPDATE social_brief_clientes SET
+               nome=%s, slug=%s, nicho=%s,
+               meta_account_id=%s, meta_agency=%s,
+               concorrentes=%s, tipos_campanha=%s, ativo=%s
+               WHERE id=%s""",
+            (
+                data.get("nome"), data.get("slug"),
+                data.get("nicho", ""),
+                data.get("meta_account_id", ""),
+                data.get("meta_agency", "piloti"),
+                data.get("concorrentes", []),
+                json.dumps(data.get("tipos_campanha", {})),
+                data.get("ativo", True),
+                cid,
+            )
+        )
+        conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/social-brief/clientes/<int:cid>", methods=["DELETE"])
+@login_required
+def sb_clientes_delete(cid):
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM social_brief_clientes WHERE id=%s", (cid,))
+        conn.commit()
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+@app.route("/api/social-brief/ultima-geracao", methods=["GET"])
+@login_required
+def sb_ultima_geracao():
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, semana_inicio, semana_fim, surge_url, publicado, criado_em "
+            "FROM social_brief_geracoes ORDER BY criado_em DESC LIMIT 1"
+        )
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"geracao": None})
+        g = dict(row)
+        g["semana_inicio"] = str(g["semana_inicio"])
+        g["semana_fim"] = str(g["semana_fim"])
+        g["criado_em"] = str(g["criado_em"])
+        return jsonify({"geracao": g})
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
     ip   = _local_ip()
