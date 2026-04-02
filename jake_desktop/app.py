@@ -3809,6 +3809,349 @@ def _sb_gerar_analise_claude(cliente, dados_meta, perfil_texto, conteudo_pesquis
         return _fallback
 
 
+def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
+    """
+    Gera HTML autocontido com todos os clientes. Login screen + sidebar + seções por cliente.
+    todos_dados: list de {'cliente': dict, 'analise': dict, 'dados_meta': dict}
+    """
+    login_user = os.environ.get("SOCIAL_BRIEF_LOGIN", "social")
+    login_senha = os.environ.get("SOCIAL_BRIEF_SENHA", "piloti2026")
+    primeiro_slug = todos_dados[0]["cliente"]["slug"] if todos_dados else "cliente"
+
+    from datetime import date as _date_html
+    hoje_str = _date_html.today().strftime("%d/%m/%Y")
+
+    secoes_html = ""
+    menu_items_html = ""
+
+    for item in todos_dados:
+        cl = item["cliente"]
+        an = item["analise"]
+        dm = item["dados_meta"]
+        slug = cl["slug"]
+
+        menu_items_html += (
+            f'<a class="menu-item" data-slug="{slug}" href="#" '
+            f'onclick="mostrarCliente(\'{slug}\'); return false;">'
+            f'\U0001f7e2 {cl["nome"]}</a>'
+        )
+
+        resumo_meta = dm.get("resumo", {})
+        total_gasto = resumo_meta.get("total_gasto", 0)
+        media_ctr = resumo_meta.get("media_ctr", 0)
+        perf_pub = an.get("perfil_publico", {})
+        cpl_medio = perf_pub.get("cpl_medio", "\u2014")
+
+        # Ranking criativos
+        ranking_html = ""
+        medalhas = ["\U0001f947", "\U0001f948", "\U0001f949"]
+        for i, cri in enumerate(an.get("ranking_criativos", [])[:5]):
+            med = medalhas[i] if i < 3 else f"#{i+1}"
+            met = cri.get("metricas", {})
+            thumb = cri.get("thumbnail_url", "")
+            thumb_tag = (
+                f'<img src="{thumb}" alt="criativo" '
+                f'style="width:80px;height:80px;object-fit:cover;border-radius:8px;margin-right:16px;">'
+                if thumb else
+                '<div style="width:80px;height:80px;background:#ddd;border-radius:8px;'
+                'margin-right:16px;flex-shrink:0;"></div>'
+            )
+            ranking_html += (
+                '<div style="display:flex;align-items:center;background:#fff;'
+                'border:1px solid #e0e0e0;border-radius:12px;padding:16px;margin-bottom:12px;">'
+                f'<div style="font-size:28px;margin-right:16px;flex-shrink:0;">{med}</div>'
+                f'{thumb_tag}'
+                '<div style="flex:1;">'
+                f'<div style="font-weight:600;margin-bottom:4px;">{cri.get("nome","")}</div>'
+                f'<div style="font-size:13px;color:#555;margin-bottom:8px;">{cri.get("destaque","")}</div>'
+                '<div style="display:flex;gap:12px;flex-wrap:wrap;">'
+                f'<span style="background:#e8f5e9;color:#2e7d32;padding:2px 10px;border-radius:20px;font-size:12px;">CTR {met.get("ctr","—")}</span>'
+                f'<span style="background:#e3f2fd;color:#1565c0;padding:2px 10px;border-radius:20px;font-size:12px;">Cliques {met.get("cliques","—")}</span>'
+                f'<span style="background:#fff3e0;color:#e65100;padding:2px 10px;border-radius:20px;font-size:12px;">CPL {met.get("cpl","—")}</span>'
+                f'<span style="background:#f3e5f5;color:#6a1b9a;padding:2px 10px;border-radius:20px;font-size:12px;">Gasto {met.get("gasto","—")}</span>'
+                '</div></div></div>'
+            )
+
+        fun_html = "".join(
+            f'<div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">\u2705 {x}</div>'
+            for x in an.get("o_que_funcionou", [])
+        )
+        nao_fun_html = "".join(
+            f'<div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">\u274c {x}</div>'
+            for x in an.get("o_que_nao_funcionou", [])
+        )
+
+        # Hooks
+        hooks = an.get("hooks_sugeridos", {})
+        hook_tabs_html = ""
+        labels_map = {"localizacao": "\U0001f4cd Localização", "genero": "\U0001f464 Gênero",
+                      "idade": "\U0001f382 Idade", "dor_principal": "\U0001f48a Dor"}
+        for tipo, lista in hooks.items():
+            label = labels_map.get(tipo, tipo)
+            items = "".join(
+                f'<div style="background:#f5f5f5;border-radius:8px;padding:12px;margin-bottom:8px;position:relative;">'
+                f'{h}'
+                f'<button onclick="copiar(this)" data-text="{h.replace(chr(34), chr(39))}" '
+                f'style="position:absolute;right:8px;top:8px;background:#1a237e;color:#fff;'
+                f'border:none;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;">'
+                f'\U0001f4cb</button></div>'
+                for h in lista
+            )
+            hook_tabs_html += (
+                f'<div style="margin-bottom:20px;">'
+                f'<div style="font-weight:600;color:#1a237e;margin-bottom:8px;">{label}</div>'
+                f'{items}</div>'
+            )
+
+        # CTAs
+        ctas_html = ""
+        cta_icons = {"mensagem": "\U0001f4ac Mensagem", "visita_perfil": "\U0001f464 Visita", "lead": "\U0001f4cb Lead"}
+        for k, v in an.get("ctas_sugeridos", {}).items():
+            icon_label = cta_icons.get(k, k)
+            ctas_itens = "".join(
+                f'<div style="background:#f5f5f5;border-radius:8px;padding:10px;margin-bottom:6px;font-size:13px;position:relative;">'
+                f'{cta}'
+                f'<button onclick="copiar(this)" data-text="{cta.replace(chr(34), chr(39))}" '
+                f'style="position:absolute;right:6px;top:6px;background:#1a237e;color:#fff;'
+                f'border:none;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;">'
+                f'\U0001f4cb</button></div>'
+                for cta in v
+            )
+            ctas_html += (
+                f'<div><div style="font-weight:600;font-size:13px;color:#ff6b35;margin-bottom:8px;">'
+                f'{icon_label}</div>{ctas_itens}</div>'
+            )
+
+        # Sugestões
+        sug_html = "".join(
+            f'<div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:16px;margin-bottom:12px;">'
+            f'<div style="font-size:12px;color:#ff6b35;font-weight:600;margin-bottom:4px;">{sg.get("tipo","").upper()}</div>'
+            f'<div style="font-weight:600;margin-bottom:4px;">{sg.get("conceito","")}</div>'
+            f'<div style="font-size:13px;color:#555;margin-bottom:4px;"><b>Hook:</b> {sg.get("hook","")}</div>'
+            f'<div style="font-size:13px;color:#777;"><b>Referência:</b> {sg.get("referencia","")}</div>'
+            f'</div>'
+            for sg in an.get("sugestoes_criativos", [])[:4]
+        )
+
+        # Concorrentes
+        conc_html = "".join(
+            f'<div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:16px;margin-bottom:12px;">'
+            f'<div style="font-weight:600;margin-bottom:6px;">\U0001f3e2 {cc.get("nome","")}</div>'
+            f'<div style="font-size:13px;margin-bottom:4px;"><b>O que fazem:</b> {cc.get("o_que_fazem","")}</div>'
+            f'<div style="font-size:13px;color:#2e7d32;"><b>Oportunidade:</b> {cc.get("oportunidade","")}</div>'
+            f'</div>'
+            for cc in an.get("analise_concorrentes", [])
+        )
+
+        # Campanhas
+        camp_rows = "".join(
+            f'<tr><td style="padding:10px;border-bottom:1px solid #f0f0f0;">{c.get("tipo","")}</td>'
+            f'<td style="padding:10px;border-bottom:1px solid #f0f0f0;">{c.get("objetivo","")}</td>'
+            f'<td style="padding:10px;border-bottom:1px solid #f0f0f0;">{c.get("recomendacao","")}</td></tr>'
+            for c in an.get("campanhas_ativas", [])
+        )
+
+        _fb_ranking = '<p style="color:#999;">Sem dados de criativo.</p>'
+        _fb_vazio = '<p style="color:#999;font-size:13px;">—</p>'
+        _fb_camp = '<tr><td colspan="3" style="padding:10px;color:#999;">—</td></tr>'
+
+        secoes_html += (
+            f'<div class="cliente-secao" id="cliente-{slug}" style="display:none;">'
+            f'<div style="margin-bottom:32px;">'
+            f'<h2 style="font-size:28px;font-weight:700;color:#1a237e;margin:0 0 4px;">{cl["nome"]}</h2>'
+            f'<div style="color:#666;font-size:14px;">\U0001f4c2 {cl.get("nicho","—")} &nbsp;&bull;&nbsp; '
+            f'\U0001f4c5 Semana de {semana_inicio} a {semana_fim} &nbsp;&bull;&nbsp; '
+            f'\U0001f504 Atualizado em {hoje_str}</div></div>'
+            # KPIs
+            f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px;">'
+            f'<div style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);text-align:center;">'
+            f'<div style="font-size:13px;color:#888;margin-bottom:6px;">\U0001f4b0 Total Gasto</div>'
+            f'<div style="font-size:26px;font-weight:700;color:#1a237e;">R$ {total_gasto:,.2f}</div></div>'
+            f'<div style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);text-align:center;">'
+            f'<div style="font-size:13px;color:#888;margin-bottom:6px;">\U0001f4c8 CTR Médio</div>'
+            f'<div style="font-size:26px;font-weight:700;color:#2e7d32;">{media_ctr}%</div></div>'
+            f'<div style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);text-align:center;">'
+            f'<div style="font-size:13px;color:#888;margin-bottom:6px;">\U0001f3af CPL Médio</div>'
+            f'<div style="font-size:26px;font-weight:700;color:#ff6b35;">{cpl_medio}</div></div></div>'
+            # Resumo
+            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
+            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 12px;color:#1a237e;">\U0001f4dd Resumo da Semana</h3>'
+            f'<p style="color:#444;line-height:1.7;margin:0;">{an.get("resumo_semana","")}</p></div>'
+            # Ranking
+            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
+            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f3c6 Ranking de Criativos</h3>'
+            f'{ranking_html or _fb_ranking}</div>'
+            # O que funcionou
+            f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">'
+            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
+            f'<h3 style="font-size:15px;font-weight:600;margin:0 0 16px;color:#2e7d32;">\u2705 O que funcionou</h3>'
+            f'{fun_html or _fb_vazio}</div>'
+            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);">'
+            f'<h3 style="font-size:15px;font-weight:600;margin:0 0 16px;color:#c62828;">\u274c O que não funcionou</h3>'
+            f'{nao_fun_html or _fb_vazio}</div></div>'
+            # Perfil
+            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
+            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f465 Perfil do Público</h3>'
+            f'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">'
+            f'<div style="background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">'
+            f'<div style="font-size:20px;margin-bottom:4px;">\U0001f464</div>'
+            f'<div style="font-size:11px;color:#888;margin-bottom:4px;">Gênero</div>'
+            f'<div style="font-weight:600;font-size:13px;">{perf_pub.get("genero_predominante","—")}</div></div>'
+            f'<div style="background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">'
+            f'<div style="font-size:20px;margin-bottom:4px;">\U0001f382</div>'
+            f'<div style="font-size:11px;color:#888;margin-bottom:4px;">Faixa Etária</div>'
+            f'<div style="font-weight:600;font-size:13px;">{perf_pub.get("faixa_etaria","—")}</div></div>'
+            f'<div style="background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">'
+            f'<div style="font-size:20px;margin-bottom:4px;">\U0001f4f1</div>'
+            f'<div style="font-size:11px;color:#888;margin-bottom:4px;">Posicionamento</div>'
+            f'<div style="font-weight:600;font-size:13px;">{perf_pub.get("melhor_posicionamento","—")}</div></div>'
+            f'<div style="background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">'
+            f'<div style="font-size:20px;margin-bottom:4px;">\U0001f4b0</div>'
+            f'<div style="font-size:11px;color:#888;margin-bottom:4px;">CPL Médio</div>'
+            f'<div style="font-weight:600;font-size:13px;">{perf_pub.get("cpl_medio","—")}</div></div>'
+            f'</div></div>'
+            # Hooks
+            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
+            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f4a1 Hooks Sugeridos</h3>'
+            f'{hook_tabs_html or _fb_vazio}</div>'
+            # CTAs
+            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
+            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f4e3 CTAs Sugeridos</h3>'
+            f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">{ctas_html}</div></div>'
+            # Sugestões criativos
+            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
+            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f3a8 Sugestões de Criativos</h3>'
+            f'{sug_html or _fb_vazio}</div>'
+            # Concorrentes
+            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
+            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f3e2 Análise de Concorrentes</h3>'
+            f'{conc_html or _fb_vazio}</div>'
+            # Campanhas
+            f'<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:24px;">'
+            f'<h3 style="font-size:16px;font-weight:600;margin:0 0 16px;color:#1a237e;">\U0001f4ca Campanhas Ativas</h3>'
+            f'<table style="width:100%;border-collapse:collapse;font-size:14px;">'
+            f'<tr style="background:#f8f9fa;">'
+            f'<th style="padding:10px;text-align:left;">Tipo</th>'
+            f'<th style="padding:10px;text-align:left;">Objetivo</th>'
+            f'<th style="padding:10px;text-align:left;">Recomendação</th></tr>'
+            f'{camp_rows or _fb_camp}'
+            f'</table></div>'
+            f'</div>'  # end cliente-secao
+        )
+
+    html = (
+        '<!DOCTYPE html><html lang="pt-BR"><head>'
+        '<meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+        '<title>Piloti Agency — Social Media Brief</title>'
+        '<link rel="preconnect" href="https://fonts.googleapis.com">'
+        '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">'
+        '<style>'
+        '*{box-sizing:border-box;margin:0;padding:0;}body{font-family:\'Inter\',sans-serif;background:#f8f9fa;color:#333;}a{text-decoration:none;color:inherit;}'
+        '#tela-login{position:fixed;inset:0;background:#1a237e;display:flex;align-items:center;justify-content:center;z-index:9999;}'
+        '.login-box{background:#fff;border-radius:20px;padding:48px;width:360px;text-align:center;}'
+        '.login-box h1{color:#1a237e;font-size:22px;margin-bottom:8px;}'
+        '.login-box p{color:#888;font-size:13px;margin-bottom:28px;}'
+        '.login-input{width:100%;border:2px solid #e0e0e0;border-radius:10px;padding:12px 16px;font-size:15px;margin-bottom:12px;outline:none;}'
+        '.login-input:focus{border-color:#1a237e;}'
+        '.login-btn{width:100%;background:#1a237e;color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;}'
+        '.login-btn:hover{background:#283593;}'
+        '#erro-login{display:none;color:#c62828;font-size:13px;margin-top:8px;}'
+        '#app{display:none;min-height:100vh;}'
+        '.sidebar{width:240px;background:#1a237e;color:#fff;padding:24px 0;position:fixed;height:100vh;overflow-y:auto;left:0;top:0;}'
+        '.sidebar-logo{padding:0 20px 24px;border-bottom:1px solid rgba(255,255,255,.1);}'
+        '.sidebar-logo h2{font-size:16px;font-weight:700;}'
+        '.sidebar-logo p{font-size:12px;opacity:.7;margin-top:4px;}'
+        '.sidebar-semana{padding:16px 20px;font-size:12px;opacity:.7;border-bottom:1px solid rgba(255,255,255,.1);}'
+        '.sidebar-clientes{padding:16px 0;}'
+        '.sidebar-label{padding:0 20px 8px;font-size:11px;font-weight:600;opacity:.5;letter-spacing:1px;}'
+        '.menu-item{display:block;padding:10px 20px;font-size:14px;cursor:pointer;border-left:3px solid transparent;transition:all .2s;}'
+        '.menu-item:hover,.menu-item.ativo{background:rgba(255,107,53,.2);border-left-color:#ff6b35;color:#fff;}'
+        '.sidebar-logout{padding:16px 20px;border-top:1px solid rgba(255,255,255,.1);}'
+        '.sidebar-logout button{background:transparent;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;width:100%;}'
+        '.sidebar-logout button:hover{background:rgba(255,255,255,.1);color:#fff;}'
+        '.main-content{margin-left:240px;padding:32px;min-height:100vh;}'
+        '</style></head><body>'
+        '<div id="tela-login">'
+        '<div class="login-box">'
+        '<h1>\U0001f680 Piloti Agency</h1>'
+        '<p>Social Media Brief Semanal</p>'
+        '<input id="inp-login" class="login-input" type="text" placeholder="Usuário" />'
+        '<input id="inp-senha" class="login-input" type="password" placeholder="Senha" '
+        'onkeydown="if(event.key===\'Enter\')tentarLogin()" />'
+        '<button class="login-btn" onclick="tentarLogin()">Entrar</button>'
+        '<div id="erro-login">Usuário ou senha incorretos.</div>'
+        '</div></div>'
+        '<div id="app">'
+        '<div class="sidebar">'
+        '<div class="sidebar-logo"><h2>\U0001f680 Piloti Agency</h2><p>Social Media Brief</p></div>'
+        f'<div class="sidebar-semana">\U0001f4c5 Semana de {semana_inicio} a {semana_fim}</div>'
+        '<div class="sidebar-clientes">'
+        '<div class="sidebar-label">CLIENTES</div>'
+        f'{menu_items_html}'
+        '</div>'
+        '<div class="sidebar-logout"><button onclick="logout()">\u21a9 Sair</button></div>'
+        '</div>'
+        f'<div class="main-content">{secoes_html}</div>'
+        '</div>'
+        f'<script>'
+        f'var LOGIN="{login_user}";var SENHA="{login_senha}";'
+        f'var PRIMEIRO="{primeiro_slug}";'
+        'function tentarLogin(){{'
+        'var u=document.getElementById("inp-login").value;'
+        'var s=document.getElementById("inp-senha").value;'
+        'if(u===LOGIN&&s===SENHA){{'
+        'localStorage.setItem("piloti_brief_auth","ok");'
+        'document.getElementById("tela-login").style.display="none";'
+        'document.getElementById("app").style.display="flex";'
+        'mostrarCliente(PRIMEIRO);'
+        '}}else{{document.getElementById("erro-login").style.display="block";}}'
+        '}}'
+        'function verificarLogin(){{'
+        'if(localStorage.getItem("piloti_brief_auth")==="ok"){{'
+        'document.getElementById("tela-login").style.display="none";'
+        'document.getElementById("app").style.display="flex";'
+        'mostrarCliente(PRIMEIRO);}}}}'
+        'function logout(){{localStorage.removeItem("piloti_brief_auth");location.reload();}}'
+        'function mostrarCliente(slug){{'
+        'document.querySelectorAll(".cliente-secao").forEach(function(s){{s.style.display="none";}});'
+        'var el=document.getElementById("cliente-"+slug);if(el)el.style.display="block";'
+        'document.querySelectorAll(".menu-item").forEach(function(m){{m.classList.remove("ativo");}});'
+        'var mi=document.querySelector("[data-slug=\'"+slug+"\']");if(mi)mi.classList.add("ativo");}}'
+        'function copiar(btn){{'
+        'var t=btn.getAttribute("data-text");'
+        'navigator.clipboard.writeText(t).then(function(){{'
+        'var o=btn.innerHTML;btn.innerHTML="\u2705";'
+        'setTimeout(function(){{btn.innerHTML=o;}},2000);}});}}'
+        'window.onload=function(){{verificarLogin();}};'
+        '</script></body></html>'
+    )
+    return html
+
+
+def _sb_publicar_surge(html):
+    """
+    Publica HTML no Surge.sh via CLI.
+    Retorna URL publicada.
+    """
+    import subprocess
+    import tempfile
+    surge_url = os.environ.get("SURGE_URL", "piloti-brief.surge.sh")
+    surge_token = os.environ.get("SURGE_TOKEN", "")
+    if not surge_token or surge_token == "CONFIGURE_ME":
+        raise ValueError("SURGE_TOKEN não configurado no .env. Execute 'surge token' para obtê-lo.")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        index_path = os.path.join(tmpdir, "index.html")
+        with open(index_path, "w", encoding="utf-8") as f:
+            f.write(html)
+        cmd = ["surge", tmpdir, surge_url, "--token", surge_token]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+        if result.returncode != 0:
+            raise RuntimeError(f"Surge error: {result.stderr or result.stdout}")
+    return f"https://{surge_url}"
+
+
 # ── Social Brief — CRUD de clientes ─────────────────────────────────────────
 
 @app.route("/api/social-brief/clientes", methods=["GET"])
