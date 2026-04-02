@@ -3737,6 +3737,78 @@ def _sb_ler_perfil_html(slug):
         return ""
 
 
+def _sb_gerar_analise_claude(cliente, dados_meta, perfil_texto, conteudo_pesquisa):
+    """
+    Chama Claude Sonnet para gerar análise completa do cliente.
+    Retorna dict parseado do JSON retornado pelo modelo.
+    """
+    _ant = _anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+    system_prompt = (
+        "Você é um estrategista sênior de tráfego pago especializado em performance de "
+        "criativos para Meta Ads e social media. Analise os dados e retorne APENAS JSON "
+        "válido, sem markdown, sem texto adicional, sem blocos de código.\n\n"
+        "Estrutura obrigatória:\n"
+        '{"resumo_semana":"análise em 3-4 linhas",'
+        '"ranking_criativos":[{"posicao":1,"nome":"...","thumbnail_url":"...",'
+        '"destaque":"por que performou em 1 frase","metricas":{"ctr":"2.45%",'
+        '"cliques":1203,"cpl":"R$ 12,50","gasto":"R$ 150,00"}}],'
+        '"o_que_funcionou":["insight 1","insight 2","insight 3"],'
+        '"o_que_nao_funcionou":["ponto 1","ponto 2"],'
+        '"perfil_publico":{"genero_predominante":"...","faixa_etaria":"...",'
+        '"melhor_posicionamento":"...","cpl_medio":"R$ X,XX"},'
+        '"hooks_sugeridos":{"localizacao":["hook 1","hook 2","hook 3"],'
+        '"genero":["hook 1","hook 2","hook 3"],"idade":["hook 1","hook 2","hook 3"],'
+        '"dor_principal":["hook 1","hook 2","hook 3"]},'
+        '"ctas_sugeridos":{"mensagem":["CTA 1","CTA 2"],"visita_perfil":["CTA 1","CTA 2"],'
+        '"lead":["CTA 1","CTA 2"]},'
+        '"sugestoes_criativos":[{"tipo":"video/imagem/carrossel","conceito":"...",'
+        '"hook":"...","referencia":"..."}],'
+        '"analise_concorrentes":[{"nome":"...","o_que_fazem":"...","oportunidade":"..."}],'
+        '"campanhas_ativas":[{"tipo":"...","objetivo":"...","recomendacao":"..."}]}'
+    )
+    user_prompt = (
+        f"Cliente: {cliente['nome']}\n"
+        f"Nicho: {cliente.get('nicho', 'não informado')}\n\n"
+        f"=== META ADS — ÚLTIMA SEMANA ===\n{json.dumps(dados_meta, ensure_ascii=False)}\n\n"
+        f"=== PERFIL HISTÓRICO DO PÚBLICO ===\n{perfil_texto or 'Não disponível'}\n\n"
+        f"=== PESQUISA DE CONCORRENTES ===\n{conteudo_pesquisa}\n\n"
+        f"=== CAMPANHAS ATIVAS ===\n{json.dumps(cliente.get('tipos_campanha', {}), ensure_ascii=False)}\n\n"
+        f"Hooks e CTAs devem ser específicos para o nicho {cliente.get('nicho', '')}.\n"
+        f"Valores monetários em formato brasileiro (R$ X,XX)."
+    )
+    _fallback = {
+        "resumo_semana": "Análise indisponível.",
+        "ranking_criativos": [],
+        "o_que_funcionou": [],
+        "o_que_nao_funcionou": [],
+        "perfil_publico": {},
+        "hooks_sugeridos": {},
+        "ctas_sugeridos": {},
+        "sugestoes_criativos": [],
+        "analise_concorrentes": [],
+        "campanhas_ativas": [],
+    }
+    try:
+        resp = _ant.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": user_prompt}],
+            system=system_prompt,
+        )
+        raw = resp.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        _fallback["resumo_semana"] = "Análise indisponível (erro de formato)."
+        return _fallback
+    except Exception as e:
+        _fallback["resumo_semana"] = f"Erro na análise: {str(e)}"
+        return _fallback
+
+
 # ── Social Brief — CRUD de clientes ─────────────────────────────────────────
 
 @app.route("/api/social-brief/clientes", methods=["GET"])
