@@ -4858,6 +4858,172 @@ Estrutura JSON obrigatória:
         conn.close()
 
 
+@app.route("/api/nutricao/cardapios")
+@login_required
+def nutricao_listar_cardapios():
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, semana_inicio, semana_fim, status, criado_em, aprovado_em
+            FROM nutricao_cardapios ORDER BY criado_em DESC LIMIT 20
+        """)
+        rows = []
+        for r in cur.fetchall():
+            d = dict(r)
+            for k in ['semana_inicio', 'semana_fim']:
+                if d.get(k):
+                    d[k] = str(d[k])
+            for k in ['criado_em', 'aprovado_em']:
+                if d.get(k):
+                    d[k] = d[k].isoformat()
+            rows.append(d)
+        return jsonify({'cardapios': rows})
+    finally:
+        conn.close()
+
+
+@app.route("/api/nutricao/cardapios/<int:cardapio_id>")
+@login_required
+def nutricao_get_cardapio(cardapio_id):
+    import json as _json
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM nutricao_cardapios WHERE id = %s", (cardapio_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'error': 'não encontrado'}), 404
+        d = dict(row)
+        for k in ['semana_inicio', 'semana_fim']:
+            if d.get(k): d[k] = str(d[k])
+        for k in ['criado_em', 'aprovado_em']:
+            if d.get(k): d[k] = d[k].isoformat()
+        return jsonify(d)
+    finally:
+        conn.close()
+
+
+@app.route("/api/nutricao/cardapios/<int:cardapio_id>/aprovar", methods=["PATCH"])
+@login_required
+def nutricao_aprovar_cardapio(cardapio_id):
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE nutricao_cardapios
+            SET status='aprovado', aprovado_em=NOW()
+            WHERE id=%s
+            RETURNING cardapio_json
+        """, (cardapio_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'error': 'não encontrado'}), 404
+        conn.commit()
+        return jsonify({'ok': True})
+    finally:
+        conn.close()
+
+
+@app.route("/api/nutricao/cardapios/<int:cardapio_id>/editar-refeicao", methods=["PATCH"])
+@login_required
+def nutricao_editar_refeicao(cardapio_id):
+    import json as _json
+    data = request.get_json() or {}
+    dia_nome = data.get('dia')           # ex: 'Segunda-feira'
+    tipo = data.get('refeicao')          # ex: 'almoco'
+    novo_conteudo = data.get('novo_conteudo', {})
+
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT cardapio_json FROM nutricao_cardapios WHERE id=%s", (cardapio_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'error': 'não encontrado'}), 404
+
+        cardapio = dict(row['cardapio_json']) if row['cardapio_json'] else {}
+        for dia in cardapio.get('dias', []):
+            if dia.get('dia') == dia_nome:
+                if 'refeicoes' not in dia:
+                    dia['refeicoes'] = {}
+                dia['refeicoes'][tipo] = novo_conteudo
+                break
+
+        cur.execute("""
+            UPDATE nutricao_cardapios
+            SET cardapio_json=%s, status='revisao'
+            WHERE id=%s
+        """, (_json.dumps(cardapio), cardapio_id))
+        conn.commit()
+        return jsonify({'ok': True, 'cardapio': cardapio})
+    finally:
+        conn.close()
+
+
+@app.route("/api/nutricao/lista-compras/<int:cardapio_id>", methods=["POST"])
+@login_required
+def nutricao_gerar_lista_compras(cardapio_id):
+    import json as _json
+
+    client = _anthropic_client()
+    if not client:
+        return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
+
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT cardapio_json FROM nutricao_cardapios WHERE id=%s", (cardapio_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'error': 'cardápio não encontrado'}), 404
+
+        cardapio_json = row['cardapio_json']
+
+        msg = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=3000,
+            system="Você é um assistente de compras. Analise o cardápio e retorne APENAS JSON com a lista de compras consolidada, agrupada por categoria de supermercado, com quantidades somadas para a semana toda (2 pessoas). Sem markdown, sem texto adicional.",
+            messages=[{"role": "user", "content": f"""Cardápio: {_json.dumps(cardapio_json, ensure_ascii=False)}
+
+Retorne JSON nessa estrutura:
+{{
+  "categorias": [
+    {{"nome": "Proteínas", "emoji": "🥩", "itens": [{{"item": "Filé de frango", "quantidade": "1,5kg", "observacao": "para a semana toda"}}]}},
+    {{"nome": "Carboidratos", "emoji": "🌾", "itens": [...]}},
+    {{"nome": "Laticínios", "emoji": "🧀", "itens": [...]}},
+    {{"nome": "Frutas", "emoji": "🍎", "itens": [...]}},
+    {{"nome": "Verduras e Legumes", "emoji": "🥦", "itens": [...]}},
+    {{"nome": "Lanches e Extras", "emoji": "🧁", "itens": [...]}},
+    {{"nome": "Temperos e Condimentos", "emoji": "🧂", "itens": [...]}}
+  ],
+  "total_estimado_itens": 0,
+  "dica": "dica rápida de organização das compras"
+}}"""}]
+        )
+
+        texto = msg.content[0].text.strip()
+        match = _re.search(r'```(?:json)?\s*([\s\S]*?)```', texto)
+        if match:
+            texto = match.group(1).strip()
+        lista_json = _json.loads(texto)
+
+        cur.execute("""
+            UPDATE nutricao_cardapios
+            SET lista_compras_json=%s WHERE id=%s
+        """, (_json.dumps(lista_json), cardapio_id))
+        conn.commit()
+
+        return jsonify({'ok': True, 'lista': lista_json})
+    except _json.JSONDecodeError as e:
+        return jsonify({'error': f'JSON inválido: {str(e)}'}), 500
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
     ip   = _local_ip()
