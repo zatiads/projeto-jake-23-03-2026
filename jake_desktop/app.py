@@ -263,6 +263,46 @@ def _init_nutricao_tables():
         conn.close()
 
 
+# ── NUTRIÇÃO: Cálculos ────────────────────────────────────────────────────────
+
+def _calcular_imc(peso, altura):
+    """Retorna IMC arredondado para 1 casa."""
+    if not peso or not altura:
+        return 0
+    return round(float(peso) / ((float(altura) / 100) ** 2), 1)
+
+def _calcular_tmb(sexo, peso, altura, idade):
+    """Fórmula Mifflin-St Jeor."""
+    if not all([peso, altura, idade]):
+        return 0
+    base = (10 * float(peso)) + (6.25 * float(altura)) - (5 * int(idade))
+    return base + 5 if sexo == 'M' else base - 161
+
+def _calcular_get(tmb, nivel_atividade):
+    fatores = {'sedentario': 1.2, 'moderado': 1.55, 'intenso': 1.725}
+    return float(tmb) * fatores.get(nivel_atividade, 1.55)
+
+def _calcular_macros(objetivo, get, peso):
+    """Retorna dict com calorias, proteina, carbo, gordura."""
+    if objetivo == 'hipertrofia':
+        meta_cal = get + 400
+        proteina = float(peso) * 2.0
+    elif objetivo == 'emagrecimento':
+        meta_cal = get - 400
+        proteina = float(peso) * 2.2
+    else:  # manutencao
+        meta_cal = get
+        proteina = float(peso) * 1.8
+    gordura = (meta_cal * 0.25) / 9
+    carbo = (meta_cal - (proteina * 4) - (gordura * 9)) / 4
+    return {
+        'calorias': int(meta_cal),
+        'proteina': int(proteina),
+        'carbo': int(max(carbo, 0)),
+        'gordura': int(gordura),
+    }
+
+
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.environ.get("SESSION_SECRET") or _secrets.token_hex(32)
 
@@ -4581,6 +4621,79 @@ def sb_download_html(geracao_id):
         resp.headers["Content-Type"] = "text/html; charset=utf-8"
         resp.headers["Content-Disposition"] = f'attachment; filename="piloti-brief-{geracao_id}.html"'
         return resp
+    finally:
+        conn.close()
+
+
+# ── NUTRIÇÃO: Rotas Perfis ────────────────────────────────────────────────────
+
+@app.route("/api/nutricao/perfis")
+@login_required
+def nutricao_get_perfis():
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM nutricao_perfis ORDER BY id")
+        perfis = [dict(r) for r in cur.fetchall()]
+        for p in perfis:
+            if p.get('peso') and p.get('altura'):
+                p['imc'] = _calcular_imc(p['peso'], p['altura'])
+            else:
+                p['imc'] = None
+            # converter Decimal para float para JSON
+            for k in ['peso', 'altura', 'tmb', 'get', 'meta_calorica',
+                      'meta_proteina', 'meta_carbo', 'meta_gordura']:
+                if p.get(k) is not None:
+                    p[k] = float(p[k])
+        return jsonify({'perfis': perfis})
+    finally:
+        conn.close()
+
+
+@app.route("/api/nutricao/perfis/<int:perfil_id>", methods=["POST"])
+@login_required
+def nutricao_update_perfil(perfil_id):
+    data = request.get_json() or {}
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM nutricao_perfis WHERE id = %s", (perfil_id,))
+        perfil = dict(cur.fetchone())
+
+        # Atualiza campos enviados
+        campos = ['idade', 'peso', 'altura', 'objetivo', 'nivel_atividade',
+                  'preferencias', 'aversoes']
+        for campo in campos:
+            if campo in data:
+                perfil[campo] = data[campo]
+
+        # Recalcula TMB/GET/macros
+        tmb = _calcular_tmb(
+            perfil.get('sexo', 'M'),
+            perfil.get('peso'), perfil.get('altura'), perfil.get('idade')
+        )
+        get = _calcular_get(tmb, perfil.get('nivel_atividade', 'intenso'))
+        macros = _calcular_macros(
+            perfil.get('objetivo', 'hipertrofia'), get, perfil.get('peso', 70)
+        )
+
+        cur.execute("""
+            UPDATE nutricao_perfis SET
+                idade=%s, peso=%s, altura=%s, objetivo=%s,
+                nivel_atividade=%s, preferencias=%s, aversoes=%s,
+                tmb=%s, get=%s, meta_calorica=%s, meta_proteina=%s,
+                meta_carbo=%s, meta_gordura=%s, atualizado_em=NOW()
+            WHERE id=%s
+        """, (
+            perfil.get('idade'), perfil.get('peso'), perfil.get('altura'),
+            perfil.get('objetivo'), perfil.get('nivel_atividade'),
+            perfil.get('preferencias'), perfil.get('aversoes'),
+            tmb, get, macros['calorias'], macros['proteina'],
+            macros['carbo'], macros['gordura'],
+            perfil_id
+        ))
+        conn.commit()
+        return jsonify({'ok': True, 'tmb': tmb, 'get': get, **macros})
     finally:
         conn.close()
 
