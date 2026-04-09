@@ -1805,12 +1805,12 @@
           </div>
 
           <!-- Área do cardápio (aparece após gerar) -->
-          <div id="nutr-cardapio-area" class="nutr-hidden">
+          <div id="nutr-cardapio-area" class="nutr-cardapio-area nutr-hidden">
             <div class="nutr-status-bar">
               <span class="nutr-semana-label" id="nutr-semana-label">—</span>
               <span id="nutr-status-badge" class="nutr-badge nutr-badge-revisao">Revisão</span>
-              <button class="btn-outline btn-sm" onclick="nutricaoGerarCardapio()" style="font-size:12px;">🔄 Gerar novo</button>
-              <button class="btn-neon btn-sm" onclick="nutricaoAprovarCardapio()" id="nutr-btn-aprovar" style="font-size:12px;">✅ Aprovar cardápio</button>
+              <button class="btn-outline btn-sm" onclick="nutricaoGerarCardapio()">🔄 Gerar novo</button>
+              <button class="btn-neon btn-sm" onclick="nutricaoAprovarCardapio()" id="nutr-btn-aprovar">✅ Aprovar cardápio</button>
             </div>
 
             <!-- Navegação por dia -->
@@ -2022,6 +2022,12 @@
 
 .nutr-hidden { display: none !important; }
 .btn-mini { background: none; border: 1px solid rgba(0,229,255,0.3); color: #00e5ff; border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
+
+/* Form elements (nutricao) */
+.config-label { display: block; font-size: 12px; color: #546e7a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; font-family: 'Rajdhani', sans-serif; }
+.input-dark { background: rgba(10,18,32,.9); border: 1px solid rgba(0,229,255,0.2); border-radius: 8px; padding: 10px 12px; color: #eceff1; font-size: 14px; outline: none; width: 100%; box-sizing: border-box; }
+.input-dark:focus { border-color: #00e5ff; }
+.btn-sm { padding: 4px 10px !important; font-size: 12px !important; }
   </style>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   <script src="{{ url_for('static', filename='js/architect.js') }}"></script>
