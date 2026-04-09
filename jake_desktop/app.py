@@ -4918,6 +4918,7 @@ def nutricao_aprovar_cardapio(cardapio_id):
         """, (cardapio_id,))
         row = cur.fetchone()
         if not row:
+            conn.rollback()
             return jsonify({'error': 'não encontrado'}), 404
         conn.commit()
         return jsonify({'ok': True})
@@ -4934,6 +4935,9 @@ def nutricao_editar_refeicao(cardapio_id):
     tipo = data.get('refeicao')          # ex: 'almoco'
     novo_conteudo = data.get('novo_conteudo', {})
 
+    if not dia_nome or not tipo:
+        return jsonify({'error': 'campos obrigatórios: dia, refeicao, novo_conteudo'}), 400
+
     conn = _get_db()
     try:
         cur = conn.cursor()
@@ -4942,13 +4946,19 @@ def nutricao_editar_refeicao(cardapio_id):
         if not row:
             return jsonify({'error': 'não encontrado'}), 404
 
-        cardapio = dict(row['cardapio_json']) if row['cardapio_json'] else {}
+        import copy
+        cardapio = copy.deepcopy(row['cardapio_json']) if row['cardapio_json'] else {}
+        dia_encontrado = False
         for dia in cardapio.get('dias', []):
             if dia.get('dia') == dia_nome:
                 if 'refeicoes' not in dia:
                     dia['refeicoes'] = {}
                 dia['refeicoes'][tipo] = novo_conteudo
+                dia_encontrado = True
                 break
+
+        if not dia_encontrado:
+            return jsonify({'error': f'dia não encontrado: {dia_nome}'}), 404
 
         cur.execute("""
             UPDATE nutricao_cardapios
@@ -5016,6 +5026,7 @@ Retorne JSON nessa estrutura:
 
         return jsonify({'ok': True, 'lista': lista_json})
     except _json.JSONDecodeError as e:
+        conn.rollback()
         return jsonify({'error': f'JSON inválido: {str(e)}'}), 500
     except Exception as e:
         conn.rollback()
