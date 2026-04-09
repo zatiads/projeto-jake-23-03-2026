@@ -5052,6 +5052,8 @@ def nutricao_exportar_whatsapp(cardapio_id):
 
         # Formatar datas dd/mm
         def fmt_data(d):
+            if not d or d == '—':
+                return d or '—'
             parts = d.split('-')
             return f"{parts[2]}/{parts[1]}" if len(parts) == 3 else d
 
@@ -5067,7 +5069,7 @@ def nutricao_exportar_whatsapp(cardapio_id):
             linhas.append(f"{cat.get('emoji', '•')} *{cat['nome'].upper()}*")
             for item in cat['itens']:
                 qtd = f" — {item['quantidade']}" if item.get('quantidade') else ''
-                linhas.append(f"☐ {item['item']}{qtd}")
+                linhas.append(f"☐ {item.get('item', '?')}{qtd}")
             linhas.append("")
 
         if lista.get('dica'):
@@ -5084,6 +5086,7 @@ def nutricao_exportar_whatsapp(cardapio_id):
 @app.route("/api/nutricao/exportar-pdf/<int:cardapio_id>")
 @login_required
 def nutricao_exportar_pdf(cardapio_id):
+    from html import escape as _he
     conn = _get_db()
     try:
         cur = conn.cursor()
@@ -5097,6 +5100,8 @@ def nutricao_exportar_pdf(cardapio_id):
         sem_fim = str(row['semana_fim'])[:10] if row['semana_fim'] else ''
 
         def fmt_data(d):
+            if not d or d == '—':
+                return d or '—'
             parts = d.split('-')
             return f"{parts[2]}/{parts[1]}/{parts[0]}" if len(parts) == 3 else d
 
@@ -5106,7 +5111,7 @@ def nutricao_exportar_pdf(cardapio_id):
             r = dia.get('refeicoes', {})
             dias_html += f"""
             <div class="dia">
-              <h3 class="dia-nome">{dia.get('dia', '')}</h3>
+              <h3 class="dia-nome">{_he(str(dia.get('dia', '') or ''))}</h3>
               <table>
                 <thead><tr><th>Refeição</th><th>Descrição</th><th>Bruno</th><th>Camila</th></tr></thead>
                 <tbody>"""
@@ -5116,40 +5121,40 @@ def nutricao_exportar_pdf(cardapio_id):
                 ref = r.get(tipo, {})
                 if not ref: continue
                 if tipo in ('almoco', 'janta'):
-                    descricao = f"{ref.get('prato_principal','—')}<br><small>{ref.get('acompanhamento','')} {ref.get('verdura','')}</small>"
+                    descricao = f"{_he(str(ref.get('prato_principal','—') or '—'))}<br><small>{_he(str(ref.get('acompanhamento','') or ''))} {_he(str(ref.get('verdura','') or ''))}</small>"
                     congelavel = ' 🧊' if ref.get('congelavel') else ''
-                    descricao += f"<br><small>{ref.get('tempo_preparo','')}{congelavel}</small>"
-                    bruno_info = f"{ref.get('bruno',{}).get('porcao','—')}<br><small>{ref.get('bruno',{}).get('calorias','—')} kcal | {ref.get('bruno',{}).get('proteina','—')}</small>"
-                    camila_info = f"{ref.get('camila',{}).get('porcao','—')}<br><small>{ref.get('camila',{}).get('calorias','—')} kcal | {ref.get('camila',{}).get('proteina','—')}</small>"
+                    descricao += f"<br><small>{_he(str(ref.get('tempo_preparo','') or ''))}{congelavel}</small>"
+                    bruno_info = f"{_he(str(ref.get('bruno',{}).get('porcao','—') or '—'))}<br><small>{_he(str(ref.get('bruno',{}).get('calorias','—') or '—'))} kcal | {_he(str(ref.get('bruno',{}).get('proteina','—') or '—'))}</small>"
+                    camila_info = f"{_he(str(ref.get('camila',{}).get('porcao','—') or '—'))}<br><small>{_he(str(ref.get('camila',{}).get('calorias','—') or '—'))} kcal | {_he(str(ref.get('camila',{}).get('proteina','—') or '—'))}</small>"
                 else:
-                    descricao = ref.get('descricao', '—')
+                    descricao = _he(str(ref.get('descricao', '—') or '—'))
                     congelavel = ' 🧊' if ref.get('congelavel') else ''
                     descricao += congelavel
-                    bruno_info = f"{ref.get('bruno',{}).get('porcao','—')}<br><small>{ref.get('bruno',{}).get('calorias','—')} kcal</small>"
-                    camila_info = f"{ref.get('camila',{}).get('porcao','—')}<br><small>{ref.get('camila',{}).get('calorias','—')} kcal</small>"
+                    bruno_info = f"{_he(str(ref.get('bruno',{}).get('porcao','—') or '—'))}<br><small>{_he(str(ref.get('bruno',{}).get('calorias','—') or '—'))} kcal</small>"
+                    camila_info = f"{_he(str(ref.get('camila',{}).get('porcao','—') or '—'))}<br><small>{_he(str(ref.get('camila',{}).get('calorias','—') or '—'))} kcal</small>"
 
                 dias_html += f"<tr><td><b>{label}</b></td><td>{descricao}</td><td>{bruno_info}</td><td>{camila_info}</td></tr>"
 
             suco = r.get('suco_dia', {})
             fruta = r.get('fruta_dia', '')
             if suco:
-                ingredientes = ', '.join(suco.get('ingredientes', []))
-                dias_html += f"<tr><td>🥤 Suco</td><td>{suco.get('nome','—')}<br><small>{ingredientes}</small></td><td colspan='2'>{suco.get('beneficio','')}</td></tr>"
+                ingredientes = ', '.join(_he(str(ing or '')) for ing in suco.get('ingredientes', []))
+                dias_html += f"<tr><td>🥤 Suco</td><td>{_he(str(suco.get('nome','—') or '—'))}<br><small>{ingredientes}</small></td><td colspan='2'>{_he(str(suco.get('beneficio','') or ''))}</td></tr>"
             if fruta:
-                dias_html += f"<tr><td>🍎 Fruta</td><td colspan='3'>{fruta}</td></tr>"
+                dias_html += f"<tr><td>🍎 Fruta</td><td colspan='3'>{_he(str(fruta or ''))}</td></tr>"
 
             dias_html += "</tbody></table></div>"
 
         # Receitas detalhadas
         receitas_html = ""
         for rec in cardapio.get('receitas_detalhadas', []):
-            ingredientes_li = ''.join(f"<li>{i.get('item','')} — {i.get('quantidade','')}</li>" for i in rec.get('ingredientes', []))
-            passos_li = ''.join(f"<li>{p}</li>" for p in rec.get('modo_preparo', []))
+            ingredientes_li = ''.join(f"<li>{_he(str(i.get('item','') or ''))} — {_he(str(i.get('quantidade','') or ''))}</li>" for i in rec.get('ingredientes', []))
+            passos_li = ''.join(f"<li>{_he(str(p or ''))}</li>" for p in rec.get('modo_preparo', []))
             congelavel = ' 🧊 Congelável' if rec.get('congelavel') else ''
             receitas_html += f"""
             <div class="receita">
-              <h4>{rec.get('nome','')}{congelavel}</h4>
-              <p><small>⏱ {rec.get('tempo','')} • Rende: {rec.get('rende','')} • Freezer: {rec.get('validade_freezer','')}</small></p>
+              <h4>{_he(str(rec.get('nome','') or ''))}{congelavel}</h4>
+              <p><small>⏱ {_he(str(rec.get('tempo','') or ''))} • Rende: {_he(str(rec.get('rende','') or ''))} • Freezer: {_he(str(rec.get('validade_freezer','') or ''))}</small></p>
               <div class="receita-cols">
                 <div><strong>Ingredientes</strong><ul>{ingredientes_li}</ul></div>
                 <div><strong>Modo de Preparo</strong><ol>{passos_li}</ol></div>
@@ -5157,13 +5162,13 @@ def nutricao_exportar_pdf(cardapio_id):
             </div>"""
 
         # Dicas
-        dicas_html = ''.join(f"<li>{d}</li>" for d in cardapio.get('dicas_preparo', []))
+        dicas_html = ''.join(f"<li>{_he(str(d or ''))}</li>" for d in cardapio.get('dicas_preparo', []))
 
         html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Cardápio — {fmt_data(sem_ini)} a {fmt_data(sem_fim)}</title>
+<title>Cardápio — {_he(fmt_data(sem_ini))} a {_he(fmt_data(sem_fim))}</title>
 <style>
   body {{ font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 20px; }}
   h1 {{ color: #2e7d32; font-size: 22px; margin-bottom: 4px; }}
@@ -5189,14 +5194,14 @@ def nutricao_exportar_pdf(cardapio_id):
 </head>
 <body>
   <h1>🥗 Cardápio Semanal</h1>
-  <p><strong>Semana:</strong> {fmt_data(sem_ini)} a {fmt_data(sem_fim)} &nbsp;|&nbsp; <strong>Bruno &amp; Camila</strong> &nbsp;|&nbsp; Foco: Hipertrofia</p>
+  <p><strong>Semana:</strong> {_he(fmt_data(sem_ini))} a {_he(fmt_data(sem_fim))} &nbsp;|&nbsp; <strong>Bruno &amp; Camila</strong> &nbsp;|&nbsp; Foco: Hipertrofia</p>
   <h2>📅 Cardápio Dia a Dia</h2>
   {dias_html}
   <h2>👨‍🍳 Receitas Detalhadas</h2>
   {receitas_html}
   <h2>💡 Dicas de Preparo e Congelamento</h2>
   <div class="dicas"><ul>{dicas_html}</ul></div>
-  <footer>Gerado pelo Jake OS &nbsp;•&nbsp; Piloti &nbsp;•&nbsp; {fmt_data(sem_ini)} a {fmt_data(sem_fim)}</footer>
+  <footer>Gerado pelo Jake OS &nbsp;•&nbsp; Piloti &nbsp;•&nbsp; {_he(fmt_data(sem_ini))} a {_he(fmt_data(sem_fim))}</footer>
 </body>
 </html>"""
 
