@@ -5035,6 +5035,181 @@ Retorne JSON nessa estrutura:
         conn.close()
 
 
+@app.route("/api/nutricao/exportar-whatsapp/<int:cardapio_id>")
+@login_required
+def nutricao_exportar_whatsapp(cardapio_id):
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT lista_compras_json, semana_inicio, semana_fim FROM nutricao_cardapios WHERE id=%s", (cardapio_id,))
+        row = cur.fetchone()
+        if not row or not row['lista_compras_json']:
+            return jsonify({'error': 'lista de compras não gerada ainda'}), 404
+
+        lista = row['lista_compras_json']
+        sem_ini = str(row['semana_inicio'])[:10] if row['semana_inicio'] else '—'
+        sem_fim = str(row['semana_fim'])[:10] if row['semana_fim'] else '—'
+
+        # Formatar datas dd/mm
+        def fmt_data(d):
+            parts = d.split('-')
+            return f"{parts[2]}/{parts[1]}" if len(parts) == 3 else d
+
+        linhas = [
+            f"🛒 *LISTA DE COMPRAS — Semana {fmt_data(sem_ini)} a {fmt_data(sem_fim)}*",
+            "_Cardápio de hipertrofia para 2 pessoas_",
+            "",
+        ]
+
+        for cat in lista.get('categorias', []):
+            if not cat.get('itens'):
+                continue
+            linhas.append(f"{cat.get('emoji', '•')} *{cat['nome'].upper()}*")
+            for item in cat['itens']:
+                qtd = f" — {item['quantidade']}" if item.get('quantidade') else ''
+                linhas.append(f"☐ {item['item']}{qtd}")
+            linhas.append("")
+
+        if lista.get('dica'):
+            linhas.append(f"💡 _{lista['dica']}_")
+            linhas.append("")
+
+        linhas.append("✅ _Gerado pelo Jake OS • Piloti_")
+
+        return jsonify({'texto': '\n'.join(linhas), 'sucesso': True})
+    finally:
+        conn.close()
+
+
+@app.route("/api/nutricao/exportar-pdf/<int:cardapio_id>")
+@login_required
+def nutricao_exportar_pdf(cardapio_id):
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM nutricao_cardapios WHERE id=%s", (cardapio_id,))
+        row = cur.fetchone()
+        if not row:
+            return "Cardápio não encontrado", 404
+
+        cardapio = row['cardapio_json'] or {}
+        sem_ini = str(row['semana_inicio'])[:10] if row['semana_inicio'] else ''
+        sem_fim = str(row['semana_fim'])[:10] if row['semana_fim'] else ''
+
+        def fmt_data(d):
+            parts = d.split('-')
+            return f"{parts[2]}/{parts[1]}/{parts[0]}" if len(parts) == 3 else d
+
+        # Montar HTML das refeições por dia
+        dias_html = ""
+        for dia in cardapio.get('dias', []):
+            r = dia.get('refeicoes', {})
+            dias_html += f"""
+            <div class="dia">
+              <h3 class="dia-nome">{dia.get('dia', '')}</h3>
+              <table>
+                <thead><tr><th>Refeição</th><th>Descrição</th><th>Bruno</th><th>Camila</th></tr></thead>
+                <tbody>"""
+
+            for tipo, label in [('cafe_manha','☀️ Café da Manhã'), ('almoco','🍽 Almoço'),
+                                 ('cafe_tarde','🫖 Café da Tarde'), ('janta','🌙 Janta')]:
+                ref = r.get(tipo, {})
+                if not ref: continue
+                if tipo in ('almoco', 'janta'):
+                    descricao = f"{ref.get('prato_principal','—')}<br><small>{ref.get('acompanhamento','')} {ref.get('verdura','')}</small>"
+                    congelavel = ' 🧊' if ref.get('congelavel') else ''
+                    descricao += f"<br><small>{ref.get('tempo_preparo','')}{congelavel}</small>"
+                    bruno_info = f"{ref.get('bruno',{}).get('porcao','—')}<br><small>{ref.get('bruno',{}).get('calorias','—')} kcal | {ref.get('bruno',{}).get('proteina','—')}</small>"
+                    camila_info = f"{ref.get('camila',{}).get('porcao','—')}<br><small>{ref.get('camila',{}).get('calorias','—')} kcal | {ref.get('camila',{}).get('proteina','—')}</small>"
+                else:
+                    descricao = ref.get('descricao', '—')
+                    congelavel = ' 🧊' if ref.get('congelavel') else ''
+                    descricao += congelavel
+                    bruno_info = f"{ref.get('bruno',{}).get('porcao','—')}<br><small>{ref.get('bruno',{}).get('calorias','—')} kcal</small>"
+                    camila_info = f"{ref.get('camila',{}).get('porcao','—')}<br><small>{ref.get('camila',{}).get('calorias','—')} kcal</small>"
+
+                dias_html += f"<tr><td><b>{label}</b></td><td>{descricao}</td><td>{bruno_info}</td><td>{camila_info}</td></tr>"
+
+            suco = r.get('suco_dia', {})
+            fruta = r.get('fruta_dia', '')
+            if suco:
+                ingredientes = ', '.join(suco.get('ingredientes', []))
+                dias_html += f"<tr><td>🥤 Suco</td><td>{suco.get('nome','—')}<br><small>{ingredientes}</small></td><td colspan='2'>{suco.get('beneficio','')}</td></tr>"
+            if fruta:
+                dias_html += f"<tr><td>🍎 Fruta</td><td colspan='3'>{fruta}</td></tr>"
+
+            dias_html += "</tbody></table></div>"
+
+        # Receitas detalhadas
+        receitas_html = ""
+        for rec in cardapio.get('receitas_detalhadas', []):
+            ingredientes_li = ''.join(f"<li>{i.get('item','')} — {i.get('quantidade','')}</li>" for i in rec.get('ingredientes', []))
+            passos_li = ''.join(f"<li>{p}</li>" for p in rec.get('modo_preparo', []))
+            congelavel = ' 🧊 Congelável' if rec.get('congelavel') else ''
+            receitas_html += f"""
+            <div class="receita">
+              <h4>{rec.get('nome','')}{congelavel}</h4>
+              <p><small>⏱ {rec.get('tempo','')} • Rende: {rec.get('rende','')} • Freezer: {rec.get('validade_freezer','')}</small></p>
+              <div class="receita-cols">
+                <div><strong>Ingredientes</strong><ul>{ingredientes_li}</ul></div>
+                <div><strong>Modo de Preparo</strong><ol>{passos_li}</ol></div>
+              </div>
+            </div>"""
+
+        # Dicas
+        dicas_html = ''.join(f"<li>{d}</li>" for d in cardapio.get('dicas_preparo', []))
+
+        html = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Cardápio — {fmt_data(sem_ini)} a {fmt_data(sem_fim)}</title>
+<style>
+  body {{ font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 20px; }}
+  h1 {{ color: #2e7d32; font-size: 22px; margin-bottom: 4px; }}
+  h2 {{ color: #388e3c; font-size: 16px; border-bottom: 2px solid #81c784; padding-bottom: 4px; margin-top: 24px; }}
+  h3.dia-nome {{ background: #e8f5e9; padding: 8px 12px; color: #1b5e20; font-size: 14px; margin: 16px 0 6px; border-left: 4px solid #43a047; }}
+  h4 {{ color: #2e7d32; margin: 10px 0 4px; }}
+  table {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 11px; }}
+  th {{ background: #43a047; color: white; padding: 6px 8px; text-align: left; }}
+  td {{ padding: 5px 8px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }}
+  tr:nth-child(even) td {{ background: #f9fbe7; }}
+  .receita {{ background: #f1f8e9; border-radius: 6px; padding: 12px; margin-bottom: 12px; }}
+  .receita-cols {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
+  ul, ol {{ padding-left: 18px; margin: 4px 0; }}
+  li {{ margin-bottom: 2px; }}
+  .dicas {{ background: #fff8e1; padding: 12px; border-radius: 6px; }}
+  footer {{ text-align: center; color: #999; font-size: 10px; margin-top: 24px; border-top: 1px solid #eee; padding-top: 8px; }}
+  @media print {{
+    body {{ padding: 10px; }}
+    h3.dia-nome {{ page-break-before: auto; }}
+    .receita {{ page-break-inside: avoid; }}
+  }}
+</style>
+</head>
+<body>
+  <h1>🥗 Cardápio Semanal</h1>
+  <p><strong>Semana:</strong> {fmt_data(sem_ini)} a {fmt_data(sem_fim)} &nbsp;|&nbsp; <strong>Bruno &amp; Camila</strong> &nbsp;|&nbsp; Foco: Hipertrofia</p>
+  <h2>📅 Cardápio Dia a Dia</h2>
+  {dias_html}
+  <h2>👨‍🍳 Receitas Detalhadas</h2>
+  {receitas_html}
+  <h2>💡 Dicas de Preparo e Congelamento</h2>
+  <div class="dicas"><ul>{dicas_html}</ul></div>
+  <footer>Gerado pelo Jake OS &nbsp;•&nbsp; Piloti &nbsp;•&nbsp; {fmt_data(sem_ini)} a {fmt_data(sem_fim)}</footer>
+</body>
+</html>"""
+
+        from flask import Response
+        return Response(
+            html,
+            mimetype='text/html',
+            headers={'Content-Disposition': f'inline; filename=cardapio_{sem_ini}.html'}
+        )
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
     ip   = _local_ip()
