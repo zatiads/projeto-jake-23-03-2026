@@ -4715,6 +4715,149 @@ def nutricao_update_perfil(perfil_id):
         conn.close()
 
 
+@app.route("/api/nutricao/gerar-cardapio", methods=["POST"])
+@login_required
+def nutricao_gerar_cardapio():
+    import json as _json
+    from datetime import date, timedelta
+
+    client = _anthropic_client()
+    if not client:
+        return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
+
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+
+        # Buscar perfis
+        cur.execute("SELECT * FROM nutricao_perfis ORDER BY id LIMIT 2")
+        perfis = {p['nome'].lower(): dict(p) for p in cur.fetchall()}
+        bruno = perfis.get('bruno', {})
+        camila = perfis.get('camila', {})
+
+        # Buscar alimentos favoritos
+        cur.execute("SELECT nome, categoria FROM nutricao_alimentos_base WHERE favorito=true ORDER BY categoria")
+        alimentos = cur.fetchall()
+        proteinas = [a['nome'] for a in alimentos if a['categoria'] == 'proteina']
+        carbos = [a['nome'] for a in alimentos if a['categoria'] == 'carbo']
+        lanches = [a['nome'] for a in alimentos if a['categoria'] == 'lanche']
+
+        # Semana atual
+        hoje = date.today()
+        segunda = hoje - timedelta(days=hoje.weekday())
+        domingo = segunda + timedelta(days=6)
+
+        def fmt_perfil(p, nome, sexo_label):
+            peso = float(p.get('peso') or 75)
+            altura = int(p.get('altura') or 175)
+            idade = int(p.get('idade') or 28)
+            tmb = float(p.get('tmb') or 0)
+            get_val = float(p.get('get') or 0)
+            meta_cal = int(p.get('meta_calorica') or 0)
+            meta_prot = int(p.get('meta_proteina') or 0)
+            meta_carbo = int(p.get('meta_carbo') or 0)
+            meta_gord = int(p.get('meta_gordura') or 0)
+            imc = _calcular_imc(peso, altura)
+            return f"""=== {nome.upper()} ({sexo_label}, academia intensa) ===
+Idade: {idade} anos | Peso: {peso}kg | Altura: {altura}cm | IMC: {imc}
+TMB: {tmb:.0f} kcal | GET: {get_val:.0f} kcal | Meta: {meta_cal} kcal/dia
+Proteína: {meta_prot}g | Carbo: {meta_carbo}g | Gordura: {meta_gord}g
+Objetivo: Hipertrofia — ganho de massa muscular"""
+
+        system_prompt = """Você é um nutricionista especializado em hipertrofia e ganho de massa muscular. Crie cardápios práticos, saborosos e com foco em alimentos fáceis de preparar e congelar. Retorne APENAS JSON válido, sem markdown, sem explicações."""
+
+        user_prompt = f"""Crie um cardápio semanal completo (7 dias) para 2 pessoas:
+
+{fmt_perfil(bruno, 'Bruno', 'homem')}
+
+{fmt_perfil(camila, 'Camila', 'mulher')}
+
+=== ALIMENTOS QUE JÁ USAM E GOSTAM ===
+Proteínas: {', '.join(proteinas)}
+Carbos: {', '.join(carbos)}
+Lanches: {', '.join(lanches)}
+Sem restrições alimentares.
+
+=== REGRAS OBRIGATÓRIAS ===
+1. Priorizar alimentos que já conhecem, misturando com no mínimo 3 refeições novas
+2. Café da manhã: rotacionar entre pão com requeijão/queijo, banana com granola/mel/aveia, ovo
+3. Almoço e janta: prato principal + acompanhamento + verdura. Indicar se é congelável
+4. Café da tarde: lanche nutritivo, congelável quando possível
+5. Suco diário: 1 por dia para encher 1 garrafinha (300-500ml), sucos funcionais
+6. Fruta do dia: 1 fruta diferente por dia
+7. Porções diferentes para Bruno e Camila conforme suas metas calóricas
+8. Incluir receitas detalhadas de pratos novos
+9. Tempo de preparo realista (pessoas que trabalham)
+
+Semana de {segunda.strftime('%d/%m')} a {domingo.strftime('%d/%m/%Y')}.
+
+Estrutura JSON obrigatória:
+{{
+  "semana": "{segunda.strftime('%d/%m')} a {domingo.strftime('%d/%m/%Y')}",
+  "resumo": {{
+    "bruno": {{"calorias_dia": 0, "proteina_dia": "0g", "carbo_dia": "0g", "gordura_dia": "0g"}},
+    "camila": {{"calorias_dia": 0, "proteina_dia": "0g", "carbo_dia": "0g", "gordura_dia": "0g"}}
+  }},
+  "dias": [
+    {{
+      "dia": "Segunda-feira",
+      "refeicoes": {{
+        "cafe_manha": {{"descricao": "...", "bruno": {{"porcao": "...", "calorias": 0}}, "camila": {{"porcao": "...", "calorias": 0}}}},
+        "almoco": {{"prato_principal": "...", "acompanhamento": "...", "verdura": "...", "congelavel": true, "tempo_preparo": "30min", "bruno": {{"porcao": "...", "calorias": 0, "proteina": "0g"}}, "camila": {{"porcao": "...", "calorias": 0, "proteina": "0g"}}}},
+        "cafe_tarde": {{"descricao": "...", "congelavel": true, "bruno": {{"porcao": "...", "calorias": 0}}, "camila": {{"porcao": "...", "calorias": 0}}}},
+        "janta": {{"prato_principal": "...", "acompanhamento": "...", "congelavel": true, "tempo_preparo": "25min", "bruno": {{"porcao": "...", "calorias": 0, "proteina": "0g"}}, "camila": {{"porcao": "...", "calorias": 0, "proteina": "0g"}}}},
+        "suco_dia": {{"nome": "...", "ingredientes": ["..."], "beneficio": "..."}},
+        "fruta_dia": "..."
+      }}
+    }}
+  ],
+  "dicas_preparo": ["..."],
+  "receitas_detalhadas": [
+    {{"nome": "...", "ingredientes": [{{"item": "...", "quantidade": "..."}}], "modo_preparo": ["passo 1"], "rende": "...", "tempo": "...", "congelavel": true, "validade_freezer": "..."}}
+  ]
+}}"""
+
+        msg = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=8000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+
+        texto = msg.content[0].text.strip()
+        # Limpar possível markdown do Claude
+        if texto.startswith("```"):
+            texto = texto.split("```")[1]
+            if texto.startswith("json"):
+                texto = texto[4:]
+        cardapio_json = _json.loads(texto)
+
+        # Salvar no banco com status 'revisao'
+        cur.execute("""
+            INSERT INTO nutricao_cardapios
+                (semana_inicio, semana_fim, status, cardapio_json)
+            VALUES (%s, %s, 'revisao', %s)
+            RETURNING id
+        """, (segunda, domingo, _json.dumps(cardapio_json)))
+        cardapio_id = cur.fetchone()['id']
+        conn.commit()
+
+        return jsonify({
+            'ok': True,
+            'id': cardapio_id,
+            'cardapio': cardapio_json,
+            'semana_inicio': str(segunda),
+            'semana_fim': str(domingo),
+        })
+
+    except _json.JSONDecodeError as e:
+        return jsonify({'error': f'Claude retornou JSON inválido: {str(e)}'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
     ip   = _local_ip()
