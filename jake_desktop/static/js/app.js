@@ -7,8 +7,13 @@
     document.querySelectorAll(".nav-item").forEach(function (n) {
       n.classList.toggle("active", n.dataset.page === id);
     });
-    // Persiste no hash sem recarregar
     history.replaceState(null, "", "#" + id);
+    if (id === "nutricao" && typeof window.initNutricao === "function") {
+      window.initNutricao();
+    }
+    if (id === "social-brief" && typeof window.initSocialBrief === "function") {
+      window.initSocialBrief();
+    }
   }
 
   document.querySelectorAll(".nav-item").forEach(function (item) {
@@ -20,7 +25,7 @@
 
   // Carrega a página correta se houver hash na URL
   var hash = location.hash.replace("#", "");
-  var valid = ["painel","architect","performance","anuncios","copys","criativos","relatorios","carrossel","prompts","financeiro","agenda","rotina","social-brief"];
+  var valid = ["painel","architect","performance","anuncios","copys","criativos","relatorios","carrossel","prompts","financeiro","agenda","rotina","social-brief","nutricao"];
   if (hash && valid.indexOf(hash) !== -1) showPage(hash);
   else showPage("painel");
 })();
