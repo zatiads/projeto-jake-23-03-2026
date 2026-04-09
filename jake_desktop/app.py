@@ -276,7 +276,7 @@ def _calcular_tmb(sexo, peso, altura, idade):
     if not all([peso, altura, idade]):
         return 0
     base = (10 * float(peso)) + (6.25 * float(altura)) - (5 * int(idade))
-    return base + 5 if sexo == 'M' else base - 161
+    return base + 5 if str(sexo or '').upper() == 'M' else base - 161
 
 def _calcular_get(tmb, nivel_atividade):
     fatores = {'sedentario': 1.2, 'moderado': 1.55, 'intenso': 1.725}
@@ -4658,7 +4658,10 @@ def nutricao_update_perfil(perfil_id):
     try:
         cur = conn.cursor()
         cur.execute("SELECT * FROM nutricao_perfis WHERE id = %s", (perfil_id,))
-        perfil = dict(cur.fetchone())
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'error': 'perfil não encontrado'}), 404
+        perfil = dict(row)
 
         # Atualiza campos enviados
         campos = ['idade', 'peso', 'altura', 'objetivo', 'nivel_atividade',
@@ -4677,21 +4680,35 @@ def nutricao_update_perfil(perfil_id):
             perfil.get('objetivo', 'hipertrofia'), get, perfil.get('peso', 70)
         )
 
-        cur.execute("""
-            UPDATE nutricao_perfis SET
-                idade=%s, peso=%s, altura=%s, objetivo=%s,
-                nivel_atividade=%s, preferencias=%s, aversoes=%s,
-                tmb=%s, get=%s, meta_calorica=%s, meta_proteina=%s,
-                meta_carbo=%s, meta_gordura=%s, atualizado_em=NOW()
-            WHERE id=%s
-        """, (
-            perfil.get('idade'), perfil.get('peso'), perfil.get('altura'),
-            perfil.get('objetivo'), perfil.get('nivel_atividade'),
-            perfil.get('preferencias'), perfil.get('aversoes'),
-            tmb, get, macros['calorias'], macros['proteina'],
-            macros['carbo'], macros['gordura'],
-            perfil_id
-        ))
+        if tmb > 0:
+            cur.execute("""
+                UPDATE nutricao_perfis SET
+                    idade=%s, peso=%s, altura=%s, objetivo=%s,
+                    nivel_atividade=%s, preferencias=%s, aversoes=%s,
+                    tmb=%s, get=%s, meta_calorica=%s, meta_proteina=%s,
+                    meta_carbo=%s, meta_gordura=%s, atualizado_em=NOW()
+                WHERE id=%s
+            """, (
+                perfil.get('idade'), perfil.get('peso'), perfil.get('altura'),
+                perfil.get('objetivo'), perfil.get('nivel_atividade'),
+                perfil.get('preferencias'), perfil.get('aversoes'),
+                tmb, get, macros['calorias'], macros['proteina'],
+                macros['carbo'], macros['gordura'],
+                perfil_id
+            ))
+        else:
+            cur.execute("""
+                UPDATE nutricao_perfis SET
+                    idade=%s, peso=%s, altura=%s, objetivo=%s,
+                    nivel_atividade=%s, preferencias=%s, aversoes=%s,
+                    atualizado_em=NOW()
+                WHERE id=%s
+            """, (
+                perfil.get('idade'), perfil.get('peso'), perfil.get('altura'),
+                perfil.get('objetivo'), perfil.get('nivel_atividade'),
+                perfil.get('preferencias'), perfil.get('aversoes'),
+                perfil_id
+            ))
         conn.commit()
         return jsonify({'ok': True, 'tmb': tmb, 'get': get, **macros})
     finally:
