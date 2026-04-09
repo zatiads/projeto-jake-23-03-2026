@@ -172,6 +172,97 @@ def _init_social_brief_tables():
         conn.close()
 
 
+def _init_nutricao_tables():
+    """Cria tabelas de nutrição se não existirem e insere dados iniciais."""
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS nutricao_perfis (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(100) NOT NULL,
+                sexo VARCHAR(1) DEFAULT 'M',
+                idade INTEGER,
+                peso DECIMAL(5,2),
+                altura INTEGER,
+                objetivo VARCHAR(50) DEFAULT 'hipertrofia',
+                nivel_atividade VARCHAR(50) DEFAULT 'intenso',
+                restricoes TEXT[],
+                preferencias TEXT,
+                aversoes TEXT,
+                tmb DECIMAL(8,2),
+                get DECIMAL(8,2),
+                meta_calorica INTEGER,
+                meta_proteina INTEGER,
+                meta_carbo INTEGER,
+                meta_gordura INTEGER,
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS nutricao_cardapios (
+                id SERIAL PRIMARY KEY,
+                semana_inicio DATE NOT NULL,
+                semana_fim DATE NOT NULL,
+                status VARCHAR(20) DEFAULT 'rascunho',
+                cardapio_json JSONB,
+                lista_compras_json JSONB,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                aprovado_em TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS nutricao_alimentos_base (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(200) NOT NULL,
+                categoria VARCHAR(50),
+                congelavel BOOLEAN DEFAULT FALSE,
+                favorito BOOLEAN DEFAULT FALSE,
+                notas TEXT
+            )
+        """)
+        conn.commit()
+        # Perfis iniciais — só insere se tabela vazia
+        cur.execute("SELECT COUNT(*) as c FROM nutricao_perfis")
+        if cur.fetchone()["c"] == 0:
+            cur.execute("""
+                INSERT INTO nutricao_perfis (nome, sexo, objetivo, nivel_atividade)
+                VALUES ('Bruno', 'M', 'hipertrofia', 'intenso'),
+                       ('Camila', 'F', 'hipertrofia', 'intenso')
+            """)
+            conn.commit()
+        # Alimentos base — só insere se tabela vazia
+        cur.execute("SELECT COUNT(*) as c FROM nutricao_alimentos_base")
+        if cur.fetchone()["c"] == 0:
+            alimentos = [
+                ('Carne moída', 'proteina', True, True),
+                ('Lombo suíno', 'proteina', True, True),
+                ('Filé de frango', 'proteina', True, True),
+                ('Macarrão', 'carbo', False, True),
+                ('Purê de batata', 'carbo', True, True),
+                ('Torta de frango', 'lanche', True, True),
+                ('Pão de forma', 'lanche', False, True),
+                ('Banana', 'fruta', False, True),
+                ('Granola', 'lanche', False, True),
+                ('Aveia', 'lanche', False, True),
+                ('Mel', 'lanche', False, True),
+                ('Requeijão', 'lanche', False, True),
+                ('Queijo', 'lanche', False, True),
+                ('Ovo', 'proteina', False, True),
+                ('Bolo de açúcar mascavo', 'lanche', True, True),
+                ('Nozes', 'lanche', False, True),
+                ('Castanha', 'lanche', False, True),
+            ]
+            for nome, cat, cong, fav in alimentos:
+                cur.execute("""
+                    INSERT INTO nutricao_alimentos_base (nome, categoria, congelavel, favorito)
+                    VALUES (%s, %s, %s, %s)
+                """, (nome, cat, cong, fav))
+            conn.commit()
+    finally:
+        conn.close()
+
+
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.environ.get("SESSION_SECRET") or _secrets.token_hex(32)
 
@@ -3639,13 +3730,27 @@ def _sb_buscar_meta_ads(meta_account_id, meta_agency="piloti"):
             actions = ins.get("actions") or []
             costs = ins.get("cost_per_action_type") or []
 
-            leads = _find_act(actions, "lead", "onsite_conversion.messaging_conversation_started_7d")
-            cpl = _find_act(costs, "lead", "onsite_conversion.messaging_conversation_started_7d")
+            leads = _find_act(
+                actions,
+                "onsite_conversion.messaging_conversation_started_7d",
+                "messaging_message_sends",
+                "onsite_conversion.total_messaging_connection",
+                "lead",
+            )
+            cpl = _find_act(
+                costs,
+                "onsite_conversion.messaging_conversation_started_7d",
+                "messaging_message_sends",
+                "lead",
+            )
 
             creative = ad.get("creative") or {}
+            criativo_nome = creative.get("name") or ad.get("name", "")
+            criativo_body = creative.get("body") or creative.get("title") or ""
             criativos.append({
                 "id": ad.get("id", ""),
-                "nome": ad.get("name", ""),
+                "nome": criativo_nome,
+                "body": criativo_body[:120] if criativo_body else "",
                 "thumbnail_url": creative.get("thumbnail_url", ""),
                 "ctr": round(ctr, 2),
                 "cliques": cliques,
@@ -3660,6 +3765,7 @@ def _sb_buscar_meta_ads(meta_account_id, meta_agency="piloti"):
         criativos = criativos[:10]
 
         total_gasto = sum(c["gasto"] for c in criativos)
+        total_leads = int(sum(c["leads"] for c in criativos))
         media_ctr = round(sum(c["ctr"] for c in criativos) / len(criativos), 2) if criativos else 0
 
         from datetime import date as _date_meta, timedelta as _td_meta
@@ -3672,6 +3778,7 @@ def _sb_buscar_meta_ads(meta_account_id, meta_agency="piloti"):
             "criativos": criativos,
             "resumo": {
                 "total_gasto": round(total_gasto, 2),
+                "total_leads": total_leads,
                 "media_ctr": media_ctr,
                 "melhor_criativo": criativos[0] if criativos else {},
                 "pior_criativo": criativos[-1] if criativos else {},
@@ -3748,11 +3855,17 @@ def _sb_gerar_analise_claude(cliente, dados_meta, perfil_texto, conteudo_pesquis
         "Você é um estrategista sênior de tráfego pago especializado em performance de "
         "criativos para Meta Ads e social media. Analise os dados e retorne APENAS JSON "
         "válido, sem markdown, sem texto adicional, sem blocos de código.\n\n"
+        "IMPORTANTE sobre perfil_publico: baseie EXCLUSIVAMENTE nos dados reais de "
+        "performance da semana (criativos com mais leads/menor CPL). "
+        "genero_predominante = gênero que gerou mais leads na semana. "
+        "faixa_etaria = faixa com melhor CPL ou mais leads. "
+        "melhor_posicionamento = placement (IG Reels, IG Feed, IG Stories, FB Feed) "
+        "do criativo #1 do ranking. Se não houver dados suficientes, responda 'A apurar'.\n\n"
         "Estrutura obrigatória:\n"
         '{"resumo_semana":"análise em 3-4 linhas",'
         '"ranking_criativos":[{"posicao":1,"nome":"...","thumbnail_url":"...",'
         '"destaque":"por que performou em 1 frase","metricas":{"ctr":"2.45%",'
-        '"cliques":1203,"cpl":"R$ 12,50","gasto":"R$ 150,00"}}],'
+        '"cliques":1203,"cpl":"R$ 12,50","gasto":"R$ 150,00","leads":42}}],'
         '"o_que_funcionou":["insight 1","insight 2","insight 3"],'
         '"o_que_nao_funcionou":["ponto 1","ponto 2"],'
         '"perfil_publico":{"genero_predominante":"...","faixa_etaria":"...",'
@@ -3763,19 +3876,16 @@ def _sb_gerar_analise_claude(cliente, dados_meta, perfil_texto, conteudo_pesquis
         '"ctas_sugeridos":{"mensagem":["CTA 1","CTA 2"],"visita_perfil":["CTA 1","CTA 2"],'
         '"lead":["CTA 1","CTA 2"]},'
         '"sugestoes_criativos":[{"tipo":"video/imagem/carrossel","conceito":"...",'
-        '"hook":"...","referencia":"..."}],'
-        '"analise_concorrentes":[{"nome":"...","o_que_fazem":"...","oportunidade":"..."}],'
-        '"campanhas_ativas":[{"tipo":"...","objetivo":"...","recomendacao":"..."}]}'
+        '"hook":"...","formato":"Reels 9:16 / Feed 1:1 / Stories"}]}'
     )
     user_prompt = (
         f"Cliente: {cliente['nome']}\n"
         f"Nicho: {cliente.get('nicho', 'não informado')}\n\n"
         f"=== META ADS — ÚLTIMA SEMANA ===\n{json.dumps(dados_meta, ensure_ascii=False)}\n\n"
         f"=== PERFIL HISTÓRICO DO PÚBLICO ===\n{perfil_texto or 'Não disponível'}\n\n"
-        f"=== PESQUISA DE CONCORRENTES ===\n{conteudo_pesquisa}\n\n"
-        f"=== CAMPANHAS ATIVAS ===\n{json.dumps(cliente.get('tipos_campanha', {}), ensure_ascii=False)}\n\n"
         f"Hooks e CTAs devem ser específicos para o nicho {cliente.get('nicho', '')}.\n"
-        f"Valores monetários em formato brasileiro (R$ X,XX)."
+        f"Valores monetários em formato brasileiro (R$ X,XX).\n"
+        f"Lembre: leads = mensagens iniciadas no WhatsApp."
     )
     _fallback = {
         "resumo_semana": "Análise indisponível.",
@@ -3786,8 +3896,6 @@ def _sb_gerar_analise_claude(cliente, dados_meta, perfil_texto, conteudo_pesquis
         "hooks_sugeridos": {},
         "ctas_sugeridos": {},
         "sugestoes_criativos": [],
-        "analise_concorrentes": [],
-        "campanhas_ativas": [],
     }
     try:
         resp = _ant.messages.create(
@@ -3852,14 +3960,26 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
         for i, cri in enumerate(an.get("ranking_criativos", [])[:5]):
             met = cri.get("metricas", {})
             thumb = cri.get("thumbnail_url", "")
-            thumb_tag = (
-                f'<img src="{_e(thumb)}" alt="criativo" '
-                f'style="width:64px;height:64px;object-fit:cover;border-radius:4px;'
-                f'flex-shrink:0;border:1px solid rgba(255,107,0,0.3);">'
-                if thumb else
-                '<div style="width:64px;height:64px;background:#1e1e1e;border-radius:4px;'
-                'flex-shrink:0;border:1px solid #2a2a2a;"></div>'
-            )
+            body_text = cri.get("body", "") or ""
+            if thumb:
+                thumb_tag = (
+                    f'<img src="{_e(thumb)}" alt="criativo" '
+                    f'style="width:64px;height:64px;object-fit:cover;border-radius:4px;'
+                    f'flex-shrink:0;border:1px solid rgba(255,107,0,0.3);">'
+                )
+            elif body_text:
+                thumb_tag = (
+                    f'<div style="width:64px;min-height:64px;background:#1a1a1a;border-radius:4px;'
+                    f'flex-shrink:0;border:1px solid rgba(255,107,0,0.3);padding:6px;'
+                    f'font-size:9px;color:#bbb;line-height:1.4;overflow:hidden;">'
+                    f'{_e(body_text[:80])}</div>'
+                )
+            else:
+                thumb_tag = (
+                    f'<div style="width:64px;height:64px;background:#1e1e1e;border-radius:4px;'
+                    f'flex-shrink:0;border:1px solid #2a2a2a;display:flex;align-items:center;'
+                    f'justify-content:center;font-size:18px;color:#333;">📷</div>'
+                )
             max_ctr_raw = an.get("ranking_criativos", [{}])[0].get("metricas", {}).get("ctr", 1) or 1
             ctr_raw = met.get("ctr", 0) or 0
             try:
@@ -3900,58 +4020,6 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
             for x in an.get("o_que_nao_funcionou", [])
         )
 
-        # ── Hooks ─────────────────────────────────────────────────────
-        hooks = an.get("hooks_sugeridos", {})
-        hook_tabs_html = ""
-        labels_map = {
-            "localizacao": "📍 Localização", "genero": "👤 Gênero",
-            "idade": "🎂 Idade", "dor_principal": "💊 Dor Principal"
-        }
-        for tipo, lista in hooks.items():
-            label = labels_map.get(tipo, tipo)
-            items_h = "".join(
-                f'<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px;'
-                f'padding:12px 44px 12px 14px;margin-bottom:8px;font-size:13px;color:#bbb;'
-                f'position:relative;line-height:1.5;">'
-                f'{_e(h)}'
-                f'<button onclick="copiar(this)" data-text="{_e(h)}" '
-                f'style="position:absolute;right:8px;top:50%;transform:translateY(-50%);'
-                f'background:#FF6B00;color:#0D0D0D;border:none;border-radius:3px;'
-                f'padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;">'
-                f'COPY</button></div>'
-                for h in lista
-            )
-            hook_tabs_html += (
-                f'<div style="margin-bottom:20px;">'
-                f'<div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;'
-                f'color:#FF6B00;margin-bottom:10px;font-family:\'Barlow Condensed\',sans-serif;'
-                f'font-weight:600;">{_e(label)}</div>'
-                f'{items_h}</div>'
-            )
-
-        # ── CTAs ──────────────────────────────────────────────────────
-        ctas_html = ""
-        cta_labels = {"mensagem": "💬 MENSAGEM", "visita_perfil": "👤 VISITA", "lead": "📋 LEAD"}
-        for k, v in an.get("ctas_sugeridos", {}).items():
-            icon_label = cta_labels.get(k, k.upper())
-            ctas_itens = "".join(
-                f'<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px;'
-                f'padding:10px 44px 10px 12px;margin-bottom:8px;font-size:13px;color:#bbb;'
-                f'position:relative;line-height:1.5;">'
-                f'{_e(cta)}'
-                f'<button onclick="copiar(this)" data-text="{_e(cta)}" '
-                f'style="position:absolute;right:6px;top:50%;transform:translateY(-50%);'
-                f'background:#FF6B00;color:#0D0D0D;border:none;border-radius:3px;'
-                f'padding:3px 6px;font-size:10px;font-weight:700;cursor:pointer;">COPY</button></div>'
-                for cta in v
-            )
-            ctas_html += (
-                f'<div style="margin-bottom:20px;">'
-                f'<div style="font-size:10px;letter-spacing:3px;font-weight:600;color:#FF6B00;'
-                f'margin-bottom:10px;font-family:\'Barlow Condensed\',sans-serif;">{_e(icon_label)}</div>'
-                f'{ctas_itens}</div>'
-            )
-
         # ── Sugestões de criativos ─────────────────────────────────────
         sug_html = "".join(
             f'<div style="background:#141414;border:1px solid rgba(255,107,0,0.2);border-radius:4px;'
@@ -3965,57 +4033,12 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
             f'<div style="font-size:13px;color:#888;margin-bottom:4px;">'
             f'<span style="color:#bbb;font-weight:600;">Hook:</span> {_e(sg.get("hook",""))}</div>'
             f'<div style="font-size:12px;color:#666;">'
-            f'<span style="color:#888;font-weight:600;">Ref:</span> {_e(sg.get("referencia",""))}</div>'
+            f'<span style="color:#888;font-weight:600;">Formato:</span> {_e(sg.get("formato",""))}</div>'
             f'</div>'
             for sg in an.get("sugestoes_criativos", [])[:4]
         )
 
-        # ── Concorrentes ──────────────────────────────────────────────
-        conc_html = "".join(
-            f'<div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;'
-            f'padding:18px;margin-bottom:10px;">'
-            f'<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:16px;'
-            f'color:#F5F5F0;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">'
-            f'🏢 {_e(cc.get("nome",""))}</div>'
-            f'<div style="font-size:13px;color:#888;margin-bottom:6px;">'
-            f'<span style="color:#bbb;">O que fazem:</span> {_e(cc.get("o_que_fazem",""))}</div>'
-            f'<div style="font-size:13px;">'
-            f'<span style="color:#FF6B00;font-weight:600;">Oportunidade:</span> '
-            f'<span style="color:#bbb;">{_e(cc.get("oportunidade",""))}</span></div>'
-            f'</div>'
-            for cc in an.get("analise_concorrentes", [])
-        )
-
-        # ── Campanhas ativas ──────────────────────────────────────────
-        camp_rows = "".join(
-            f'<tr>'
-            f'<td style="padding:12px;border-bottom:1px solid #1e1e1e;font-size:12px;'
-            f'letter-spacing:1px;text-transform:uppercase;color:#FF6B00;font-weight:600;">'
-            f'{_e(c.get("tipo",""))}</td>'
-            f'<td style="padding:12px;border-bottom:1px solid #1e1e1e;font-size:13px;color:#bbb;">'
-            f'{_e(c.get("objetivo",""))}</td>'
-            f'<td style="padding:12px;border-bottom:1px solid #1e1e1e;font-size:13px;color:#F5F5F0;">'
-            f'{_e(c.get("recomendacao",""))}</td></tr>'
-            for c in an.get("campanhas_ativas", [])
-        )
-
         _fb = '<div style="font-size:13px;color:#444;padding:8px 0;">—</div>'
-        _fb_camp = '<tr><td colspan="3" style="padding:12px;color:#444;font-size:13px;">—</td></tr>'
-
-        perfil_cards = "".join(
-            f'<div style="background:#141414;border:1px solid rgba(255,107,0,0.2);border-radius:4px;'
-            f'padding:20px 16px;position:relative;overflow:hidden;text-align:center;">'
-            f'<div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;"></div>'
-            f'<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#888;margin-bottom:8px;">{_e(lb)}</div>'
-            f'<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:22px;color:#F5F5F0;">{_e(str(vl))}</div>'
-            f'</div>'
-            for lb, vl in [
-                ("Gênero", perf_pub.get("genero_predominante", "—")),
-                ("Faixa Etária", perf_pub.get("faixa_etaria", "—")),
-                ("Posicionamento", perf_pub.get("melhor_posicionamento", "—")),
-                ("CPL Médio", perf_pub.get("cpl_medio", "—")),
-            ]
-        )
 
         secoes_html += f'''
 <div class="cliente-secao" id="cliente-{_e(slug)}" style="display:none;">
@@ -4105,38 +4128,6 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
     </div>
   </div>
 
-  <!-- Perfil público (4 stat cards) -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
-    {perfil_cards}
-  </div>
-
-  <!-- Separator -->
-  <div style="height:40px;background:#FF6B00;display:flex;align-items:center;padding:0 24px;
-              margin-bottom:16px;border-radius:4px;">
-    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:16px;
-                letter-spacing:4px;text-transform:uppercase;color:#0D0D0D;">◆ CONTEÚDO PARA A SEMANA</div>
-  </div>
-
-  <!-- Hooks + CTAs -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-    <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:24px;
-                position:relative;overflow:hidden;">
-      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;"></div>
-      <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
-                  font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:20px;">
-        💡 Hooks Sugeridos</div>
-      {hook_tabs_html or _fb}
-    </div>
-    <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:24px;
-                position:relative;overflow:hidden;">
-      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;"></div>
-      <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
-                  font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:20px;">
-        📣 CTAs Sugeridos</div>
-      {ctas_html or _fb}
-    </div>
-  </div>
-
   <!-- Sugestões de criativos -->
   <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:24px;
               margin-bottom:16px;position:relative;overflow:hidden;">
@@ -4149,33 +4140,16 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
     </div>
   </div>
 
-  <!-- Concorrentes + Campanhas -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px;">
-    <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:24px;
-                position:relative;overflow:hidden;">
-      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;opacity:0.4;"></div>
-      <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
-                  font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:20px;">
-        🏢 Análise de Concorrentes</div>
-      {conc_html or _fb}
-    </div>
-    <div style="background:#141414;border:1px solid #1e1e1e;border-radius:4px;padding:24px;
-                position:relative;overflow:hidden;">
-      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;opacity:0.4;"></div>
-      <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
-                  font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:20px;">
-        📊 Campanhas Ativas</div>
-      <table style="width:100%;border-collapse:collapse;">
-        <tr style="border-bottom:1px solid #2a2a2a;">
-          <th style="padding:8px;text-align:left;font-size:10px;letter-spacing:2px;
-                     text-transform:uppercase;color:#666;font-weight:600;">Tipo</th>
-          <th style="padding:8px;text-align:left;font-size:10px;letter-spacing:2px;
-                     text-transform:uppercase;color:#666;font-weight:600;">Objetivo</th>
-          <th style="padding:8px;text-align:left;font-size:10px;letter-spacing:2px;
-                     text-transform:uppercase;color:#666;font-weight:600;">Recomendação</th>
-        </tr>
-        {camp_rows or _fb_camp}
-      </table>
+  <!-- Referências de Criativos -->
+  <div style="background:#141414;border:1px solid rgba(255,107,0,0.2);border-radius:4px;padding:24px;
+              margin-bottom:32px;position:relative;overflow:hidden;">
+    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#FF6B00;opacity:0.6;"></div>
+    <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#FF6B00;
+                font-family:'Barlow Condensed',sans-serif;font-weight:600;margin-bottom:16px;">
+      🎯 Referências de Criativos / Inspiração</div>
+    <div style="font-size:13px;color:#444;font-style:italic;padding:20px 0;text-align:center;
+                border:1px dashed #2a2a2a;border-radius:4px;">
+      Em breve — adicione referências, @ de perfis e links de inspiração aqui.
     </div>
   </div>
 
@@ -4625,6 +4599,7 @@ if __name__ == "__main__":
     debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
     _init_rotina_tables()
     _init_social_brief_tables()
+    _init_nutricao_tables()
     # APScheduler: Social Brief automático toda segunda às 08h
     try:
         from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
