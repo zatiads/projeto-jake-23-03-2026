@@ -4825,11 +4825,10 @@ Estrutura JSON obrigatória:
         )
 
         texto = msg.content[0].text.strip()
-        # Limpar possível markdown do Claude
-        if texto.startswith("```"):
-            texto = texto.split("```")[1]
-            if texto.startswith("json"):
-                texto = texto[4:]
+        # Extrair JSON de possível bloco markdown do Claude
+        match = _re.search(r'```(?:json)?\s*([\s\S]*?)```', texto)
+        if match:
+            texto = match.group(1).strip()
         cardapio_json = _json.loads(texto)
 
         # Salvar no banco com status 'revisao'
@@ -4853,6 +4852,7 @@ Estrutura JSON obrigatória:
     except _json.JSONDecodeError as e:
         return jsonify({'error': f'Claude retornou JSON inválido: {str(e)}'}), 500
     except Exception as e:
+        conn.rollback()
         return jsonify({'error': str(e)}), 500
     finally:
         conn.close()
