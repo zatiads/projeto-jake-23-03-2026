@@ -17,7 +17,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from functools import wraps
 
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_from_directory
 
 import requests
 from dotenv import load_dotenv
@@ -263,6 +263,38 @@ def _init_nutricao_tables():
         conn.close()
 
 
+def _init_dr_tables():
+    """Cria tabela dr_ofertas se não existir."""
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dr_ofertas (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(200) NOT NULL,
+                nicho VARCHAR(200),
+                angulo TEXT,
+                hook TEXT,
+                promessa TEXT,
+                publico TEXT,
+                contexto_raw TEXT,
+                tipo_funil VARCHAR(50),
+                copy_json JSONB,
+                script_vsl TEXT,
+                angulos_json JSONB,
+                lp_html TEXT,
+                lp_url VARCHAR(500),
+                quiz_html TEXT,
+                quiz_url VARCHAR(500),
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 # ── NUTRIÇÃO: Cálculos ────────────────────────────────────────────────────────
 
 def _calcular_imc(peso, altura):
@@ -318,6 +350,11 @@ def login_required(f):
             return redirect(url_for("login_page"))
         return f(*args, **kwargs)
     return decorated
+
+# ── Rotas públicas ───────────────────────────────────────────────────────────
+@app.route("/privacidade")
+def privacidade():
+    return send_from_directory("static", "privacidade-bruno-zati.html")
 
 # ── Rotas de autenticação ────────────────────────────────────────────────────
 @app.route("/login")
@@ -3030,6 +3067,16 @@ _CRIATIVOS_MODELOS_VIDEO = {
     "wan-i2v-fast":  ("wavespeedai/wan-2.2-i2v-480p", "i2v"),
 }
 
+# Taxa estimada em USD por segundo de GPU por modelo
+_CUSTO_POR_SEGUNDO = {
+    "wan-t2v-fast":  0.0030,
+    "wan-5b-fast":   0.0050,
+    "hailuo-02":     0.0080,
+    "seedance-lite": 0.0035,
+    "runway-gen4":   0.0200,
+    "wan-i2v-fast":  0.0030,
+}
+
 _CRIATIVOS_SYSTEM_PROMPTS = {
     "anuncios": (
         "You are an expert commercial photographer and ad creative director specializing in Meta Ads and Google Ads. "
@@ -3362,10 +3409,19 @@ def criativos_status(prediction_id):
         pred = resp.json()
         status = pred.get("status", "starting")
         url = None
+        predict_time = None
+        custo_usd = None
         if status == "succeeded":
             out = pred.get("output")
             url = out[0] if isinstance(out, list) else out
-        return jsonify({"status": status, "url": url, "error": pred.get("error")})
+            metrics = pred.get("metrics") or {}
+            predict_time = metrics.get("predict_time")
+        return jsonify({
+            "status": status,
+            "url": url,
+            "error": pred.get("error"),
+            "predict_time": predict_time,
+        })
     except RuntimeError as e:
         return jsonify({"status": "failed", "error": str(e)}), 500
     except Exception as e:
@@ -3474,17 +3530,55 @@ def criativos_salvar_historico():
     conn = _get_db()
     try:
         cur = conn.cursor()
+        predict_time = d.get("predict_time_s")
+        custo_usd = None
+        if predict_time and d.get("modelo") in _CUSTO_POR_SEGUNDO:
+            custo_usd = round(predict_time * _CUSTO_POR_SEGUNDO[d["modelo"]], 4)
         cur.execute(
-            "INSERT INTO creative_history (tipo,modo,modelo,prompt_original,prompt_expandido,url_resultado,folder_id) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+            "INSERT INTO creative_history (tipo,modo,modelo,prompt_original,prompt_expandido,url_resultado,folder_id,predict_time_s,custo_usd) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
             (d["tipo"], d["modo"], d["modelo"], d["prompt_original"],
-             d["prompt_expandido"], d["url_resultado"], d.get("folder_id"))
+             d["prompt_expandido"], d["url_resultado"], d.get("folder_id"),
+             predict_time, custo_usd)
         )
         novo_id = cur.fetchone()["id"]
         conn.commit()
         return jsonify({"id": novo_id, "ok": True})
     except Exception as e:
         conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/criativos/custos")
+@login_required
+def criativos_custos():
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        # Gasto total do mês atual
+        cur.execute(
+            "SELECT COALESCE(SUM(custo_usd),0) as total, COUNT(*) as geracoes "
+            "FROM creative_history "
+            "WHERE custo_usd IS NOT NULL "
+            "AND DATE_TRUNC('month', criado_em) = DATE_TRUNC('month', NOW())"
+        )
+        mes = cur.fetchone()
+        # Últimas 20 gerações com custo registrado
+        cur.execute(
+            "SELECT modelo, prompt_original, predict_time_s, custo_usd, criado_em::text "
+            "FROM creative_history "
+            "WHERE custo_usd IS NOT NULL "
+            "ORDER BY criado_em DESC LIMIT 20"
+        )
+        historico = [dict(r) for r in cur.fetchall()]
+        return jsonify({
+            "mes_total_usd": float(mes["total"]),
+            "mes_geracoes": int(mes["geracoes"]),
+            "historico": historico,
+        })
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
@@ -3902,6 +3996,8 @@ def _sb_gerar_analise_claude(cliente, dados_meta, perfil_texto, conteudo_pesquis
         "melhor_posicionamento = placement (IG Reels, IG Feed, IG Stories, FB Feed) "
         "do criativo #1 do ranking. Se não houver dados suficientes, responda 'A apurar'.\n\n"
         "Estrutura obrigatória:\n"
+        "IMPORTANTE: ranking_criativos deve conter os 5 melhores criativos (posições 1 a 5). "
+        "Se houver menos de 5 criativos disponíveis, inclua todos os existentes.\n"
         '{"resumo_semana":"análise em 3-4 linhas",'
         '"ranking_criativos":[{"posicao":1,"nome":"...","thumbnail_url":"...",'
         '"destaque":"por que performou em 1 frase","metricas":{"ctr":"2.45%",'
@@ -3940,7 +4036,7 @@ def _sb_gerar_analise_claude(cliente, dados_meta, perfil_texto, conteudo_pesquis
     try:
         resp = _ant.messages.create(
             model="claude-sonnet-4-5",
-            max_tokens=4096,
+            max_tokens=8192,
             messages=[{"role": "user", "content": user_prompt}],
             system=system_prompt,
         )
@@ -4603,6 +4699,66 @@ def sb_gerar_portal():
     )
 
 
+@app.route("/api/social-brief/republicar", methods=["POST"])
+@login_required
+def sb_republicar():
+    """Republica o portal usando os dados já salvos da última geração — sem chamar Meta Ads nem Claude."""
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        # Pega a última geração
+        cur.execute(
+            "SELECT id, semana_inicio, semana_fim FROM social_brief_geracoes ORDER BY criado_em DESC LIMIT 1"
+        )
+        ger = cur.fetchone()
+        if not ger:
+            return jsonify({"error": "Nenhuma geração encontrada. Gere o portal primeiro."}), 404
+
+        geracao_id = ger["id"]
+        semana_inicio = ger["semana_inicio"].strftime("%d/%m/%Y") if hasattr(ger["semana_inicio"], "strftime") else str(ger["semana_inicio"])
+        semana_fim = ger["semana_fim"].strftime("%d/%m/%Y") if hasattr(ger["semana_fim"], "strftime") else str(ger["semana_fim"])
+
+        # Carrega dados dos clientes salvos
+        cur.execute(
+            """SELECT sbc.*, sbd.analise_json, sbd.dados_meta
+               FROM social_brief_cliente_dados sbd
+               JOIN social_brief_clientes sbc ON sbc.id = sbd.cliente_id
+               WHERE sbd.geracao_id = %s ORDER BY sbc.nome""",
+            (geracao_id,)
+        )
+        rows = cur.fetchall()
+        if not rows:
+            return jsonify({"error": "Dados da geração não encontrados."}), 404
+
+        todos_dados = [
+            {
+                "cliente": {k: v for k, v in dict(r).items() if k not in ("analise_json", "dados_meta")},
+                "analise": r["analise_json"] if isinstance(r["analise_json"], dict) else json.loads(r["analise_json"] or "{}"),
+                "dados_meta": r["dados_meta"] if isinstance(r["dados_meta"], dict) else json.loads(r["dados_meta"] or "{}"),
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+    html_portal = _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim)
+    try:
+        url = _sb_publicar_surge(html_portal)
+        conn2 = _get_db()
+        try:
+            cur2 = conn2.cursor()
+            cur2.execute(
+                "UPDATE social_brief_geracoes SET html_completo=%s, surge_url=%s, publicado=TRUE WHERE id=%s",
+                (html_portal, url, geracao_id)
+            )
+            conn2.commit()
+        finally:
+            conn2.close()
+        return jsonify({"ok": True, "url": url, "geracao_id": geracao_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/social-brief/download/<int:geracao_id>", methods=["GET"])
 @login_required
 def sb_download_html(geracao_id):
@@ -4819,7 +4975,7 @@ Estrutura JSON obrigatória:
 
         msg = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=8000,
+            max_tokens=16000,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
@@ -4990,11 +5146,27 @@ def nutricao_gerar_lista_compras(cardapio_id):
 
         cardapio_json = row['cardapio_json']
 
+        # Resumo compacto do cardápio (só refeições, sem receitas/macros detalhados)
+        resumo_dias = []
+        for dia in (cardapio_json.get("dias") or []):
+            ref = dia.get("refeicoes", {})
+            resumo_dias.append(
+                f"{dia.get('dia','')}: "
+                f"café={ref.get('cafe_manha',{}).get('descricao','')} | "
+                f"almoço={ref.get('almoco',{}).get('prato_principal','')} + {ref.get('almoco',{}).get('acompanhamento','')} + {ref.get('almoco',{}).get('verdura','')} | "
+                f"lanche={ref.get('cafe_tarde',{}).get('descricao','')} | "
+                f"janta={ref.get('janta',{}).get('prato_principal','')} + {ref.get('janta',{}).get('acompanhamento','')} | "
+                f"suco={ref.get('suco_dia',{}).get('ingredientes',[])} | "
+                f"fruta={ref.get('fruta_dia','')}"
+            )
+        cardapio_resumo = "\n".join(resumo_dias)
+
         msg = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=3000,
-            system="Você é um assistente de compras. Analise o cardápio e retorne APENAS JSON com a lista de compras consolidada, agrupada por categoria de supermercado, com quantidades somadas para a semana toda (2 pessoas). Sem markdown, sem texto adicional.",
-            messages=[{"role": "user", "content": f"""Cardápio: {_json.dumps(cardapio_json, ensure_ascii=False)}
+            max_tokens=4000,
+            system="Você é um assistente de compras. Analise o cardápio semanal e retorne APENAS JSON com a lista de compras consolidada, agrupada por categoria de supermercado, com quantidades somadas para a semana toda (2 pessoas). Sem markdown, sem texto adicional.",
+            messages=[{"role": "user", "content": f"""Cardápio da semana (2 pessoas):
+{cardapio_resumo}
 
 Retorne JSON nessa estrutura:
 {{
@@ -5215,6 +5387,79 @@ def nutricao_exportar_pdf(cardapio_id):
         conn.close()
 
 
+# ── DR: CRUD OFERTAS ──────────────────────────────────────────────────────────
+
+@app.route("/api/dr/ofertas", methods=["GET"])
+@login_required
+def dr_listar_ofertas():
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, nome, nicho, tipo_funil, lp_url, quiz_url, "
+            "created_at::text, updated_at::text FROM dr_ofertas ORDER BY updated_at DESC"
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        conn.close()
+        return jsonify(rows)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/dr/ofertas", methods=["POST"])
+@login_required
+def dr_criar_oferta():
+    d = request.get_json() or {}
+    if not d.get("nome"):
+        return jsonify({"error": "Campo obrigatório: nome"}), 400
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO dr_ofertas
+               (nome, nicho, angulo, hook, promessa, publico, contexto_raw, tipo_funil)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+            (d["nome"], d.get("nicho"), d.get("angulo"), d.get("hook"),
+             d.get("promessa"), d.get("publico"), d.get("contexto_raw"), d.get("tipo_funil", "vsl_direto"))
+        )
+        novo_id = cur.fetchone()["id"]
+        conn.commit()
+        conn.close()
+        return jsonify({"id": novo_id, "ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/dr/ofertas/<int:oid>", methods=["GET"])
+@login_required
+def dr_carregar_oferta(oid):
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM dr_ofertas WHERE id = %s", (oid,))
+        row = cur.fetchone()
+        conn.close()
+        if not row:
+            return jsonify({"error": "Oferta não encontrada"}), 404
+        return jsonify(dict(row))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/dr/ofertas/<int:oid>", methods=["DELETE"])
+@login_required
+def dr_deletar_oferta(oid):
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM dr_ofertas WHERE id = %s", (oid,))
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
     ip   = _local_ip()
@@ -5230,6 +5475,7 @@ if __name__ == "__main__":
     _init_rotina_tables()
     _init_social_brief_tables()
     _init_nutricao_tables()
+    _init_dr_tables()
     # APScheduler: Social Brief automático toda segunda às 08h
     try:
         from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
