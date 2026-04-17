@@ -16,21 +16,19 @@ Bruno é gestor de tráfego pago com 14 contas ativas no Meta Ads. Está entrand
 - **Meta Ads** → validação com tráfego pago
 - **UTMfy** → rastreamento de performance (externo, não integrado ao Jake OS)
 - **Hotmart** → checkout (Bruno como produtor)
-- **InLead** (ou similar) → quiz funnels (ferramenta externa)
 
 ---
 
 ## Escopo do Módulo
 
 ### O que o Jake OS faz no fluxo DR:
-1. Receber contexto da oferta vencedora (trazido pelo usuário do American Swipe)
-2. Gerar ativos: copy adaptada, script de VSL, criativos, LP HTML, roteiro de quiz
-3. Deploy da LP no Vercel
+1. Salvar e gerenciar ofertas em banco de dados
+2. Gerar ativos: copy adaptada, script de VSL, criativos, LP HTML, quiz HTML
+3. Deploy de LP e quiz clonados no Vercel
 
 ### O que está fora do escopo:
 - Transcrição de VSL (American Swipe já faz)
 - Monitor de performance / CPA / ROAS (UTMfy)
-- Quiz builder interativo (InLead)
 - Webhooks Hotmart
 - Integração UTMfy API
 
@@ -41,25 +39,53 @@ Bruno é gestor de tráfego pago com 14 contas ativas no Meta Ads. Está entrand
 ### Localização
 Nova seção `#dr` no nav do Jake OS (dashboard.html), entre as seções existentes.
 
-### Fluxo de dados
-Passo 1 salva contexto em `sessionStorage` do browser. Passos 2, 3 e 4 leem esse contexto e pré-preenchem campos automaticamente. Sem persistência em banco de dados — workflow ephemeral por sessão.
+### Persistência de dados
+Ofertas são salvas no banco Neon (PostgreSQL). Passo 1 cria/atualiza um registro na tabela `dr_ofertas`. Passos 2, 3 e 4 leem da oferta selecionada. O contexto também é espelhado em `sessionStorage` (chave: `'dr_contexto'`) para acesso rápido no frontend sem round-trip ao servidor.
 
-**Nota:** `sessionStorage` é perdido em refresh de página. Se o usuário atualizar o browser nos Passos 2, 3 ou 4, o frontend deve detectar contexto vazio e exibir banner: _"Contexto DR perdido. Volte ao Passo 1 para recarregar."_
+**Nota:** Se `sessionStorage` for perdido em refresh, o frontend detecta e recarrega da oferta ativa no banco. Sem perda de dados.
+
+### Banco de dados — tabela `dr_ofertas`
+
+```sql
+CREATE TABLE dr_ofertas (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(200) NOT NULL,
+    nicho VARCHAR(200),
+    angulo TEXT,
+    hook TEXT,
+    promessa TEXT,
+    publico TEXT,
+    contexto_raw TEXT,
+    tipo_funil VARCHAR(50),
+    copy_json JSONB,
+    script_vsl TEXT,
+    angulos_json JSONB,
+    lp_html TEXT,
+    lp_url VARCHAR(500),
+    quiz_html TEXT,
+    quiz_url VARCHAR(500),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+Lista de ofertas salvas exibida no topo da seção `#dr` — cards clicáveis para carregar uma oferta anterior.
 
 ### Novos arquivos
 - `jake_desktop/static/js/dr.js` — lógica frontend da seção DR
 - `jake_desktop/static/css/dr.css` — estilos (padrão visual Jake OS)
 
 ### Arquivos modificados
-- `jake_desktop/app.py` — novas rotas `/api/dr/*`
+- `jake_desktop/app.py` — novas rotas `/api/dr/*` + `_init_dr_tables()`
 - `jake_desktop/templates/dashboard.html` — nav item + HTML seção `#dr`
-- `jake_desktop/static/js/app.js` — adicionar `"dr"` ao array `valid` de páginas (linha ~28); chamar `window.initDR()` no `showPage("dr")` seguindo padrão da seção `nutricao`, com guard: `if (typeof window.initDR === 'function') window.initDR()`
+- `jake_desktop/static/js/app.js` — adicionar `"dr"` ao array `valid` de páginas (linha ~28); chamar `window.initDR()` no `showPage("dr")` com guard: `if (typeof window.initDR === 'function') window.initDR()`
 
 ### Infraestrutura reutilizada
-- **Deploy LP → Vercel**: reutiliza `_deploy_to_vercel(project_name, index_html)` existente no Site Architect. `project_name` = `"jake-dr-lp"`. Não requer novas env vars além de `VERCEL_TOKEN` já configurado.
+- **Deploy → Vercel**: reutiliza `_deploy_to_vercel(project_name, index_html)` existente no Site Architect. Não requer novas env vars além de `VERCEL_TOKEN` já configurado.
 - Geração de criativos → `/api/generate-creative` existente
 - Claude API → `_anthropic_client_46()` existente
 - HTTP fetch → `requests` já no projeto
+- DB → `_get_db()` existente
 
 ---
 
@@ -67,16 +93,20 @@ Passo 1 salva contexto em `sessionStorage` do browser. Passos 2, 3 e 4 leem esse
 
 ### Passo 1 — Oferta
 
-**Objetivo:** Intake do contexto + geração de copy e script VSL.
+**Objetivo:** Criar/editar oferta, gerar copy e script VSL, salvar no banco.
+
+**Lista de ofertas:** Acima do formulário, cards das ofertas salvas com nome, nicho e data. Clicar em um card carrega a oferta no formulário. Botão "Nova oferta" limpa o formulário.
 
 **Interface — dois modos (toggle):**
 
 **Modo Rápido:**
 - Textarea grande: "Cole aqui o contexto do American Swipe (transcrição, análise, estrutura da oferta)"
+- Campo: Nome da oferta (obrigatório, para identificar no histórico)
 - Campo: Produto
 - Campo: Público-alvo
 
 **Modo Estruturado:**
+- Nome da oferta (obrigatório)
 - Nicho
 - Ângulo principal
 - Hook principal
@@ -91,57 +121,58 @@ Passo 1 salva contexto em `sessionStorage` do browser. Passos 2, 3 e 4 leem esse
 2. **Script VSL**: estrutura completa por blocos — Hook → Problema → Agitação → Solução → Prova → Oferta → Garantia → CTA. Cada bloco com texto sugerido.
 3. **Ângulos Alternativos**: 3 ângulos diferentes para split test
 
-Cada aba tem botão "Copiar". Botão "Salvar e ir para LP →" persiste contexto no `sessionStorage` (chave: `'dr_contexto'`) e abre Passo 2.
+Cada aba tem botão "Copiar". Output é salvo automaticamente no banco ao ser gerado. Botão "Ir para LP →" abre Passo 2 com contexto da oferta ativa.
 
-**Backend:** `POST /api/dr/gerar-copy`
-- Input: contexto estruturado ou texto livre + produto + público
-- Output: `{ copy, script_vsl, angulos }`
-- Engine: Claude Sonnet 4.6
-- `max_tokens`: 4096
+**Backend:**
+- `POST /api/dr/ofertas` — cria oferta nova, retorna `{ id, ... }`
+- `GET /api/dr/ofertas` — lista todas as ofertas (id, nome, nicho, created_at)
+- `GET /api/dr/ofertas/<id>` — carrega oferta completa
+- `DELETE /api/dr/ofertas/<id>` — remove oferta
+- `POST /api/dr/gerar-copy` — Input: oferta_id + contexto. Output: `{ copy, script_vsl, angulos }`. Salva resultado na oferta. `max_tokens`: 4096. Engine: Claude Sonnet 4.6.
 
 ---
 
 ### Passo 2 — Landing Page
 
-**Objetivo:** Gerar LP HTML completa, autocontida, pronta para deploy.
+**Objetivo:** Clonar LP de oferta vencedora e gerar versão adaptada, pronta para deploy.
 
 **Interface — dois modos:**
 
-**Clonar LP existente:**
+**Clonar LP existente (modo principal):**
 - Campo URL da LP original
 - Jake OS faz `requests.get(url, headers={"User-Agent": "Mozilla/5.0 ..."}, timeout=10)` → extrai HTML
 - Claude analisa estrutura (headline, video, bullets, prova, CTA) → gera versão adaptada ao produto do Bruno
-- **Fallback obrigatório:** se o fetch retornar status != 200, timeout, ou HTML com menos de 500 caracteres de conteúdo visível, o sistema cai automaticamente para modo "gerar do zero" **e exibe aviso explícito ao usuário:** _"Não foi possível carregar a URL original — LP gerada do zero com base no contexto."_
+- **Fallback obrigatório:** se fetch retornar status != 200, timeout, ou HTML com menos de 500 caracteres de conteúdo visível, cai para modo "gerar do zero" e exibe aviso: _"Não foi possível carregar a URL original — LP gerada do zero com base no contexto."_
 
 **Gerar do zero:**
-- Usa contexto do Passo 1 (pré-preenchido)
+- Usa contexto da oferta ativa (pré-preenchido)
 - Claude gera estrutura padrão VSL
 
 **Campos adicionais (ambos os modos):**
 - Link do Hotmart (checkout URL)
 - URL do vídeo VSL (YouTube ou Vimeo embed)
-- Pixel ID Meta DR (editável, persiste em `localStorage` para próximas LPs)
+- Pixel ID Meta DR (editável, persiste em `localStorage`)
 - Preço + parcelas (ex: "R$97 ou 3x R$37")
 
 **LP gerada inclui:**
 - Meta Pixel no `<head>` com Pixel ID configurado
-- Hero: headline + subheadline (do Passo 1)
+- Hero: headline + subheadline (da oferta ativa)
 - Player de vídeo embed (YouTube/Vimeo iframe)
-- Bullets de benefício (do Passo 1)
+- Bullets de benefício (da oferta ativa)
 - Seção de prova social (3 depoimentos placeholder gerados por Claude)
-- **Timer de escassez:** bloco estático "Oferta por tempo limitado" com data de encerramento fixa gerada via `localStorage` (primeira visita define a data; visitas seguintes leem a mesma data). Não usar countdown que reseta por cookie — prática sinalizada em auditorias de conta Meta.
+- **Timer de escassez:** data de encerramento fixa via `localStorage` (primeira visita define; visitas seguintes leem a mesma). Não usar countdown com reset por cookie — dark pattern sinalizado em auditorias Meta.
 - Bloco de preço + botão CTA → Hotmart com UTMs automáticos (`utm_source=meta&utm_medium=cpc&utm_campaign={slug_produto}`)
 - Mobile-first, CSS inline, zero dependências externas
 
 **Ações disponíveis:**
 - Preview (abre em nova aba via `blob:` URL)
 - Download HTML
-- Deploy Vercel (chama `_deploy_to_vercel("jake-dr-lp", html)` — retorna URL pública)
+- Deploy Vercel (chama `_deploy_to_vercel("jake-dr-lp", html)` → retorna URL pública, salva em `lp_url` na oferta)
 
 **Backend:**
-- `POST /api/dr/clonar-lp` — URL + contexto → fetch HTML → Claude gera LP adaptada. `max_tokens`: 8192
-- `POST /api/dr/gerar-lp` — contexto → Claude gera LP do zero. `max_tokens`: 8192
-- `POST /api/dr/deploy-lp` — HTML → chama `_deploy_to_vercel("jake-dr-lp", html)` → retorna URL
+- `POST /api/dr/clonar-lp` — oferta_id + URL → fetch + Claude → LP HTML adaptada. Salva em `lp_html`. `max_tokens`: 8192
+- `POST /api/dr/gerar-lp` — oferta_id + contexto → Claude → LP do zero. Salva em `lp_html`. `max_tokens`: 8192
+- `POST /api/dr/deploy-lp` — oferta_id + HTML → `_deploy_to_vercel("jake-dr-lp", html)` → salva URL em `lp_url`, retorna URL
 
 ---
 
@@ -151,45 +182,42 @@ Cada aba tem botão "Copiar". Botão "Salvar e ir para LP →" persiste contexto
 
 **Implementação:** Sem novo backend. O botão "Ir para Criativos" no Passo 3:
 1. Chama `showPage("criativos")`
-2. Lê `sessionStorage.getItem("dr_contexto")`
-3. Concatena `nicho + ângulo + hook` em uma string de prompt
-4. Escreve diretamente em `document.getElementById("cri-prompt").value`
+2. Lê contexto da oferta ativa em `sessionStorage.getItem("dr_contexto")`
+3. Concatena `nicho + ângulo + hook` em string de prompt
+4. Escreve em `document.getElementById("cri-prompt").value`
 
 Requer alteração mínima em `dr.js` — nenhuma mudança em `criativos.js`.
 
 ---
 
-### Passo 4 — Quiz Roteiro
+### Passo 4 — Quiz
 
-**Objetivo:** Gerar roteiro estruturado de quiz para uso em InLead ou ferramenta similar.
+**Objetivo:** Clonar quiz de oferta vencedora e gerar versão HTML adaptada, pronta para deploy.
 
-**Output gerado por Claude — formato Markdown estruturado:**
-```
-## Título do Quiz
-"[Título chamativo]"
+**Mesma lógica do Passo 2 (LP Cloner), aplicada a quizzes.**
 
-## Perguntas
-### Pergunta 1: [texto]
-- A) [opção]
-- B) [opção]
-- C) [opção]
+**Interface:**
+- Campo URL do quiz original
+- Jake OS faz `requests.get(url, headers={"User-Agent": "Mozilla/5.0 ..."}, timeout=10)` → extrai HTML
+- Claude analisa estrutura: perguntas, opções, barra de progresso, resultado, lógica de segmentação → gera versão HTML adaptada
+- **Fallback:** se JS-heavy (HTML < 500 chars de conteúdo visível), exibe aviso: _"Quiz com renderização pesada em JS — clone parcial gerado com estrutura base."_ Claude gera quiz HTML funcional com estrutura genérica.
 
-[...]
+**Quiz gerado inclui:**
+- 3-5 perguntas com opções (baseadas no nicho/ângulo da oferta)
+- Barra de progresso
+- Resultado personalizado por perfil de resposta
+- Coleta de email antes de revelar resultado (campo simples, sem integração de email nesta versão)
+- Redirect para LP/VSL ao final
+- Mobile-first, CSS inline, zero dependências externas
 
-## Perfis de Resultado
-### Perfil A (respostas: 1A, 2B, 3A...)
-**Resultado:** [texto personalizado]
-**Transição para VSL:** "[frase de bridge para o vídeo]"
+**Ações disponíveis:**
+- Preview (nova aba via `blob:` URL)
+- Download HTML
+- Deploy Vercel (chama `_deploy_to_vercel("jake-dr-quiz", html)` → salva em `quiz_url` na oferta)
 
-[...]
-```
-
-Botão "Copiar tudo". Output é Markdown — copy-paste manual no InLead. Sem HTML, sem backend complexo.
-
-**Backend:** `POST /api/dr/quiz-roteiro`
-- Input: contexto do Passo 1
-- Output: string Markdown estruturada
-- `max_tokens`: 2048
+**Backend:**
+- `POST /api/dr/clonar-quiz` — oferta_id + URL → fetch + Claude → quiz HTML adaptado. Salva em `quiz_html`. `max_tokens`: 8192
+- `POST /api/dr/deploy-quiz` — oferta_id + HTML → `_deploy_to_vercel("jake-dr-quiz", html)` → salva URL em `quiz_url`, retorna URL
 
 ---
 
@@ -197,11 +225,16 @@ Botão "Copiar tudo". Output é Markdown — copy-paste manual no InLead. Sem HT
 
 | Rota | Método | Função | max_tokens |
 |------|--------|--------|-----------|
+| `/api/dr/ofertas` | GET | Lista ofertas salvas | — |
+| `/api/dr/ofertas` | POST | Cria nova oferta | — |
+| `/api/dr/ofertas/<id>` | GET | Carrega oferta completa | — |
+| `/api/dr/ofertas/<id>` | DELETE | Remove oferta | — |
 | `/api/dr/gerar-copy` | POST | Gera copy + script VSL + ângulos | 4096 |
-| `/api/dr/clonar-lp` | POST | Busca URL, analisa HTML, gera LP adaptada | 8192 |
+| `/api/dr/clonar-lp` | POST | Clona LP: fetch URL → Claude → HTML adaptado | 8192 |
 | `/api/dr/gerar-lp` | POST | Gera LP do zero via Claude | 8192 |
-| `/api/dr/deploy-lp` | POST | Deploy HTML no Vercel | — |
-| `/api/dr/quiz-roteiro` | POST | Gera roteiro de quiz em Markdown | 2048 |
+| `/api/dr/deploy-lp` | POST | Deploy LP no Vercel | — |
+| `/api/dr/clonar-quiz` | POST | Clona quiz: fetch URL → Claude → HTML adaptado | 8192 |
+| `/api/dr/deploy-quiz` | POST | Deploy quiz no Vercel | — |
 
 `/api/generate-creative` — reutilizado sem alteração
 
@@ -209,20 +242,21 @@ Botão "Copiar tudo". Output é Markdown — copy-paste manual no InLead. Sem HT
 
 ## Ordem de Implementação
 
-1. **Passo 1** — Copy + Script VSL (maior uso, menor dependência)
-2. **Passo 2** — LP Generator + Cloner + Deploy
-3. **Passo 4** — Quiz Roteiro (simples)
-4. **Passo 3** — Criativos (só integração frontend)
+1. **DB + CRUD de ofertas** — tabela `dr_ofertas`, rotas GET/POST/DELETE, lista de ofertas no frontend
+2. **Passo 1** — Copy + Script VSL com salvamento na oferta
+3. **Passo 2** — LP Cloner + Gerar do zero + Deploy
+4. **Passo 4** — Quiz Cloner + Deploy
+5. **Passo 3** — Criativos (só integração frontend)
 
 ---
 
 ## Decisões de Design
 
-- **Sem banco de dados para sessões DR**: `sessionStorage` é suficiente, contexto não precisa persistir entre dias. Banner de aviso se contexto perdido em refresh.
-- **Pixel ID persiste em localStorage**: mesmo pixel em todas as campanhas DR, não vale redigitar.
-- **LP autocontida**: CSS inline, sem frameworks, zero dependências — carrega rápido, sem ponto de falha externo.
-- **Fallback no cloner de LP com aviso explícito**: se fetch falhar, usuário vê mensagem clara antes de receber LP gerada do zero.
-- **Timer estático por localStorage, não cookie reset**: countdown que reseta é dark pattern sinalizado em auditorias Meta.
-- **Deploy via Vercel** (`_deploy_to_vercel()`): função já existente e parametrizada no Site Architect. `project_name = "jake-dr-lp"`.
-- **Passo 3 via injeção direta no DOM**: concatena contexto DR e escreve em `#cri-prompt` após `showPage("criativos")`. Zero mudança em `criativos.js`.
-- **Quiz como Markdown**: InLead é melhor ferramenta para quiz interativo; Jake OS gera o conteúdo estruturado, não a mecânica.
+- **Banco de dados para ofertas**: `dr_ofertas` no Neon. Ofertas persistem entre sessões, acessíveis por histórico. `sessionStorage` é espelho local para acesso rápido no frontend.
+- **Pixel ID persiste em localStorage**: mesmo pixel em todas as campanhas DR.
+- **LP e quiz autocontidos**: CSS inline, sem frameworks, zero dependências externas.
+- **Fallback com aviso explícito**: se fetch falhar no cloner (LP ou quiz), usuário vê mensagem clara antes de receber versão gerada do zero.
+- **Timer estático por localStorage**: countdown com reset é dark pattern sinalizado em auditorias Meta.
+- **Deploy via Vercel** (`_deploy_to_vercel()`): função existente no Site Architect, parametrizada. LP → `project_name = "jake-dr-lp"`. Quiz → `project_name = "jake-dr-quiz"`.
+- **Passo 3 via injeção direta no DOM**: escreve em `#cri-prompt` após `showPage("criativos")`. Zero mudança em `criativos.js`.
+- **Coleta de email no quiz sem integração nesta versão**: campo de email presente na UI do quiz gerado, mas sem backend de lista (MailerLite fica para versão futura).
