@@ -409,6 +409,106 @@
     });
   }
 
+  // ── PASSO 3: Bridge Criativos ─────────────────────────────────────────────
+  function initPasso3() {
+    var btn = document.getElementById('dr-btn-ir-criativos');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var ctx = DR.ofertaAtiva || {};
+      var partes = [];
+      if (ctx.nicho)    partes.push('Nicho: ' + ctx.nicho);
+      if (ctx.angulo)   partes.push('Ângulo: ' + ctx.angulo);
+      if (ctx.hook)     partes.push('Hook: ' + ctx.hook);
+      if (ctx.promessa) partes.push('Promessa: ' + ctx.promessa);
+      if (ctx.publico)  partes.push('Público: ' + ctx.publico);
+      var prompt = partes.join(' | ');
+
+      if (typeof window.showPage === 'function') {
+        window.showPage('criativos');
+      } else {
+        var navCriativos = document.querySelector('[data-page="criativos"]');
+        if (navCriativos) navCriativos.click();
+      }
+
+      setTimeout(function () {
+        var el = document.getElementById('cri-prompt');
+        if (el && prompt) { el.value = prompt; el.focus(); }
+      }, 100);
+    });
+  }
+
+  // ── PASSO 4: Quiz ─────────────────────────────────────────────────────────
+  var _quizHtml = '';
+
+  function initPasso4() {
+    var btnGerar = document.getElementById('dr-btn-gerar-quiz');
+    if (!btnGerar) return;
+
+    btnGerar.addEventListener('click', function () {
+      var urlOrig     = document.getElementById('dr-p4-url').value.trim();
+      var redirectUrl = document.getElementById('dr-p4-redirect').value.trim();
+      if (!redirectUrl) { showAlert('dr-p4-alert', 'Informe a URL de redirect.', 'warn'); return; }
+
+      btnGerar.disabled = true;
+      document.getElementById('dr-p4-loading').style.display = 'flex';
+      document.getElementById('dr-p4-output').style.display = 'none';
+
+      var payload = {
+        oferta_id: DR.ofertaAtiva ? DR.ofertaAtiva.id : null,
+        redirect_url: redirectUrl,
+        url_original: urlOrig || null
+      };
+
+      fetch('/api/dr/clonar-quiz', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res.error) { showAlert('dr-p4-alert', res.error, 'error'); return; }
+          if (res.fallback_msg) showAlert('dr-p4-alert', res.fallback_msg, 'warn');
+          _quizHtml = res.html;
+          var iframe = document.getElementById('dr-p4-iframe');
+          if (iframe) {
+            var blob = new Blob([_quizHtml], {type:'text/html'});
+            iframe.src = URL.createObjectURL(blob);
+          }
+          document.getElementById('dr-p4-output').style.display = 'block';
+          document.getElementById('dr-p4-deploy-url').style.display = 'none';
+        })
+        .catch(function (e) { showAlert('dr-p4-alert', 'Erro: ' + e.message, 'error'); })
+        .finally(function () { btnGerar.disabled = false; document.getElementById('dr-p4-loading').style.display = 'none'; });
+    });
+
+    var btnPreview = document.getElementById('dr-btn-preview-quiz');
+    if (btnPreview) btnPreview.addEventListener('click', function () {
+      if (!_quizHtml) return;
+      window.open(URL.createObjectURL(new Blob([_quizHtml], {type:'text/html'})), '_blank');
+    });
+
+    var btnDownload = document.getElementById('dr-btn-download-quiz');
+    if (btnDownload) btnDownload.addEventListener('click', function () {
+      if (!_quizHtml) return;
+      var a = document.createElement('a');
+      a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(_quizHtml);
+      a.download = 'quiz-dr.html'; a.click();
+    });
+
+    var btnDeploy = document.getElementById('dr-btn-deploy-quiz');
+    if (btnDeploy) btnDeploy.addEventListener('click', function () {
+      if (!_quizHtml) return;
+      document.getElementById('dr-p4-deploy-loading').style.display = 'flex';
+      fetch('/api/dr/deploy-quiz', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ html: _quizHtml, oferta_id: DR.ofertaAtiva ? DR.ofertaAtiva.id : null }) })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res.error) { showAlert('dr-p4-alert', res.error, 'error'); return; }
+          document.getElementById('dr-p4-url-text').textContent = res.url;
+          document.getElementById('dr-p4-url-link').href = res.url;
+          document.getElementById('dr-p4-deploy-url').style.display = 'block';
+        })
+        .catch(function (e) { showAlert('dr-p4-alert', 'Deploy falhou: ' + e.message, 'error'); })
+        .finally(function () { document.getElementById('dr-p4-deploy-loading').style.display = 'none'; });
+    });
+  }
+
   window.initDR = function () {
     carregarOfertas();
 
@@ -436,6 +536,8 @@
 
     initPasso1();
     initPasso2();
+    initPasso3();
+    initPasso4();
   };
 
 })();

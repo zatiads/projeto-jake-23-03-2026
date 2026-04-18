@@ -2129,12 +2129,56 @@
 
           <!-- Passo 3 — Criativos -->
           <div class="dr-step-content" data-step-content="3" id="dr-step-3">
-            <p class="dr-step-placeholder">[ Passo 3 — em construção ]</p>
+            <div style="padding:32px;text-align:center">
+              <div style="font-size:48px;margin-bottom:16px">⚙️</div>
+              <h3 style="color:#eceff1;margin-bottom:8px">Fábrica de Criativos</h3>
+              <p style="color:#78909c;margin-bottom:24px;max-width:400px;margin-left:auto;margin-right:auto">
+                O contexto da oferta (nicho, ângulo e hook) será pré-preenchido automaticamente na Fábrica de Criativos.
+              </p>
+              <button class="dr-btn dr-btn-primary" id="dr-btn-ir-criativos">
+                Abrir Fábrica de Criativos →
+              </button>
+            </div>
           </div>
 
           <!-- Passo 4 — Quiz -->
           <div class="dr-step-content" data-step-content="4" id="dr-step-4">
-            <p class="dr-step-placeholder">[ Passo 4 — em construção ]</p>
+            <div id="dr-p4-alert"></div>
+
+            <div class="dr-form-group">
+              <label class="dr-label">URL do Quiz Original (para clonar)</label>
+              <input type="url" class="dr-input" id="dr-p4-url" placeholder="https://quiz.exemplo.com — deixe vazio para gerar do zero">
+            </div>
+            <div class="dr-form-group">
+              <label class="dr-label">URL de Redirect após o quiz (LP ou VSL)</label>
+              <input type="url" class="dr-input" id="dr-p4-redirect" placeholder="https://...">
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:4px">
+              <button class="dr-btn dr-btn-primary" id="dr-btn-gerar-quiz">⚡ Gerar Quiz</button>
+              <div id="dr-p4-loading" style="display:none" class="dr-loading">
+                <div class="dr-spinner"></div> Gerando quiz com Claude...
+              </div>
+            </div>
+
+            <div id="dr-p4-output" style="display:none;margin-top:24px">
+              <div class="dr-output-actions" style="margin-bottom:8px">
+                <button class="dr-btn dr-btn-secondary dr-btn-sm" id="dr-btn-preview-quiz">👁 Preview</button>
+                <button class="dr-btn dr-btn-secondary dr-btn-sm" id="dr-btn-download-quiz">⬇ Download</button>
+                <button class="dr-btn dr-btn-primary dr-btn-sm" id="dr-btn-deploy-quiz">🚀 Deploy Vercel</button>
+              </div>
+              <div id="dr-p4-deploy-loading" style="display:none" class="dr-loading">
+                <div class="dr-spinner"></div> Fazendo deploy...
+              </div>
+              <div id="dr-p4-deploy-url" style="display:none;margin-bottom:8px">
+                <a id="dr-p4-url-link" href="#" target="_blank" class="dr-alert dr-alert-success" style="display:block;text-decoration:none">
+                  ✅ Quiz publicado: <span id="dr-p4-url-text"></span>
+                </a>
+              </div>
+              <div class="dr-preview-wrap">
+                <iframe id="dr-p4-iframe" src="about:blank"></iframe>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -5748,6 +5748,110 @@ def dr_deploy_lp():
     return jsonify({"url": url, "ok": True})
 
 
+def _dr_prompt_quiz(contexto_oferta, redirect_url, estrutura_original=None):
+    """Monta prompt para geração de quiz HTML completo."""
+    ref = f"\nESTRUTURA DO QUIZ ORIGINAL PARA INSPIRAÇÃO:\n{estrutura_original[:3000]}" if estrutura_original else ""
+    return f"""Você é especialista em quiz funnels de alta conversão para Direct Response.
+Gere um quiz HTML completo, autocontido e mobile-first.
+
+CONTEXTO DA OFERTA:
+{contexto_oferta}
+
+URL DE REDIRECT (após quiz): {redirect_url}
+{ref}
+
+REQUISITOS:
+1. HTML único autocontido (CSS inline + JS inline)
+2. Mobile-first, design atrativo e moderno
+3. 4 perguntas com 3-4 opções cada (baseadas no nicho/problema da oferta)
+4. Barra de progresso visual (ex: "Pergunta 2 de 4")
+5. Campo de email ANTES de revelar o resultado (label: "Para onde enviar sua análise personalizada?")
+6. 3 perfis de resultado baseados nas respostas (Perfil A, B, C)
+7. Cada perfil tem: título, texto descritivo, e botão CTA → {redirect_url}
+8. JS puro para lógica de navegação entre perguntas e cálculo de perfil
+9. Animação suave de transição entre perguntas (fade ou slide)
+10. Paleta de cores vibrante e moderna, fundo escuro ou claro (escolha o que converter mais)
+11. Sem frameworks externos
+
+Retorne APENAS o código HTML completo começando com <!DOCTYPE html>.
+Sem texto antes ou depois, sem markdown."""
+
+
+@app.route("/api/dr/clonar-quiz", methods=["POST"])
+@login_required
+def dr_clonar_quiz():
+    d = request.get_json() or {}
+    url_original = d.get("url_original", "")
+    oferta_id    = d.get("oferta_id")
+    redirect_url = d.get("redirect_url", "#")
+
+    contexto = d.get("contexto_raw", "")
+    if not contexto and oferta_id:
+        try:
+            conn = _get_db(); cur = conn.cursor()
+            cur.execute("SELECT * FROM dr_ofertas WHERE id=%s", (oferta_id,))
+            row = cur.fetchone(); conn.close()
+            if row:
+                o = dict(row)
+                contexto = f"Produto: {o.get('nome')}\nNicho: {o.get('nicho')}\nÂngulo: {o.get('angulo')}\nPromessa: {o.get('promessa')}\nPúblico: {o.get('publico')}"
+        except Exception:
+            pass
+
+    fallback_msg = None
+    estrutura_original = None
+
+    if url_original:
+        html_orig, erro = _dr_fetch_html(url_original)
+        if erro:
+            fallback_msg = f"Não foi possível carregar o quiz original ({erro}) — quiz gerado com estrutura base."
+        else:
+            estrutura_original = html_orig
+
+    try:
+        prompt = _dr_prompt_quiz(contexto, redirect_url, estrutura_original)
+        client = _anthropic_client_46()
+        msg = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=8192,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        quiz_html = msg.content[0].text.strip()
+        if quiz_html.startswith("```"):
+            quiz_html = quiz_html.split("```")[1]
+            if quiz_html.startswith("html"): quiz_html = quiz_html[4:]
+            quiz_html = quiz_html.rsplit("```", 1)[0].strip()
+
+        if oferta_id:
+            conn = _get_db(); cur = conn.cursor()
+            cur.execute("UPDATE dr_ofertas SET quiz_html=%s, updated_at=NOW() WHERE id=%s", (quiz_html, oferta_id))
+            conn.commit(); conn.close()
+
+        return jsonify({"html": quiz_html, "fallback_msg": fallback_msg})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/dr/deploy-quiz", methods=["POST"])
+@login_required
+def dr_deploy_quiz():
+    d = request.get_json() or {}
+    html = d.get("html", "")
+    oferta_id = d.get("oferta_id")
+    if not html:
+        return jsonify({"error": "HTML vazio"}), 400
+    ok, url, info = _deploy_to_vercel("jake-dr-quiz", html)
+    if not ok:
+        return jsonify({"error": f"Deploy falhou: {info}"}), 500
+    if oferta_id:
+        try:
+            conn = _get_db(); cur = conn.cursor()
+            cur.execute("UPDATE dr_ofertas SET quiz_url=%s, updated_at=NOW() WHERE id=%s", (url, oferta_id))
+            conn.commit(); conn.close()
+        except Exception:
+            pass
+    return jsonify({"url": url, "ok": True})
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
     ip   = _local_ip()
