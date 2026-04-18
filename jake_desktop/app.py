@@ -5460,6 +5460,101 @@ def dr_deletar_oferta(oid):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/dr/gerar-copy", methods=["POST"])
+@login_required
+def dr_gerar_copy():
+    import json as _json
+    d = request.get_json() or {}
+    oferta_id = d.get("oferta_id")
+    contexto  = d.get("contexto_raw", "")
+    produto   = d.get("produto", d.get("nome", ""))
+    publico   = d.get("publico", "")
+    nicho     = d.get("nicho", "")
+    angulo    = d.get("angulo", "")
+    hook      = d.get("hook", "")
+    promessa  = d.get("promessa", "")
+    tipo_funil = d.get("tipo_funil", "vsl_direto")
+
+    prompt = f"""Você é um especialista em Direct Response e copywriting de alta conversão para o mercado brasileiro.
+
+Analise o contexto da oferta vencedora abaixo e gere copy adaptada para o produto do usuário.
+Escreva em português do Brasil. Seja direto, persuasivo e use linguagem de conversão real.
+
+CONTEXTO DA OFERTA VENCEDORA:
+{contexto}
+
+PRODUTO: {produto}
+NICHO: {nicho}
+ÂNGULO: {angulo}
+HOOK PRINCIPAL: {hook}
+PROMESSA CENTRAL: {promessa}
+PÚBLICO-ALVO: {publico}
+TIPO DE FUNIL: {tipo_funil}
+
+Retorne APENAS um JSON válido com esta estrutura exata (sem texto antes ou depois, sem markdown):
+{{
+  "copy": {{
+    "headline": "headline principal impactante",
+    "subheadline": "subheadline de suporte",
+    "bullets": ["benefício 1", "benefício 2", "benefício 3", "benefício 4", "benefício 5"],
+    "cta": "texto do botão CTA",
+    "anuncio_curto": "copy curta para anúncio (até 125 chars)",
+    "anuncio_medio": "copy média para anúncio (até 300 chars)",
+    "anuncio_longo": "copy longa para anúncio (até 600 chars)"
+  }},
+  "script_vsl": {{
+    "hook": "abertura que para o scroll (15-30 segundos)",
+    "problema": "amplificação do problema que o público enfrenta",
+    "agitacao": "consequências de não resolver o problema agora",
+    "solucao": "apresentação da solução (produto) como saída",
+    "prova": "provas sociais, resultados, depoimentos sugeridos",
+    "oferta": "detalhes da oferta: preço, bônus, o que está incluso",
+    "garantia": "garantia e redução de risco",
+    "cta": "chamada para ação final urgente"
+  }},
+  "angulos": [
+    {{"titulo": "Ângulo 1", "descricao": "descrição do ângulo", "hook": "hook para este ângulo"}},
+    {{"titulo": "Ângulo 2", "descricao": "descrição do ângulo", "hook": "hook para este ângulo"}},
+    {{"titulo": "Ângulo 3", "descricao": "descrição do ângulo", "hook": "hook para este ângulo"}}
+  ]
+}}"""
+
+    try:
+        client = _anthropic_client_46()
+        msg = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw = msg.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.rsplit("```", 1)[0].strip()
+        result = _json.loads(raw)
+
+        if oferta_id:
+            conn = _get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """UPDATE dr_ofertas SET copy_json=%s, script_vsl=%s, angulos_json=%s,
+                   updated_at=NOW() WHERE id=%s""",
+                (_json.dumps(result.get("copy", {})),
+                 _json.dumps(result.get("script_vsl", {})),
+                 _json.dumps(result.get("angulos", [])),
+                 oferta_id)
+            )
+            conn.commit()
+            conn.close()
+
+        return jsonify(result)
+    except _json.JSONDecodeError as e:
+        return jsonify({"error": f"Claude retornou JSON inválido: {str(e)}", "raw": raw[:300]}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
     ip   = _local_ip()
