@@ -5555,6 +5555,199 @@ Retorne APENAS um JSON válido com esta estrutura exata (sem texto antes ou depo
         return jsonify({"error": str(e)}), 500
 
 
+def _dr_fetch_html(url):
+    """Faz fetch de uma URL e retorna (html, erro)."""
+    try:
+        resp = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"},
+            timeout=10
+        )
+        if resp.status_code != 200:
+            return None, f"Status HTTP {resp.status_code}"
+        html = resp.text
+        import re as _re
+        texto_visivel = _re.sub(r'<[^>]+>', ' ', html)
+        texto_visivel = _re.sub(r'\s+', ' ', texto_visivel).strip()
+        if len(texto_visivel) < 500:
+            return None, "Conteúdo insuficiente — página pode usar renderização JS pesada"
+        return html, None
+    except requests.exceptions.Timeout:
+        return None, "Timeout ao carregar URL"
+    except Exception as e:
+        return None, str(e)
+
+
+def _dr_prompt_lp(contexto_oferta, hotmart_url, video_url, pixel_id, preco, estrutura_original=None):
+    """Monta o prompt para geração de LP HTML completa."""
+    ref = f"\nESTRUTURA DA LP ORIGINAL PARA INSPIRAÇÃO:\n{estrutura_original[:3000]}" if estrutura_original else ""
+    return f"""Você é um especialista em Direct Response e desenvolvimento web.
+Gere uma landing page HTML completa, autocontida e mobile-first para uma oferta de DR.
+
+CONTEXTO DA OFERTA:
+{contexto_oferta}
+
+CONFIGURAÇÕES:
+- Link do Checkout (Hotmart): {hotmart_url}
+- URL do Vídeo VSL: {video_url}
+- Pixel ID Meta: {pixel_id}
+- Preço: {preco}
+{ref}
+
+REQUISITOS OBRIGATÓRIOS:
+1. HTML único autocontido (CSS inline + JS inline, sem dependências externas)
+2. Mobile-first (breakpoint 768px)
+3. Meta Pixel no <head> com o Pixel ID fornecido (fbq('init', '{pixel_id}'); fbq('track', 'PageView');)
+4. Player de vídeo: embed do YouTube ou Vimeo com o URL fornecido
+5. Seção hero: headline + subheadline impactantes baseadas no contexto
+6. Lista de benefícios (bullets) — mínimo 5 itens
+7. 3 depoimentos/provas sociais com nome, resultado e texto
+8. Timer de escassez: usar localStorage para definir data de expiração fixa (72h da primeira visita). NÃO usar countdown que reseta — é dark pattern.
+   JS para timer:
+   var KEY='dr_exp'; var stored=localStorage.getItem(KEY);
+   var exp=stored?new Date(stored):new Date(Date.now()+72*3600000);
+   if(!stored) localStorage.setItem(KEY,exp.toISOString());
+9. Bloco de preço com botão CTA → {hotmart_url}?utm_source=meta&utm_medium=cpc&utm_campaign=dr
+10. Paleta dark moderna: fundo escuro (#0a0a0a ou similar), destaques em cor vibrante (verde, azul ou laranja)
+11. Sem frameworks CSS externos (sem Bootstrap, sem Tailwind)
+12. Tag <title> com o nome do produto
+
+Retorne APENAS o código HTML completo, começando com <!DOCTYPE html> e terminando com </html>.
+Sem texto antes ou depois, sem markdown, sem explicações."""
+
+
+@app.route("/api/dr/clonar-lp", methods=["POST"])
+@login_required
+def dr_clonar_lp():
+    import json as _json
+    d = request.get_json() or {}
+    url_original = d.get("url_original", "")
+    oferta_id    = d.get("oferta_id")
+    hotmart_url  = d.get("hotmart_url", "#")
+    video_url    = d.get("video_url", "")
+    pixel_id     = d.get("pixel_id", "")
+    preco        = d.get("preco", "")
+
+    contexto = d.get("contexto_raw") or ""
+    if not contexto and oferta_id:
+        try:
+            conn = _get_db(); cur = conn.cursor()
+            cur.execute("SELECT * FROM dr_ofertas WHERE id=%s", (oferta_id,))
+            row = cur.fetchone(); conn.close()
+            if row:
+                o = dict(row)
+                contexto = f"Produto: {o.get('nome')}\nNicho: {o.get('nicho')}\nÂngulo: {o.get('angulo')}\nHook: {o.get('hook')}\nPromessa: {o.get('promessa')}\nPúblico: {o.get('publico')}"
+        except Exception:
+            pass
+
+    fallback_msg = None
+    estrutura_original = None
+
+    if url_original:
+        html_orig, erro = _dr_fetch_html(url_original)
+        if erro:
+            fallback_msg = f"Não foi possível carregar a URL original ({erro}) — LP gerada do zero com base no contexto."
+        else:
+            estrutura_original = html_orig
+
+    try:
+        prompt = _dr_prompt_lp(contexto, hotmart_url, video_url, pixel_id, preco, estrutura_original)
+        client = _anthropic_client_46()
+        msg = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=8192,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        lp_html = msg.content[0].text.strip()
+        if lp_html.startswith("```"):
+            lp_html = lp_html.split("```")[1]
+            if lp_html.startswith("html"): lp_html = lp_html[4:]
+            lp_html = lp_html.rsplit("```", 1)[0].strip()
+
+        if oferta_id:
+            conn = _get_db(); cur = conn.cursor()
+            cur.execute("UPDATE dr_ofertas SET lp_html=%s, updated_at=NOW() WHERE id=%s", (lp_html, oferta_id))
+            conn.commit(); conn.close()
+
+        return jsonify({"html": lp_html, "fallback_msg": fallback_msg})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/dr/gerar-lp", methods=["POST"])
+@login_required
+def dr_gerar_lp():
+    import json as _json
+    d = request.get_json() or {}
+    oferta_id   = d.get("oferta_id")
+    hotmart_url = d.get("hotmart_url", "#")
+    video_url   = d.get("video_url", "")
+    pixel_id    = d.get("pixel_id", "")
+    preco       = d.get("preco", "")
+    contexto    = d.get("contexto_raw", "")
+
+    if not contexto and oferta_id:
+        try:
+            conn = _get_db(); cur = conn.cursor()
+            cur.execute("SELECT * FROM dr_ofertas WHERE id=%s", (oferta_id,))
+            row = cur.fetchone(); conn.close()
+            if row:
+                o = dict(row)
+                contexto = f"Produto: {o.get('nome')}\nNicho: {o.get('nicho')}\nÂngulo: {o.get('angulo')}\nHook: {o.get('hook')}\nPromessa: {o.get('promessa')}\nPúblico: {o.get('publico')}"
+                if o.get('copy_json'):
+                    try:
+                        cp = _json.loads(o['copy_json']) if isinstance(o['copy_json'], str) else o['copy_json']
+                        contexto += f"\nHeadline: {cp.get('headline','')}\nBullets: {'; '.join(cp.get('bullets',[]))}"
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    try:
+        prompt = _dr_prompt_lp(contexto, hotmart_url, video_url, pixel_id, preco)
+        client = _anthropic_client_46()
+        msg = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=8192,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        lp_html = msg.content[0].text.strip()
+        if lp_html.startswith("```"):
+            lp_html = lp_html.split("```")[1]
+            if lp_html.startswith("html"): lp_html = lp_html[4:]
+            lp_html = lp_html.rsplit("```", 1)[0].strip()
+
+        if oferta_id:
+            conn = _get_db(); cur = conn.cursor()
+            cur.execute("UPDATE dr_ofertas SET lp_html=%s, updated_at=NOW() WHERE id=%s", (lp_html, oferta_id))
+            conn.commit(); conn.close()
+
+        return jsonify({"html": lp_html})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/dr/deploy-lp", methods=["POST"])
+@login_required
+def dr_deploy_lp():
+    d = request.get_json() or {}
+    html = d.get("html", "")
+    oferta_id = d.get("oferta_id")
+    if not html:
+        return jsonify({"error": "HTML vazio"}), 400
+    ok, url, info = _deploy_to_vercel("jake-dr-lp", html)
+    if not ok:
+        return jsonify({"error": f"Deploy falhou: {info}"}), 500
+    if oferta_id:
+        try:
+            conn = _get_db(); cur = conn.cursor()
+            cur.execute("UPDATE dr_ofertas SET lp_url=%s, updated_at=NOW() WHERE id=%s", (url, oferta_id))
+            conn.commit(); conn.close()
+        except Exception:
+            pass
+    return jsonify({"url": url, "ok": True})
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
     ip   = _local_ip()
