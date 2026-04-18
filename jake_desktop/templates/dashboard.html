@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/anuncios.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/criativos.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dr.css') }}">
   <style id="rotina-styles">
     /* ── ROTINA MODULE ──────────────────────── */
     .rot-page { padding: 32px; min-height: 100vh; }
@@ -166,6 +167,10 @@
         <a class="nav-item" data-page="nutricao" href="#">
           <span class="nav-icon">🥗</span>
           <span class="nav-label">Nutrição</span>
+        </a>
+        <a class="nav-item" data-page="dr" href="#">
+          <span class="nav-icon">🎯</span>
+          <span class="nav-label">Direct Response</span>
         </a>
       </nav>
 
@@ -929,6 +934,7 @@
             <div class="cri-abas">
               <div class="cri-aba active" data-aba="resultado" id="cri-aba-resultado">Resultado</div>
               <div class="cri-aba" data-aba="historico" id="cri-aba-historico">Histórico</div>
+              <div class="cri-aba" data-aba="custos" id="cri-aba-custos">💸 Custos</div>
             </div>
 
             <!-- Aba Resultado -->
@@ -972,6 +978,21 @@
                 <button class="cri-pag-btn" id="cri-pag-proximo">→</button>
               </div>
             </div>
+
+          <!-- Aba Custos -->
+          <div class="cri-historico-content hidden" id="cri-painel-custos">
+            <div id="cri-custos-resumo" style="display:flex;gap:1.5rem;margin-bottom:1.5rem;flex-wrap:wrap">
+              <div class="cri-custo-card">
+                <span class="cri-custo-label">Gasto este mês</span>
+                <span class="cri-custo-val" id="cri-custo-mes-total">–</span>
+              </div>
+              <div class="cri-custo-card">
+                <span class="cri-custo-label">Gerações cobradas</span>
+                <span class="cri-custo-val" id="cri-custo-mes-geracoes">–</span>
+              </div>
+            </div>
+            <div id="cri-custos-lista"></div>
+          </div>
 
           </div>
         </div>
@@ -1048,6 +1069,7 @@
                 <select id="cs-perfil" class="cs-select">
                   <option value="brunozatti">Bruno Zatti — @brunozatii</option>
                   <option value="belibid">Beli Bid — @belibid_oficial</option>
+                  <option value="vielife">Vielife — @vielife.oficial</option>
                 </select>
               </div>
             </div>
@@ -1667,6 +1689,7 @@
             <h1>📊 Social Media Brief</h1>
             <div class="sb-acoes">
               <button class="btn-neon" onclick="sbGerarPortal()">⚡ Gerar Portal</button>
+              <button class="btn-outline" onclick="sbRepublicar()" title="Republica usando dados já salvos — sem rodar Meta Ads nem Claude">🔄 Republicar</button>
               <button class="btn-outline" onclick="sbAbrirModalCliente()">+ Novo Cliente</button>
             </div>
           </div>
@@ -1811,6 +1834,7 @@
               <span id="nutr-status-badge" class="nutr-badge nutr-badge-revisao">Revisão</span>
               <button class="btn-outline btn-sm" onclick="nutricaoGerarCardapio()">🔄 Gerar novo</button>
               <button class="btn-neon btn-sm" onclick="nutricaoAprovarCardapio()" id="nutr-btn-aprovar">✅ Aprovar cardápio</button>
+              <button class="btn-neon btn-sm" onclick="nutricaoGerarLista()" id="nutr-btn-lista" style="display:none;">🛒 Gerar Lista</button>
             </div>
 
             <!-- Navegação por dia -->
@@ -1899,6 +1923,59 @@
         </div>
 
       </section>
+
+      <!-- ── DIRECT RESPONSE ──────────────────────────────────────────── -->
+      <div id="page-dr" class="page">
+        <div class="dr-header">
+          <h2>Direct Response</h2>
+          <p class="dr-subtitle">Pipeline: Oferta → Landing Page → Criativos → Quiz</p>
+        </div>
+
+        <!-- Lista de ofertas salvas -->
+        <div class="dr-ofertas-lista" id="dr-ofertas-lista">
+          <div class="dr-ofertas-header">
+            <span class="dr-ofertas-titulo">Ofertas Salvas</span>
+            <button class="dr-btn-nova" id="dr-btn-nova-oferta">+ Nova Oferta</button>
+          </div>
+          <div id="dr-ofertas-cards" class="dr-ofertas-cards">
+            <span class="dr-empty">Nenhuma oferta ainda. Clique em "+ Nova Oferta" para começar.</span>
+          </div>
+        </div>
+
+        <!-- Steps de pipeline -->
+        <div class="dr-pipeline" id="dr-pipeline" style="display:none">
+          <div class="dr-steps-nav">
+            <button class="dr-step-btn active" data-step="1">1 · Oferta</button>
+            <span class="dr-step-arrow">→</span>
+            <button class="dr-step-btn" data-step="2">2 · Landing Page</button>
+            <span class="dr-step-arrow">→</span>
+            <button class="dr-step-btn" data-step="3">3 · Criativos</button>
+            <span class="dr-step-arrow">→</span>
+            <button class="dr-step-btn" data-step="4">4 · Quiz</button>
+          </div>
+
+          <!-- Passo 1 — Oferta -->
+          <div class="dr-step-content active" data-step-content="1" id="dr-step-1">
+            <p class="dr-step-placeholder">[ Passo 1 — em construção ]</p>
+          </div>
+
+          <!-- Passo 2 — Landing Page -->
+          <div class="dr-step-content" data-step-content="2" id="dr-step-2">
+            <p class="dr-step-placeholder">[ Passo 2 — em construção ]</p>
+          </div>
+
+          <!-- Passo 3 — Criativos -->
+          <div class="dr-step-content" data-step-content="3" id="dr-step-3">
+            <p class="dr-step-placeholder">[ Passo 3 — em construção ]</p>
+          </div>
+
+          <!-- Passo 4 — Quiz -->
+          <div class="dr-step-content" data-step-content="4" id="dr-step-4">
+            <p class="dr-step-placeholder">[ Passo 4 — em construção ]</p>
+          </div>
+        </div>
+      </div>
+      <!-- ── /DIRECT RESPONSE ─────────────────────────────────────────── -->
 
     </main><!-- /.content -->
   </div><!-- /.layout -->
@@ -2043,6 +2120,7 @@
   <script src="{{ url_for('static', filename='js/social_brief.js') }}"></script>
   <script src="{{ url_for('static', filename='js/rotina.js') }}"></script>
   <script src="{{ url_for('static', filename='js/nutricao.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/dr.js') }}"></script>
   <script>
     (function(){
       document.querySelectorAll('.nav-item').forEach(function(item){

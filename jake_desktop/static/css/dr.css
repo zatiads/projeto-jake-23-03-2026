@@ -1,0 +1,85 @@
+/* jake_desktop/static/css/dr.css */
+
+/* ── Header ── */
+.dr-header { margin-bottom: 24px; }
+.dr-header h2 { font-family: 'Rajdhani', sans-serif; font-size: 28px; font-weight: 700; color: #eceff1; margin: 0 0 4px; }
+.dr-subtitle { font-size: 13px; color: #78909c; margin: 0; }
+
+/* ── Ofertas Lista ── */
+.dr-ofertas-lista { background: rgba(0,0,0,.25); border: 1px solid rgba(0,229,255,.1); border-radius: 12px; padding: 16px; margin-bottom: 24px; }
+.dr-ofertas-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.dr-ofertas-titulo { font-size: 14px; font-weight: 600; color: #b0bec5; text-transform: uppercase; letter-spacing: .05em; }
+.dr-btn-nova { background: rgba(0,229,255,.1); border: 1px solid rgba(0,229,255,.3); color: #00e5ff; border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+.dr-btn-nova:hover { background: rgba(0,229,255,.2); }
+.dr-ofertas-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+.dr-empty { font-size: 13px; color: #546e7a; }
+
+/* ── Card de Oferta ── */
+.dr-oferta-card { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 12px 16px; cursor: pointer; min-width: 180px; flex: 1; max-width: 220px; transition: border-color .2s; }
+.dr-oferta-card:hover { border-color: rgba(0,229,255,.3); }
+.dr-oferta-card.active { border-color: #00e5ff; background: rgba(0,229,255,.06); }
+.dr-oferta-nome { font-size: 14px; font-weight: 600; color: #eceff1; margin-bottom: 4px; }
+.dr-oferta-nicho { font-size: 12px; color: #78909c; }
+.dr-oferta-data { font-size: 11px; color: #546e7a; margin-top: 6px; }
+.dr-oferta-del { float: right; background: none; border: none; color: #546e7a; cursor: pointer; font-size: 14px; padding: 0; }
+.dr-oferta-del:hover { color: #ff5252; }
+
+/* ── Pipeline Steps ── */
+.dr-steps-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+.dr-step-btn { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: #78909c; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; transition: all .2s; }
+.dr-step-btn:hover { border-color: rgba(0,229,255,.3); color: #b0bec5; }
+.dr-step-btn.active { background: rgba(0,229,255,.12); border-color: #00e5ff; color: #00e5ff; font-weight: 600; }
+.dr-step-arrow { color: #37474f; font-size: 16px; }
+.dr-step-content { display: none; }
+.dr-step-content.active { display: block; }
+.dr-step-placeholder { color: #546e7a; font-size: 13px; padding: 24px; text-align: center; }
+
+/* ── Formulário base ── */
+.dr-form-group { margin-bottom: 16px; }
+.dr-label { display: block; font-size: 12px; color: #78909c; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
+.dr-input, .dr-textarea, .dr-select {
+  width: 100%; background: rgba(10,18,32,.9); border: 1px solid rgba(0,229,255,.15);
+  border-radius: 8px; padding: 10px 12px; color: #eceff1; font-size: 14px; outline: none;
+  box-sizing: border-box; font-family: inherit;
+}
+.dr-textarea { resize: vertical; min-height: 120px; }
+.dr-input:focus, .dr-textarea:focus, .dr-select:focus { border-color: rgba(0,229,255,.4); }
+
+/* ── Botões ── */
+.dr-btn { border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; border: none; font-family: inherit; font-weight: 600; }
+.dr-btn-primary { background: linear-gradient(135deg,rgba(0,229,255,.25),rgba(0,229,255,.1)); border: 1px solid rgba(0,229,255,.4); color: #00e5ff; }
+.dr-btn-primary:hover { background: linear-gradient(135deg,rgba(0,229,255,.35),rgba(0,229,255,.2)); }
+.dr-btn-secondary { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: #b0bec5; }
+.dr-btn-secondary:hover { border-color: rgba(255,255,255,.2); }
+.dr-btn-sm { padding: 6px 12px; font-size: 12px; }
+
+/* ── Toggle modo ── */
+.dr-mode-toggle { display: flex; gap: 8px; margin-bottom: 20px; }
+.dr-mode-btn { padding: 6px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); color: #78909c; }
+.dr-mode-btn.active { background: rgba(0,229,255,.1); border-color: rgba(0,229,255,.3); color: #00e5ff; }
+
+/* ── Output tabs ── */
+.dr-output-tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.dr-output-tab { padding: 8px 16px; font-size: 13px; cursor: pointer; color: #546e7a; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.dr-output-tab.active { color: #00e5ff; border-bottom-color: #00e5ff; }
+.dr-output-pane { display: none; }
+.dr-output-pane.active { display: block; }
+
+/* ── Output box ── */
+.dr-output-box { background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.08); border-radius: 8px; padding: 16px; font-size: 13px; color: #b0bec5; line-height: 1.7; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+.dr-output-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+
+/* ── Loading ── */
+.dr-loading { color: #00e5ff; font-size: 13px; display: flex; align-items: center; gap: 8px; padding: 12px 0; }
+.dr-spinner { width: 16px; height: 16px; border: 2px solid rgba(0,229,255,.2); border-top-color: #00e5ff; border-radius: 50%; animation: dr-spin .8s linear infinite; }
+@keyframes dr-spin { to { transform: rotate(360deg); } }
+
+/* ── Alert ── */
+.dr-alert { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
+.dr-alert-warn { background: rgba(255,152,0,.1); border: 1px solid rgba(255,152,0,.3); color: #ffa726; }
+.dr-alert-error { background: rgba(255,82,82,.1); border: 1px solid rgba(255,82,82,.3); color: #ff5252; }
+.dr-alert-success { background: rgba(76,175,80,.1); border: 1px solid rgba(76,175,80,.3); color: #66bb6a; }
+
+/* ── Preview iframe ── */
+.dr-preview-wrap { border: 1px solid rgba(255,255,255,.1); border-radius: 8px; overflow: hidden; margin-top: 12px; }
+.dr-preview-wrap iframe { width: 100%; height: 500px; border: none; background: #fff; }

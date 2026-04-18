@@ -14,6 +14,9 @@
     if (id === "social-brief" && typeof window.initSocialBrief === "function") {
       window.initSocialBrief();
     }
+    if (id === "dr" && typeof window.initDR === "function") {
+      window.initDR();
+    }
   }
 
   document.querySelectorAll(".nav-item").forEach(function (item) {
@@ -25,7 +28,9 @@
 
   // Carrega a página correta se houver hash na URL
   var hash = location.hash.replace("#", "");
-  var valid = ["painel","architect","performance","anuncios","copys","criativos","relatorios","carrossel","prompts","financeiro","agenda","rotina","social-brief","nutricao"];
+  var valid = ["painel","architect","performance","anuncios","copys","criativos","relatorios","carrossel","prompts","financeiro","agenda","rotina","social-brief","nutricao","dr"];
   if (hash && valid.indexOf(hash) !== -1) showPage(hash);
   else showPage("painel");
+
+  window.showPage = showPage;
 })();
