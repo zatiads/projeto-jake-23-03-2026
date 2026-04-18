@@ -2067,7 +2067,64 @@
 
           <!-- Passo 2 — Landing Page -->
           <div class="dr-step-content" data-step-content="2" id="dr-step-2">
-            <p class="dr-step-placeholder">[ Passo 2 — em construção ]</p>
+            <div id="dr-p2-alert"></div>
+
+            <div class="dr-mode-toggle">
+              <button class="dr-mode-btn active" id="dr-p2-modo-clonar">Clonar LP existente</button>
+              <button class="dr-mode-btn" id="dr-p2-modo-zero">Gerar do zero</button>
+            </div>
+
+            <div id="dr-p2-form-clonar">
+              <div class="dr-form-group">
+                <label class="dr-label">URL da LP Original</label>
+                <input type="url" class="dr-input" id="dr-p2-url" placeholder="https://...">
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
+              <div class="dr-form-group">
+                <label class="dr-label">Link Hotmart (Checkout)</label>
+                <input type="url" class="dr-input" id="dr-p2-hotmart" placeholder="https://hotmart.com/...">
+              </div>
+              <div class="dr-form-group">
+                <label class="dr-label">URL do Vídeo VSL</label>
+                <input type="url" class="dr-input" id="dr-p2-video" placeholder="YouTube ou Vimeo">
+              </div>
+              <div class="dr-form-group">
+                <label class="dr-label">Pixel ID Meta DR</label>
+                <input type="text" class="dr-input" id="dr-p2-pixel" placeholder="Ex: 1234567890">
+              </div>
+              <div class="dr-form-group">
+                <label class="dr-label">Preço + Parcelas</label>
+                <input type="text" class="dr-input" id="dr-p2-preco" placeholder="Ex: R$97 ou 3x R$37">
+              </div>
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:4px">
+              <button class="dr-btn dr-btn-primary" id="dr-btn-gerar-lp">⚡ Gerar Landing Page</button>
+              <div id="dr-p2-loading" style="display:none" class="dr-loading">
+                <div class="dr-spinner"></div> Gerando LP com Claude...
+              </div>
+            </div>
+
+            <div id="dr-p2-output" style="display:none;margin-top:24px">
+              <div class="dr-output-actions" style="margin-bottom:8px">
+                <button class="dr-btn dr-btn-secondary dr-btn-sm" id="dr-btn-preview-lp">👁 Preview</button>
+                <button class="dr-btn dr-btn-secondary dr-btn-sm" id="dr-btn-download-lp">⬇ Download</button>
+                <button class="dr-btn dr-btn-primary dr-btn-sm" id="dr-btn-deploy-lp">🚀 Deploy Vercel</button>
+              </div>
+              <div id="dr-p2-deploy-loading" style="display:none" class="dr-loading">
+                <div class="dr-spinner"></div> Fazendo deploy...
+              </div>
+              <div id="dr-p2-deploy-url" style="display:none;margin-bottom:8px">
+                <a id="dr-p2-url-link" href="#" target="_blank" class="dr-alert dr-alert-success" style="display:block;text-decoration:none">
+                  ✅ LP publicada: <span id="dr-p2-url-text"></span>
+                </a>
+              </div>
+              <div class="dr-preview-wrap">
+                <iframe id="dr-p2-iframe" src="about:blank"></iframe>
+              </div>
+            </div>
           </div>
 
           <!-- Passo 3 — Criativos -->

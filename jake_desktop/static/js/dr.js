@@ -295,6 +295,120 @@
     });
   }
 
+  // ── PASSO 2: Landing Page ─────────────────────────────────────────────────
+  var _lpHtml = '';
+
+  function initPasso2() {
+    var savedPixel = localStorage.getItem('dr_pixel_id');
+    var pixelInput = document.getElementById('dr-p2-pixel');
+    if (savedPixel && pixelInput) pixelInput.value = savedPixel;
+
+    var btnClonar  = document.getElementById('dr-p2-modo-clonar');
+    var btnZero    = document.getElementById('dr-p2-modo-zero');
+    var formClonar = document.getElementById('dr-p2-form-clonar');
+
+    if (btnClonar) {
+      btnClonar.addEventListener('click', function () {
+        btnClonar.classList.add('active'); btnZero.classList.remove('active');
+        formClonar.style.display = '';
+      });
+    }
+    if (btnZero) {
+      btnZero.addEventListener('click', function () {
+        btnZero.classList.add('active'); btnClonar.classList.remove('active');
+        formClonar.style.display = 'none';
+      });
+    }
+
+    var btnGerar = document.getElementById('dr-btn-gerar-lp');
+    if (!btnGerar) return;
+    btnGerar.addEventListener('click', function () {
+      var modoClonar = (btnClonar && btnClonar.classList.contains('active'));
+      var hotmart = document.getElementById('dr-p2-hotmart').value.trim();
+      var video   = document.getElementById('dr-p2-video').value.trim();
+      var pixel   = document.getElementById('dr-p2-pixel').value.trim();
+      var preco   = document.getElementById('dr-p2-preco').value.trim();
+
+      if (!hotmart) { showAlert('dr-p2-alert', 'Informe o link do Hotmart.', 'warn'); return; }
+      if (pixel) localStorage.setItem('dr_pixel_id', pixel);
+
+      var payload = {
+        oferta_id: DR.ofertaAtiva ? DR.ofertaAtiva.id : null,
+        hotmart_url: hotmart, video_url: video, pixel_id: pixel, preco: preco
+      };
+
+      var endpoint = '/api/dr/gerar-lp';
+      if (modoClonar) {
+        var urlOrig = document.getElementById('dr-p2-url').value.trim();
+        if (!urlOrig) { showAlert('dr-p2-alert', 'Informe a URL da LP original.', 'warn'); return; }
+        payload.url_original = urlOrig;
+        endpoint = '/api/dr/clonar-lp';
+      }
+
+      btnGerar.disabled = true;
+      document.getElementById('dr-p2-loading').style.display = 'flex';
+      document.getElementById('dr-p2-output').style.display = 'none';
+
+      fetch(endpoint, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res.error) { showAlert('dr-p2-alert', res.error, 'error'); return; }
+          if (res.fallback_msg) showAlert('dr-p2-alert', res.fallback_msg, 'warn');
+          _lpHtml = res.html;
+          var iframe = document.getElementById('dr-p2-iframe');
+          if (iframe) {
+            var blob = new Blob([_lpHtml], {type:'text/html'});
+            iframe.src = URL.createObjectURL(blob);
+          }
+          document.getElementById('dr-p2-output').style.display = 'block';
+          document.getElementById('dr-p2-deploy-url').style.display = 'none';
+        })
+        .catch(function (e) { showAlert('dr-p2-alert', 'Erro: ' + e.message, 'error'); })
+        .finally(function () {
+          btnGerar.disabled = false;
+          document.getElementById('dr-p2-loading').style.display = 'none';
+        });
+    });
+
+    var btnPreview = document.getElementById('dr-btn-preview-lp');
+    if (btnPreview) btnPreview.addEventListener('click', function () {
+      if (!_lpHtml) return;
+      var blob = new Blob([_lpHtml], {type:'text/html'});
+      window.open(URL.createObjectURL(blob), '_blank');
+    });
+
+    var btnDownload = document.getElementById('dr-btn-download-lp');
+    if (btnDownload) btnDownload.addEventListener('click', function () {
+      if (!_lpHtml) return;
+      var a = document.createElement('a');
+      a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(_lpHtml);
+      a.download = 'landing-page-dr.html';
+      a.click();
+    });
+
+    var btnDeploy = document.getElementById('dr-btn-deploy-lp');
+    if (btnDeploy) btnDeploy.addEventListener('click', function () {
+      if (!_lpHtml) return;
+      document.getElementById('dr-p2-deploy-loading').style.display = 'flex';
+      fetch('/api/dr/deploy-lp', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ html: _lpHtml, oferta_id: DR.ofertaAtiva ? DR.ofertaAtiva.id : null })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res.error) { showAlert('dr-p2-alert', res.error, 'error'); return; }
+          var urlEl = document.getElementById('dr-p2-url-text');
+          var linkEl = document.getElementById('dr-p2-url-link');
+          if (urlEl) urlEl.textContent = res.url;
+          if (linkEl) linkEl.href = res.url;
+          document.getElementById('dr-p2-deploy-url').style.display = 'block';
+        })
+        .catch(function (e) { showAlert('dr-p2-alert', 'Deploy falhou: ' + e.message, 'error'); })
+        .finally(function () { document.getElementById('dr-p2-deploy-loading').style.display = 'none'; });
+    });
+  }
+
   window.initDR = function () {
     carregarOfertas();
 
@@ -321,6 +435,7 @@
     });
 
     initPasso1();
+    initPasso2();
   };
 
 })();
