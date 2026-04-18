@@ -1956,7 +1956,113 @@
 
           <!-- Passo 1 — Oferta -->
           <div class="dr-step-content active" data-step-content="1" id="dr-step-1">
-            <p class="dr-step-placeholder">[ Passo 1 — em construção ]</p>
+            <div id="dr-p1-alert"></div>
+
+            <!-- Toggle modo -->
+            <div class="dr-mode-toggle">
+              <button class="dr-mode-btn active" id="dr-modo-rapido">Modo Rápido</button>
+              <button class="dr-mode-btn" id="dr-modo-estruturado">Modo Estruturado</button>
+            </div>
+
+            <!-- Modo Rápido -->
+            <div id="dr-form-rapido">
+              <div class="dr-form-group">
+                <label class="dr-label">Nome da Oferta *</label>
+                <input type="text" class="dr-input" id="dr-f-nome" placeholder="Ex: Detox Hepático Premium">
+              </div>
+              <div class="dr-form-group">
+                <label class="dr-label">Produto / Solução</label>
+                <input type="text" class="dr-input" id="dr-f-produto" placeholder="Ex: Cápsula de Cardo Mariano + Cromo">
+              </div>
+              <div class="dr-form-group">
+                <label class="dr-label">Público-alvo</label>
+                <input type="text" class="dr-input" id="dr-f-publico" placeholder="Ex: Mulheres 40-60 com dificuldade para emagrecer">
+              </div>
+              <div class="dr-form-group">
+                <label class="dr-label">Cole o contexto do American Swipe</label>
+                <textarea class="dr-textarea" id="dr-f-contexto_raw" rows="6"
+                  placeholder="Cole aqui: transcrição da VSL, análise da oferta, copy da LP, estrutura do funil..."></textarea>
+              </div>
+            </div>
+
+            <!-- Modo Estruturado (oculto por padrão) -->
+            <div id="dr-form-estruturado" style="display:none">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="dr-form-group">
+                  <label class="dr-label">Nome da Oferta *</label>
+                  <input type="text" class="dr-input" id="dr-f-nome-e" placeholder="Nome para identificar">
+                </div>
+                <div class="dr-form-group">
+                  <label class="dr-label">Nicho</label>
+                  <input type="text" class="dr-input" id="dr-f-nicho" placeholder="Ex: emagrecimento feminino 40+">
+                </div>
+                <div class="dr-form-group">
+                  <label class="dr-label">Ângulo Principal</label>
+                  <input type="text" class="dr-input" id="dr-f-angulo" placeholder="Ex: metabolismo lento">
+                </div>
+                <div class="dr-form-group">
+                  <label class="dr-label">Hook Principal</label>
+                  <input type="text" class="dr-input" id="dr-f-hook" placeholder="Ex: Você faz dieta mas não emagrece?">
+                </div>
+                <div class="dr-form-group">
+                  <label class="dr-label">Promessa Central</label>
+                  <input type="text" class="dr-input" id="dr-f-promessa" placeholder="Ex: Perder 8kg em 30 dias">
+                </div>
+                <div class="dr-form-group">
+                  <label class="dr-label">Público-alvo</label>
+                  <input type="text" class="dr-input" id="dr-f-publico-e" placeholder="Avatar detalhado">
+                </div>
+              </div>
+              <div class="dr-form-group">
+                <label class="dr-label">Tipo de Funil</label>
+                <select class="dr-select" id="dr-f-tipo_funil">
+                  <option value="vsl_direto">VSL Direto → Checkout</option>
+                  <option value="quiz_vsl">Quiz → VSL → Checkout</option>
+                </select>
+              </div>
+              <div class="dr-form-group">
+                <label class="dr-label">Provas Usadas / Objeções / Extras</label>
+                <textarea class="dr-textarea" id="dr-f-extras" rows="3"
+                  placeholder="Depoimentos, certificações, objeções tratadas, bônus..."></textarea>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:4px">
+              <button class="dr-btn dr-btn-primary" id="dr-btn-gerar-copy">⚡ Gerar Copy + Script VSL</button>
+              <div id="dr-p1-loading" style="display:none" class="dr-loading">
+                <div class="dr-spinner"></div> Gerando com Claude...
+              </div>
+            </div>
+
+            <!-- Output -->
+            <div id="dr-p1-output" style="display:none;margin-top:24px">
+              <div class="dr-output-tabs">
+                <button class="dr-output-tab active" data-tab="copy">Copy Adaptada</button>
+                <button class="dr-output-tab" data-tab="script">Script VSL</button>
+                <button class="dr-output-tab" data-tab="angulos">Ângulos</button>
+              </div>
+              <div class="dr-output-pane active" id="dr-tab-copy">
+                <div class="dr-output-box" id="dr-copy-box"></div>
+                <div class="dr-output-actions">
+                  <button class="dr-btn dr-btn-secondary dr-btn-sm" id="dr-btn-copiar-copy">Copiar</button>
+                </div>
+              </div>
+              <div class="dr-output-pane" id="dr-tab-script">
+                <div class="dr-output-box" id="dr-script-box"></div>
+                <div class="dr-output-actions">
+                  <button class="dr-btn dr-btn-secondary dr-btn-sm" id="dr-btn-copiar-script">Copiar</button>
+                </div>
+              </div>
+              <div class="dr-output-pane" id="dr-tab-angulos">
+                <div class="dr-output-box" id="dr-angulos-box"></div>
+                <div class="dr-output-actions">
+                  <button class="dr-btn dr-btn-secondary dr-btn-sm" id="dr-btn-copiar-angulos">Copiar</button>
+                </div>
+              </div>
+              <div style="margin-top:16px;text-align:right">
+                <button class="dr-btn dr-btn-primary" id="dr-btn-ir-lp">Ir para Landing Page →</button>
+              </div>
+            </div>
           </div>
 
           <!-- Passo 2 — Landing Page -->
