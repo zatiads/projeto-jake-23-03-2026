@@ -202,7 +202,7 @@ def test_criar_aporte_sem_campos(client):
 
 def test_deletar_aporte_existente(client):
     conn_mock = _mock_conn()
-    conn_mock.cursor().rowcount = 1
+    conn_mock.cursor.return_value.rowcount = 1
     with patch("app._get_db", return_value=conn_mock):
         resp = client.delete("/api/financeiro/aportes/1")
     assert resp.status_code == 200
@@ -211,7 +211,7 @@ def test_deletar_aporte_existente(client):
 
 def test_deletar_aporte_nao_existente(client):
     conn_mock = _mock_conn()
-    conn_mock.cursor().rowcount = 0
+    conn_mock.cursor.return_value.rowcount = 0
     with patch("app._get_db", return_value=conn_mock):
         resp = client.delete("/api/financeiro/aportes/999")
     assert resp.status_code == 404

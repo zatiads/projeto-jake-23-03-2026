@@ -2280,14 +2280,16 @@ _ATIVOS_VALIDOS = {"tesouro_selic", "cdb", "lci_lca", "ivvb11", "gold11"}
 def financeiro_listar_aportes():
     try:
         conn = _get_db()
-        cur  = conn.cursor()
-        cur.execute("""
-            SELECT id, mes_ano::text, ativo, valor
-            FROM aportes_investimento
-            ORDER BY mes_ano DESC, id DESC
-        """)
-        rows = cur.fetchall()
-        conn.close()
+        try:
+            cur  = conn.cursor()
+            cur.execute("""
+                SELECT id, mes_ano::text, ativo, valor
+                FROM aportes_investimento
+                ORDER BY mes_ano DESC, id DESC
+            """)
+            rows = cur.fetchall()
+        finally:
+            conn.close()
         return jsonify([dict(r) for r in rows])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2312,15 +2314,17 @@ def financeiro_criar_aporte():
         return jsonify({"error": "valor deve ser > 0"}), 400
     try:
         conn = _get_db()
-        cur  = conn.cursor()
-        cur.execute("""
-            INSERT INTO aportes_investimento (mes_ano, ativo, valor)
-            VALUES (DATE_TRUNC('month', %s::date), %s, %s)
-            RETURNING id
-        """, (mes_ano, ativo, valor))
-        novo_id = cur.fetchone()["id"]
-        conn.commit()
-        conn.close()
+        try:
+            cur  = conn.cursor()
+            cur.execute("""
+                INSERT INTO aportes_investimento (mes_ano, ativo, valor)
+                VALUES (DATE_TRUNC('month', %s::date), %s, %s)
+                RETURNING id
+            """, (mes_ano, ativo, valor))
+            novo_id = cur.fetchone()["id"]
+            conn.commit()
+        finally:
+            conn.close()
         return jsonify({"ok": True, "id": novo_id})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2331,11 +2335,13 @@ def financeiro_criar_aporte():
 def financeiro_deletar_aporte(aid):
     try:
         conn = _get_db()
-        cur  = conn.cursor()
-        cur.execute("DELETE FROM aportes_investimento WHERE id = %s", (aid,))
-        conn.commit()
-        rowcount = cur.rowcount
-        conn.close()
+        try:
+            cur  = conn.cursor()
+            cur.execute("DELETE FROM aportes_investimento WHERE id = %s", (aid,))
+            conn.commit()
+            rowcount = cur.rowcount
+        finally:
+            conn.close()
         if rowcount == 0:
             return jsonify({"error": "not found"}), 404
         return jsonify({"ok": True})
