@@ -5189,4 +5189,109 @@ body {
   border-radius: 4px;
   transition: color 0.15s;
 }
+
+/* ── Gerenciar Ativos ──────────────────────────────────────────────────────── */
+.mil-gerenciar-ativos {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.mil-gerenciar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.mil-gerenciar-titulo {
+  font-size: 12px;
+  color: #546e7a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'Rajdhani', sans-serif;
+}
+.mil-novo-ativo-btn {
+  background: transparent;
+  border: 1px solid rgba(0,229,255,0.35);
+  color: #00e5ff;
+  padding: 4px 14px;
+  border-radius: 16px;
+  cursor: pointer;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+.mil-novo-ativo-btn:hover { background: rgba(0,229,255,0.1); }
+.mil-novo-ativo-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  background: rgba(0,229,255,0.04);
+  border: 1px solid rgba(0,229,255,0.12);
+  border-radius: 8px;
+}
+.mil-ativo-input {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #e0e0e0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: 'Rajdhani', sans-serif;
+}
+.mil-ativo-input:focus { outline: none; border-color: #00e5ff; }
+.mil-ativo-submit-btn {
+  background: rgba(0,229,255,0.12);
+  border: 1px solid #00e5ff;
+  color: #00e5ff;
+  border-radius: 6px;
+  padding: 6px 16px;
+  cursor: pointer;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  transition: background 0.2s;
+}
+.mil-ativo-submit-btn:hover { background: rgba(0,229,255,0.22); }
+.mil-ativo-cancel-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #546e7a;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+}
+.mil-ativo-status { font-size: 11px; width: 100%; min-height: 14px; margin-top: 2px; }
+.mil-ativos-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mil-ativo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-family: 'Rajdhani', sans-serif;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #b0bec5;
+}
+.mil-ativo-chip-dot { font-size: 10px; }
+.mil-ativo-chip-del {
+  background: transparent;
+  border: none;
+  color: #ff525266;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.mil-ativo-chip-del:hover { color: #ff5252; }
 .mil-aporte-del-btn:hover { color: #ff5252; }
