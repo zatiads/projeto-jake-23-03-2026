@@ -1059,7 +1059,23 @@
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: function(ctx){ return ' Patrimônio: ' + fmt(ctx.raw); }
+              label: function(ctx) {
+                return ' Patrimônio: ' + fmt(ctx.raw);
+              },
+              afterBody: function(items) {
+                var idx        = items[0].dataIndex;
+                var mes        = meses[idx];
+                var aporte     = porMes[mes] || 0;
+                var elTaxa     = document.getElementById('mil-taxa');
+                var taxa       = elTaxa ? parseFloat(elTaxa.value) / 100 : NaN;
+                if (!taxa || taxa <= 0) taxa = 0.008;
+                var patrimonio = dados[idx];
+                var renda      = patrimonio * taxa;
+                return [
+                  ' Aporte do mês: ' + fmt(aporte),
+                  ' Renda projetada: ' + fmt(renda) + '/mês'
+                ];
+              }
             }
           }
         },
