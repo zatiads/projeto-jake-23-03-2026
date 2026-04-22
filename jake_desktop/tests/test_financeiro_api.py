@@ -126,3 +126,15 @@ def test_rotas_requerem_login(client_anonimo):
     ]:
         resp = getattr(client_anonimo, method.lower())(url, json={})
         assert resp.status_code in (302, 401), f"{method} {url} deveria redirecionar"
+
+
+# ── _init_aportes_table ───────────────────────────────────────────────────────
+
+def test_init_aportes_table_cria_tabela(client):
+    conn_mock = _mock_conn()
+    with patch("app._get_db", return_value=conn_mock):
+        import app as flask_app
+        flask_app._init_aportes_table()
+    conn_mock.cursor().execute.assert_called()
+    conn_mock.commit.assert_called_once()
+    conn_mock.close.assert_called_once()

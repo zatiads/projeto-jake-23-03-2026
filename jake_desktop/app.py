@@ -295,6 +295,29 @@ def _init_dr_tables():
         conn.close()
 
 
+def _init_aportes_table():
+    """Cria tabela de aportes de investimento se não existir."""
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS aportes_investimento (
+                id SERIAL PRIMARY KEY,
+                mes_ano DATE NOT NULL,
+                ativo VARCHAR(50) NOT NULL,
+                valor NUMERIC(12,2) NOT NULL CHECK (valor > 0),
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_aportes_mes_ano
+            ON aportes_investimento(mes_ano)
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 # ── NUTRIÇÃO: Cálculos ────────────────────────────────────────────────────────
 
 def _calcular_imc(peso, altura):
@@ -2034,19 +2057,27 @@ def financeiro_analise():
         pct = ((receita - receita_ant) / receita_ant) * 100
         var_receita = f"As receitas variaram {pct:+.1f}% em relação ao mês anterior."
 
-    prompt = f"""Você é Jake, o assistente financeiro pessoal. Analise os dados abaixo e forneça
-um parágrafo direto, honesto e perspicaz sobre a saúde financeira do usuário em {mes}.
-Use linguagem objetiva e tom de consultor financeiro profissional. Máximo de 3 parágrafos curtos.
+    prompt = f"""Você é Jake, o assistente financeiro pessoal do Bruno. Analise os dados abaixo e forneça
+uma análise direta, honesta e perspicaz sobre a saúde financeira em {mes}.
+Use linguagem objetiva e tom de consultor financeiro. Máximo de 3 parágrafos curtos.
 
 Dados de {mes}:
 - Receita total: R$ {receita:,.2f}
 - Despesas totais: R$ {despesas:,.2f}
-- Saldo: R$ {saldo:,.2f}
+- Saldo do mês: R$ {saldo:,.2f}
 - Taxa de comprometimento: {(despesas/receita*100) if receita else 0:.1f}% da receita
 - Comparativo: receita anterior R$ {receita_ant:,.2f} / despesas anteriores R$ {desp_ant:,.2f}
 {var_receita}
 
-Seja específico com os números. Dê pelo menos 1 recomendação prática."""
+CONTEXTO DO PLANO FINANCEIRO 2026 (use para contextualizar a análise):
+- Meta principal: juntar R$ 30.000 até dezembro/2026 + vender carro atual por R$ 10k = comprar carro à vista
+- Divisão ideal da sobra mensal: R$ 3.333 para reserva do carro (CDB liquidez diária XP) + restante para carteira de investimentos
+- Carteira XP recomendada: 30% Tesouro Selic, 25% CDB, 15% LCI/LCA, 20% IVVB11, 10% GOLD11
+- Roadmap R$1M: aportar R$ 2.500/mês a partir de jan/2027 (após comprar o carro)
+- Regra de ouro: aporte sai no dia 5, antes de qualquer gasto. Não tocar na reserva do carro.
+
+Com base no saldo deste mês, comente se o Bruno está no ritmo para bater a meta do carro.
+Seja específico com os números. Dê pelo menos 1 recomendação prática alinhada ao plano."""
 
     ant_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
     openai_key = os.environ.get("OPENAI_API_KEY")
@@ -5868,6 +5899,7 @@ if __name__ == "__main__":
     _init_social_brief_tables()
     _init_nutricao_tables()
     _init_dr_tables()
+    _init_aportes_table()
     # APScheduler: Social Brief automático toda segunda às 08h
     try:
         from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
