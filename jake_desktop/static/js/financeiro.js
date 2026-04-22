@@ -117,13 +117,7 @@
   var APORTES = [];
   var _milSubTabsInited = false;
 
-  var ATIVOS_CARTEIRA = [
-    { key: 'tesouro_selic', label: 'Tesouro Selic', cor: '#00e5ff', meta: 30 },
-    { key: 'cdb',           label: 'CDB',           cor: '#ffd740', meta: 25 },
-    { key: 'lci_lca',       label: 'LCI/LCA',       cor: '#69f0ae', meta: 15 },
-    { key: 'ivvb11',        label: 'IVVB11',         cor: '#ff5252', meta: 20 },
-    { key: 'gold11',        label: 'GOLD11',         cor: '#7c4dff', meta: 10 },
-  ];
+  var ATIVOS_CARTEIRA = [];  // populado por carregarAtivos()
 
   var metaMilhao     = 1000000;
 
@@ -835,7 +829,118 @@
       });
     }
 
-    carregarAportes();
+    carregarAtivos();
+  }
+
+  function carregarAtivos() {
+    fetch('/api/financeiro/ativos')
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data) {
+        ATIVOS_CARTEIRA = data;
+        _popularSelectAtivos();
+        renderAtivos();
+        carregarAportes();
+      })
+      .catch(function(e){ console.error('Erro ao carregar ativos:', e); });
+  }
+
+  function _popularSelectAtivos() {
+    var sel = document.getElementById('mil-aporte-ativo');
+    if (!sel) return;
+    var valorAtual = sel.value;
+    sel.innerHTML = ATIVOS_CARTEIRA.map(function(a) {
+      return '<option value="' + a.key + '">' + a.label + '</option>';
+    }).join('');
+    // Preservar seleção se ainda existir
+    if (ATIVOS_CARTEIRA.some(function(a){ return a.key === valorAtual; })) {
+      sel.value = valorAtual;
+    }
+  }
+
+  function renderAtivos() {
+    var lista = document.getElementById('mil-ativos-lista');
+    if (!lista) return;
+    lista.innerHTML = ATIVOS_CARTEIRA.map(function(a) {
+      var metaStr = a.meta > 0 ? ' <span style="color:#546e7a">(' + a.meta + '%)</span>' : '';
+      var delBtn  = !a.fixo
+        ? '<button class="mil-ativo-chip-del" data-key="' + a.key + '" title="Remover" type="button">✕</button>'
+        : '';
+      return '<span class="mil-ativo-chip">' +
+        '<span class="mil-ativo-chip-dot" style="color:' + a.cor + '">●</span>' +
+        a.label + metaStr + delBtn +
+      '</span>';
+    }).join('');
+
+    lista.querySelectorAll('.mil-ativo-chip-del').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        deletarAtivo(this.dataset.key);
+      });
+    });
+
+    // Bind "+ Novo Ativo" e form (idempotente via flag)
+    _bindGerenciarAtivos();
+  }
+
+  var _gerenciarAtivosBound = false;
+  function _bindGerenciarAtivos() {
+    if (_gerenciarAtivosBound) return;
+    _gerenciarAtivosBound = true;
+
+    var btnNovo   = document.getElementById('mil-novo-ativo-btn');
+    var formNovo  = document.getElementById('mil-novo-ativo-form');
+    var btnCancel = document.getElementById('mil-ativo-cancel');
+    var btnSubmit = document.getElementById('mil-ativo-submit');
+
+    if (btnNovo)   btnNovo.addEventListener('click',   function(){ formNovo.classList.toggle('hidden'); });
+    if (btnCancel) btnCancel.addEventListener('click', function(){ formNovo.classList.add('hidden'); });
+    if (btnSubmit) btnSubmit.addEventListener('click', function() {
+      var label = (document.getElementById('mil-ativo-label').value || '').trim();
+      var meta  = parseFloat(document.getElementById('mil-ativo-meta').value) || 0;
+      if (!label) return;
+      adicionarAtivo(label, meta);
+    });
+  }
+
+  function adicionarAtivo(label, meta) {
+    var status = document.getElementById('mil-ativo-status');
+    fetch('/api/financeiro/ativos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: label, meta: meta })
+    })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(res) {
+      if (res.ok) {
+        ATIVOS_CARTEIRA.push(res.ativo);
+        _popularSelectAtivos();
+        renderAtivos();
+        renderTermometro();
+        document.getElementById('mil-ativo-label').value = '';
+        document.getElementById('mil-ativo-meta').value  = '';
+        document.getElementById('mil-novo-ativo-form').classList.add('hidden');
+        if (status) { status.textContent = '✓ Ativo adicionado'; status.style.color = '#69f0ae'; setTimeout(function(){ status.textContent = ''; }, 2000); }
+      } else {
+        if (status) { status.textContent = '⚠ ' + (res.error || 'Erro'); status.style.color = '#ff5252'; }
+      }
+    })
+    .catch(function(e){
+      if (status) { status.textContent = '⚠ Erro de conexão'; status.style.color = '#ff5252'; }
+      console.error('adicionarAtivo erro:', e);
+    });
+  }
+
+  function deletarAtivo(key) {
+    fetch('/api/financeiro/ativos/' + key, { method: 'DELETE' })
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(res) {
+        if (res.ok) {
+          ATIVOS_CARTEIRA = ATIVOS_CARTEIRA.filter(function(a){ return a.key !== key; });
+          _popularSelectAtivos();
+          renderAtivos();
+          renderTermometro();
+        }
+      })
+      .catch(function(e){ console.error('deletarAtivo erro:', e); });
   }
 
   function carregarAportes() {
