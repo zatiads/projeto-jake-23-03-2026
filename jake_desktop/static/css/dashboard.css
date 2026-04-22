@@ -5001,3 +5001,192 @@ body {
     flex-direction: column;
   }
 }
+
+/* ── Projeto Milhão: Sub-tabs ──────────────────────────────────────────────── */
+.mil-subtab-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(0,229,255,0.15);
+  padding-bottom: 10px;
+}
+.mil-subtab-btn {
+  background: transparent;
+  border: 1px solid rgba(0,229,255,0.25);
+  color: #546e7a;
+  padding: 6px 18px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  transition: all 0.2s;
+}
+.mil-subtab-btn:hover { color: #00e5ff; border-color: #00e5ff; }
+.mil-subtab-btn.active {
+  background: rgba(0,229,255,0.12);
+  border-color: #00e5ff;
+  color: #00e5ff;
+}
+.mil-subtab-pane { display: none; }
+.mil-subtab-pane.active { display: block; }
+
+/* ── Termômetro ────────────────────────────────────────────────────────────── */
+#mil-termo-patrimonio-wrap {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.mil-termo-valor {
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: #69f0ae;
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 1px;
+}
+.mil-termo-label {
+  font-size: 12px;
+  color: #546e7a;
+  margin: 2px 0 4px;
+}
+.mil-termo-pct {
+  font-size: 13px;
+  color: #00e5ff;
+  margin-bottom: 10px;
+}
+.mil-termo-barra-wrap {
+  height: 8px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.mil-termo-barra-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #69f0ae, #00e5ff);
+  border-radius: 4px;
+  transition: width 0.6s ease;
+  min-width: 0;
+}
+.mil-termo-charts-row {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 24px;
+  align-items: flex-start;
+}
+.mil-termo-donut-wrap {
+  width: 200px;
+  height: 200px;
+  flex-shrink: 0;
+}
+.mil-termo-ativos-wrap { flex: 1; }
+.mil-termo-ativo-row { margin-bottom: 10px; }
+.mil-termo-ativo-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+.mil-termo-ativo-name { font-weight: 600; }
+.mil-termo-ativo-pcts { color: #546e7a; }
+.mil-termo-ativo-bar-bg {
+  height: 5px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.mil-termo-ativo-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+.mil-termo-evolucao-wrap {
+  height: 180px;
+  margin-top: 8px;
+}
+.mil-termo-empty {
+  text-align: center;
+  padding: 48px 0;
+  color: #546e7a;
+  font-size: 14px;
+}
+
+/* ── Aportes Form + Table ──────────────────────────────────────────────────── */
+.mil-aporte-form {
+  background: rgba(0,229,255,0.04);
+  border: 1px solid rgba(0,229,255,0.15);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+.mil-aporte-form-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.mil-aporte-field { display: flex; flex-direction: column; gap: 4px; }
+.mil-aporte-label { font-size: 11px; color: #546e7a; font-family: 'Rajdhani', sans-serif; }
+.mil-aporte-input {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #e0e0e0;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-family: 'Rajdhani', sans-serif;
+  min-width: 120px;
+}
+.mil-aporte-input:focus { outline: none; border-color: #00e5ff; }
+.mil-aporte-submit {
+  background: rgba(0,229,255,0.12);
+  border: 1px solid #00e5ff;
+  color: #00e5ff;
+  border-radius: 6px;
+  padding: 7px 20px;
+  cursor: pointer;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.mil-aporte-submit:hover { background: rgba(0,229,255,0.22); }
+.mil-aporte-status { font-size: 12px; margin-top: 6px; min-height: 16px; }
+.mil-aporte-empty {
+  text-align: center;
+  color: #546e7a;
+  padding: 32px 0;
+  font-size: 14px;
+}
+.mil-aporte-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-family: 'Rajdhani', sans-serif;
+}
+.mil-aporte-table th {
+  text-align: left;
+  padding: 8px 12px;
+  color: #546e7a;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.mil-aporte-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: #b0bec5;
+}
+.mil-aporte-table tr:hover td { background: rgba(255,255,255,0.02); }
+.mil-aporte-del-btn {
+  background: transparent;
+  border: none;
+  color: #ff525266;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.mil-aporte-del-btn:hover { color: #ff5252; }
