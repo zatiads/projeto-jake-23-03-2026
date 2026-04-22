@@ -1513,6 +1513,16 @@
           ════════════════════════════════════════════ -->
           <div class="fin-tab-pane" id="fin-pane-milhao">
 
+            <!-- Sub-tab bar -->
+            <div class="mil-subtab-bar">
+              <button class="mil-subtab-btn active" data-subtab="simulador">Simulador</button>
+              <button class="mil-subtab-btn" data-subtab="termometro">Termômetro</button>
+              <button class="mil-subtab-btn" data-subtab="aportes">Aportes</button>
+            </div>
+
+            <!-- Pane: Simulador (conteúdo existente) -->
+            <div id="mil-pane-simulador" class="mil-subtab-pane active">
+
             <div class="fin-milhao-layout">
 
               <!-- Painel Esquerdo: Inputs -->
@@ -1539,12 +1549,11 @@
                 <div class="fin-milhao-field">
                   <label class="fin-milhao-label">Taxa de Rendimento Mensal (%)</label>
                   <div class="fin-milhao-taxa-row">
-                    <input type="number" id="mil-taxa" class="fin-milhao-input" value="1.0" step="0.1" min="0.01" max="5">
+                    <input type="number" id="mil-taxa" class="fin-milhao-input" value="0.80" step="0.01" min="0.01" max="5">
                     <div class="fin-milhao-presets">
-                      <button class="fin-preset-btn" data-taxa="0.8">CDI</button>
-                      <button class="fin-preset-btn active" data-taxa="1.0">1%</button>
-                      <button class="fin-preset-btn" data-taxa="1.2">FII</button>
-                      <button class="fin-preset-btn" data-taxa="2.0">Cripto</button>
+                      <button class="fin-preset-btn" data-taxa="0.72" title="9% a.a.">Conservador</button>
+                      <button class="fin-preset-btn active" data-taxa="0.80" title="10% a.a.">Moderado</button>
+                      <button class="fin-preset-btn" data-taxa="0.91" title="11,5% a.a.">Otimista</button>
                     </div>
                   </div>
                 </div>
@@ -1634,6 +1643,80 @@
               </div>
 
             </div>
+            </div><!-- /#mil-pane-simulador -->
+
+            <!-- Pane: Termômetro -->
+            <div id="mil-pane-termometro" class="mil-subtab-pane">
+              <div id="mil-termo-patrimonio-wrap">
+                <div class="mil-termo-valor" id="mil-termo-valor">R$ 0,00</div>
+                <div class="mil-termo-label">patrimônio total investido</div>
+                <div class="mil-termo-pct" id="mil-termo-pct">0,0% da meta R$ 1.000.000</div>
+                <div class="mil-termo-barra-wrap">
+                  <div class="mil-termo-barra-fill" id="mil-termo-barra-fill" style="width:0%"></div>
+                </div>
+              </div>
+              <div id="mil-termo-body">
+                <div class="mil-termo-charts-row">
+                  <div class="mil-termo-donut-wrap">
+                    <canvas id="mil-termo-donut"></canvas>
+                  </div>
+                  <div class="mil-termo-ativos-wrap" id="mil-termo-ativos-wrap">
+                    <!-- barras por ativo renderizadas via JS -->
+                  </div>
+                </div>
+                <div class="mil-termo-evolucao-wrap">
+                  <canvas id="mil-termo-evolucao"></canvas>
+                </div>
+              </div>
+              <div class="mil-termo-empty hidden" id="mil-termo-empty">
+                Nenhum aporte registrado ainda. Vá à aba <strong>Aportes</strong> para começar.
+              </div>
+            </div><!-- /#mil-pane-termometro -->
+
+            <!-- Pane: Aportes -->
+            <div id="mil-pane-aportes" class="mil-subtab-pane">
+              <form id="mil-aporte-form" class="mil-aporte-form">
+                <div class="mil-aporte-form-row">
+                  <div class="mil-aporte-field">
+                    <label class="mil-aporte-label">Mês/Ano</label>
+                    <input type="month" id="mil-aporte-mes" class="mil-aporte-input" required>
+                  </div>
+                  <div class="mil-aporte-field">
+                    <label class="mil-aporte-label">Ativo</label>
+                    <select id="mil-aporte-ativo" class="mil-aporte-input">
+                      <option value="tesouro_selic">Tesouro Selic</option>
+                      <option value="cdb">CDB</option>
+                      <option value="lci_lca">LCI/LCA</option>
+                      <option value="ivvb11">IVVB11</option>
+                      <option value="gold11">GOLD11</option>
+                    </select>
+                  </div>
+                  <div class="mil-aporte-field">
+                    <label class="mil-aporte-label">Valor (R$)</label>
+                    <input type="number" id="mil-aporte-valor" class="mil-aporte-input" min="0.01" step="0.01" placeholder="0,00" required>
+                  </div>
+                  <button type="submit" class="mil-aporte-submit">+ Adicionar</button>
+                </div>
+                <div class="mil-aporte-status" id="mil-aporte-status"></div>
+              </form>
+
+              <div id="mil-aporte-empty" class="mil-aporte-empty hidden">
+                Nenhum aporte registrado ainda.
+              </div>
+
+              <table class="mil-aporte-table" id="mil-aporte-table">
+                <thead>
+                  <tr>
+                    <th>Mês</th>
+                    <th>Ativo</th>
+                    <th>Valor</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="mil-aporte-tbody"></tbody>
+              </table>
+            </div><!-- /#mil-pane-aportes -->
+
           </div><!-- /#fin-pane-milhao -->
 
         </div><!-- /.fin-layout -->
