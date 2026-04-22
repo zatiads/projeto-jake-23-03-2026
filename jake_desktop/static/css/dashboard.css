@@ -5189,6 +5189,7 @@ body {
   border-radius: 4px;
   transition: color 0.15s;
 }
+.mil-aporte-del-btn:hover { color: #ff5252; }
 
 /* ── Gerenciar Ativos ──────────────────────────────────────────────────────── */
 .mil-gerenciar-ativos {
@@ -5207,7 +5208,7 @@ body {
   color: #546e7a;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--ff-b);
 }
 .mil-novo-ativo-btn {
   background: transparent;
@@ -5216,7 +5217,7 @@ body {
   padding: 4px 14px;
   border-radius: 16px;
   cursor: pointer;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--ff-b);
   font-size: 12px;
   transition: all 0.2s;
 }
@@ -5237,9 +5238,9 @@ body {
   border: 1px solid rgba(255,255,255,0.15);
   color: #e0e0e0;
   border-radius: 6px;
-  padding: 6px 10px;
+  padding: 7px 12px;
   font-size: 13px;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--ff-b);
 }
 .mil-ativo-input:focus { outline: none; border-color: #00e5ff; }
 .mil-ativo-submit-btn {
@@ -5247,9 +5248,9 @@ body {
   border: 1px solid #00e5ff;
   color: #00e5ff;
   border-radius: 6px;
-  padding: 6px 16px;
+  padding: 7px 16px;
   cursor: pointer;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--ff-b);
   font-size: 12px;
   transition: background 0.2s;
 }
@@ -5259,10 +5260,11 @@ body {
   border: 1px solid rgba(255,255,255,0.15);
   color: #546e7a;
   border-radius: 6px;
-  padding: 6px 12px;
+  padding: 7px 12px;
   cursor: pointer;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--ff-b);
   font-size: 12px;
+  transition: background 0.2s, color 0.2s;
 }
 .mil-ativo-status { font-size: 11px; width: 100%; min-height: 14px; margin-top: 2px; }
 .mil-ativos-lista {
@@ -5277,7 +5279,7 @@ body {
   padding: 4px 10px;
   border-radius: 16px;
   font-size: 12px;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--ff-b);
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.1);
   color: #b0bec5;
@@ -5294,4 +5296,3 @@ body {
   transition: color 0.15s;
 }
 .mil-ativo-chip-del:hover { color: #ff5252; }
-.mil-aporte-del-btn:hover { color: #ff5252; }
