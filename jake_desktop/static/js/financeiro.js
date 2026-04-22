@@ -985,7 +985,7 @@
       var mesStr = ap.mes_ano ? ap.mes_ano.substring(0, 7) : ap.mes_ano;
       return '<tr>' +
         '<td>' + mesStr + '</td>' +
-        '<td style="color:' + a.cor + ';font-weight:600">' + a.label + '</td>' +
+        '<td style="color:' + a.cor + ';font-weight:600">' + _escHtml(a.label) + '</td>' +
         '<td style="color:#69f0ae">' + fmt(ap.valor) + '</td>' +
         '<td><button class="mil-aporte-del-btn" data-id="' + ap.id + '" title="Remover">✕</button></td>' +
       '</tr>';
@@ -1076,7 +1076,7 @@
         var pctAtual = total > 0 ? (v / total * 100) : 0;
         return '<div class="mil-termo-ativo-row">' +
           '<div class="mil-termo-ativo-header">' +
-            '<span class="mil-termo-ativo-name" style="color:' + a.cor + '">' + a.label + '</span>' +
+            '<span class="mil-termo-ativo-name" style="color:' + a.cor + '">' + _escHtml(a.label) + '</span>' +
             '<span class="mil-termo-ativo-pcts">' +
               pctAtual.toFixed(1) + '% atual · meta ' + a.meta + '%' +
             '</span>' +

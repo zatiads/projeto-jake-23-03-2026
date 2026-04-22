@@ -2324,6 +2324,8 @@ def financeiro_criar_aporte():
     valor   = d.get("valor")
     if not mes_ano:
         return jsonify({"error": "mes_ano obrigatório"}), 400
+    if not ativo:
+        return jsonify({"error": "ativo obrigatório"}), 400
     if ativo not in _ATIVOS_VALIDOS and not ativo.startswith('custom_'):
         return jsonify({"error": f"ativo inválido: {ativo}"}), 400
     if ativo.startswith('custom_'):

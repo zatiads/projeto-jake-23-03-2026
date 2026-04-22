@@ -304,3 +304,8 @@ def test_criar_aporte_ativo_customizado(client):
         })
     assert resp.status_code == 200
     assert resp.get_json()["ok"] is True
+
+
+def test_criar_aporte_sem_ativo(client):
+    resp = client.post("/api/financeiro/aportes", json={"mes_ano": "2026-04-01", "valor": 100.0})
+    assert resp.status_code == 400
