@@ -1068,7 +1068,7 @@
                 var aporte     = porMes[mes] || 0;
                 var elTaxa     = document.getElementById('mil-taxa');
                 var taxa       = elTaxa ? parseFloat(elTaxa.value) / 100 : NaN;
-                if (!taxa || taxa <= 0) taxa = 0.008;
+                if (!taxa || isNaN(taxa) || taxa <= 0) taxa = 0.008; // fallback 0.8%/mês se #mil-taxa ausente ou inválido
                 var patrimonio = dados[idx];
                 var renda      = patrimonio * taxa;
                 return [
