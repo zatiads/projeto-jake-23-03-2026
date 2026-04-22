@@ -122,6 +122,9 @@
   var metaMilhao     = 1000000;
 
   // ── UTILITÁRIOS ────────────────────────────────────────────────────────────
+  function _escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
   function fmt(v) {
     return 'R$ ' + Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
@@ -849,7 +852,7 @@
     if (!sel) return;
     var valorAtual = sel.value;
     sel.innerHTML = ATIVOS_CARTEIRA.map(function(a) {
-      return '<option value="' + a.key + '">' + a.label + '</option>';
+      return '<option value="' + a.key + '">' + _escHtml(a.label) + '</option>';
     }).join('');
     // Preservar seleção se ainda existir
     if (ATIVOS_CARTEIRA.some(function(a){ return a.key === valorAtual; })) {
@@ -867,7 +870,7 @@
         : '';
       return '<span class="mil-ativo-chip">' +
         '<span class="mil-ativo-chip-dot" style="color:' + a.cor + '">●</span>' +
-        a.label + metaStr + delBtn +
+        _escHtml(a.label) + metaStr + delBtn +
       '</span>';
     }).join('');
 
@@ -930,6 +933,7 @@
   }
 
   function deletarAtivo(key) {
+    var status = document.getElementById('mil-ativo-status');
     fetch('/api/financeiro/ativos/' + key, { method: 'DELETE' })
       .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function(res) {
@@ -938,9 +942,14 @@
           _popularSelectAtivos();
           renderAtivos();
           renderTermometro();
+        } else {
+          if (status) { status.textContent = '⚠ ' + (res.error || 'Erro ao remover'); status.style.color = '#ff5252'; setTimeout(function(){ status.textContent = ''; }, 3000); }
         }
       })
-      .catch(function(e){ console.error('deletarAtivo erro:', e); });
+      .catch(function(e){
+        if (status) { status.textContent = '⚠ Erro de conexão'; status.style.color = '#ff5252'; setTimeout(function(){ status.textContent = ''; }, 3000); }
+        console.error('deletarAtivo erro:', e);
+      });
   }
 
   function carregarAportes() {
