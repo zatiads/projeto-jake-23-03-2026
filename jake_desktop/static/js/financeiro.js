@@ -922,7 +922,163 @@
   }
 
   function renderTermometro() {
-    // implemented in Task 6
+    var elValor = document.getElementById('mil-termo-valor');
+    var elPct   = document.getElementById('mil-termo-pct');
+    var elFill  = document.getElementById('mil-termo-barra-fill');
+    var elBody  = document.getElementById('mil-termo-body');
+    var elEmpty = document.getElementById('mil-termo-empty');
+
+    if (APORTES.length === 0) {
+      if (elBody)  elBody.classList.add('hidden');
+      if (elEmpty) elEmpty.classList.remove('hidden');
+      if (elValor) elValor.textContent = 'R$ 0,00';
+      if (elPct)   elPct.textContent   = '0,0% da meta R$ 1.000.000';
+      if (elFill)  elFill.style.width  = '0%';
+      return;
+    }
+    if (elBody)  elBody.classList.remove('hidden');
+    if (elEmpty) elEmpty.classList.add('hidden');
+
+    // Totais por ativo
+    var totais = {};
+    ATIVOS_CARTEIRA.forEach(function(a){ totais[a.key] = 0; });
+    var total = 0;
+    APORTES.forEach(function(ap) {
+      if (totais[ap.ativo] !== undefined) totais[ap.ativo] += parseFloat(ap.valor);
+      total += parseFloat(ap.valor);
+    });
+
+    // Big number + barra
+    if (elValor) elValor.textContent = fmt(total);
+    var pct = total > 0 ? Math.min((total / 1000000) * 100, 100) : 0;
+    if (elPct)  elPct.textContent  = pct.toFixed(2).replace('.', ',') + '% da meta R$ 1.000.000';
+    if (elFill) elFill.style.width = Math.max(pct, 0.1) + '%';
+
+    // Barras de alocação por ativo
+    var wrapAtivos = document.getElementById('mil-termo-ativos-wrap');
+    if (wrapAtivos) {
+      wrapAtivos.innerHTML = ATIVOS_CARTEIRA.map(function(a) {
+        var v   = totais[a.key] || 0;
+        var pctAtual = total > 0 ? (v / total * 100) : 0;
+        return '<div class="mil-termo-ativo-row">' +
+          '<div class="mil-termo-ativo-header">' +
+            '<span class="mil-termo-ativo-name" style="color:' + a.cor + '">' + a.label + '</span>' +
+            '<span class="mil-termo-ativo-pcts">' +
+              pctAtual.toFixed(1) + '% atual · meta ' + a.meta + '%' +
+            '</span>' +
+          '</div>' +
+          '<div class="mil-termo-ativo-bar-bg">' +
+            '<div class="mil-termo-ativo-bar-fill" style="width:' + Math.min(pctAtual, 100) + '%;background:' + a.cor + '"></div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    // Donut chart
+    if (chartTermoDonut) { chartTermoDonut.destroy(); chartTermoDonut = null; }
+    var canvasDonut = document.getElementById('mil-termo-donut');
+    if (canvasDonut && typeof Chart !== 'undefined') {
+      chartTermoDonut = new Chart(canvasDonut, {
+        type: 'doughnut',
+        data: {
+          labels: ATIVOS_CARTEIRA.map(function(a){ return a.label; }),
+          datasets: [{
+            data: ATIVOS_CARTEIRA.map(function(a){ return parseFloat((totais[a.key] || 0).toFixed(2)); }),
+            backgroundColor: ATIVOS_CARTEIRA.map(function(a){ return a.cor + 'cc'; }),
+            borderColor: ATIVOS_CARTEIRA.map(function(a){ return a.cor; }),
+            borderWidth: 1.5,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          cutout: '60%',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  var total2 = ctx.dataset.data.reduce(function(s,v){ return s+v; }, 0);
+                  var p = total2 > 0 ? ((ctx.raw / total2) * 100).toFixed(1) : '0.0';
+                  return ' ' + ctx.label + ': ' + fmt(ctx.raw) + ' (' + p + '%)';
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Gráfico de evolução mensal
+    _renderTermoEvolucao();
+  }
+
+  function _renderTermoEvolucao() {
+    // Agrupar por mês e calcular acumulado
+    var porMes = {};
+    APORTES.forEach(function(ap) {
+      var chave = ap.mes_ano ? ap.mes_ano.substring(0, 7) : '';
+      if (!chave) return;
+      porMes[chave] = (porMes[chave] || 0) + parseFloat(ap.valor);
+    });
+    var meses = Object.keys(porMes).sort();
+    var acum = 0;
+    var labels = [], dados = [];
+    meses.forEach(function(m) {
+      acum += porMes[m];
+      labels.push(m);
+      dados.push(parseFloat(acum.toFixed(2)));
+    });
+
+    if (chartTermoEvolucao) { chartTermoEvolucao.destroy(); chartTermoEvolucao = null; }
+    var canvas = document.getElementById('mil-termo-evolucao');
+    if (!canvas || typeof Chart === 'undefined' || labels.length === 0) return;
+
+    chartTermoEvolucao = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Patrimônio',
+          data: dados,
+          borderColor: '#00e5ff',
+          backgroundColor: 'rgba(0,229,255,0.07)',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          pointBackgroundColor: '#00e5ff',
+          tension: 0.35,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(ctx){ return ' Patrimônio: ' + fmt(ctx.raw); }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#546e7a', font: { family: 'Rajdhani', size: 11 } },
+            grid: { color: 'rgba(0,229,255,0.05)' }
+          },
+          y: {
+            ticks: {
+              color: '#546e7a',
+              font: { family: 'Rajdhani', size: 11 },
+              callback: function(v){ return 'R$ ' + (v/1000).toFixed(1) + 'K'; }
+            },
+            grid: { color: 'rgba(0,229,255,0.06)' }
+          }
+        }
+      }
+    });
   }
 
   function calcularMilhao() {
