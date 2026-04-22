@@ -215,3 +215,15 @@ def test_deletar_aporte_nao_existente(client):
     with patch("app._get_db", return_value=conn_mock):
         resp = client.delete("/api/financeiro/aportes/999")
     assert resp.status_code == 404
+
+
+# ── _init_ativos_personalizados_table ────────────────────────────────────────
+
+def test_init_ativos_personalizados_table(client):
+    conn_mock = _mock_conn()
+    with patch("app._get_db", return_value=conn_mock):
+        import app as flask_app
+        flask_app._init_ativos_personalizados_table()
+    conn_mock.cursor().execute.assert_called()
+    conn_mock.commit.assert_called_once()
+    conn_mock.close.assert_called_once()

@@ -318,6 +318,26 @@ def _init_aportes_table():
         conn.close()
 
 
+def _init_ativos_personalizados_table():
+    """Cria tabela de ativos personalizados se não existir."""
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ativos_personalizados (
+                id SERIAL PRIMARY KEY,
+                key VARCHAR(50) UNIQUE NOT NULL,
+                label VARCHAR(100) NOT NULL,
+                cor VARCHAR(20) NOT NULL,
+                meta NUMERIC(5,2) NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 # ── NUTRIÇÃO: Cálculos ────────────────────────────────────────────────────────
 
 def _calcular_imc(peso, altura):
@@ -5979,6 +5999,7 @@ if __name__ == "__main__":
     _init_nutricao_tables()
     _init_dr_tables()
     _init_aportes_table()
+    _init_ativos_personalizados_table()
     # APScheduler: Social Brief automático toda segunda às 08h
     try:
         from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
