@@ -41,15 +41,32 @@
     ],
   };
 
+  function deduplicarRaioX(raiox) {
+    var resultado = {};
+    ['entradas', 'fixas', 'variaveis'].forEach(function(grupo) {
+      var vistos = {};
+      resultado[grupo] = (raiox[grupo] || []).filter(function(item) {
+        if (vistos[item.nome]) return false;
+        vistos[item.nome] = true;
+        return true;
+      });
+    });
+    return resultado;
+  }
+
   function salvarRaioX() {
+    RAIOX = deduplicarRaioX(RAIOX);
     fetch('/api/financeiro/raiox', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(RAIOX)
     })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(function() { flashRaioX('✓ Salvo'); })
-    .catch(function() { flashRaioX('⚠ Erro ao salvar'); });
+    .catch(function(e) { flashRaioX('⚠ Erro ao salvar: ' + e.message); console.error('salvarRaioX erro:', e); });
     sincronizarPatrimonioMilhao();
   }
 
@@ -95,6 +112,19 @@
   var chartDonut     = null;
   var chartLinha     = null;
   var chartMilhao    = null;
+  var chartTermoDonut    = null;
+  var chartTermoEvolucao = null;
+  var APORTES = [];
+  var _milSubTabsInited = false;
+
+  var ATIVOS_CARTEIRA = [
+    { key: 'tesouro_selic', label: 'Tesouro Selic', cor: '#00e5ff', meta: 30 },
+    { key: 'cdb',           label: 'CDB',           cor: '#ffd740', meta: 25 },
+    { key: 'lci_lca',       label: 'LCI/LCA',       cor: '#69f0ae', meta: 15 },
+    { key: 'ivvb11',        label: 'IVVB11',         cor: '#ff5252', meta: 20 },
+    { key: 'gold11',        label: 'GOLD11',         cor: '#7c4dff', meta: 10 },
+  ];
+
   var metaMilhao     = 1000000;
 
   // ── UTILITÁRIOS ────────────────────────────────────────────────────────────
@@ -331,6 +361,14 @@
     table.innerHTML = html;
     bindRaioXEvents(table);
     sincronizarScrollTopo();
+    // Scroll automático para o mês atual
+    setTimeout(function() {
+      var scroll = document.getElementById('fin-raiox-scroll');
+      if (!scroll) return;
+      var ths = scroll.querySelectorAll('.fin-rx-th-mes');
+      var alvo = ths[mesSelecionado - 1];
+      if (alvo) scroll.scrollLeft = alvo.offsetLeft - 160;
+    }, 50);
   }
 
   function bindRaioXEvents(table) {
@@ -370,7 +408,9 @@
         input.value = atual;
         input.className = 'fin-rx-input-nome';
         var self = this;
+        var _saved = false;
         function salvar() {
+          if (_saved) return; _saved = true;
           var novo = input.value.trim();
           if (novo) RAIOX[sec][idx].nome = novo;
           salvarRaioX();
@@ -399,7 +439,9 @@
         input.min = '0';
         input.step = '0.01';
         input.className = 'fin-rx-input-cell';
+        var _saved = false;
         function salvar() {
+          if (_saved) return; _saved = true;
           var novo = parseFloat(input.value);
           RAIOX[sec][idx].valores[mes] = isNaN(novo) ? 0 : Math.round(novo * 100) / 100;
           salvarRaioX();
@@ -438,9 +480,9 @@
   function renderRaioXAddLinha(sectionKey, tipo) {
     var cls = tipo === 'entrada' ? 'fin-rx-entrada' : (tipo === 'fixa' ? 'fin-rx-fixa' : 'fin-rx-variavel');
     return '<tr class="fin-rx-add-row ' + cls + '">' +
-      '<td colspan="14">' +
+      '<td style="position:sticky;left:0;z-index:2;background:inherit">' +
         '<button class="fin-rx-add-btn" data-section="' + sectionKey + '">+ Adicionar linha</button>' +
-      '</td></tr>';
+      '</td><td colspan="13"></td></tr>';
   }
 
   function renderRaioXTotalLinha(label, arr, cls) {
@@ -712,6 +754,7 @@
   function initProjetoMilhao() {
     if (_milhaoInited) return;
     _milhaoInited = true;
+    initSubTabsMilhao();
 
     // Sugerir aporte = média do saldo mensal (positivo) dos dados disponíveis
     var totais = raixoTotaisMensais();
@@ -760,6 +803,126 @@
 
     // Calcular logo de cara
     calcularMilhao();
+  }
+
+  function initSubTabsMilhao() {
+    if (_milSubTabsInited) return;
+    _milSubTabsInited = true;
+
+    document.querySelectorAll('.mil-subtab-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.mil-subtab-btn').forEach(function(b){ b.classList.remove('active'); });
+        document.querySelectorAll('.mil-subtab-pane').forEach(function(p){ p.classList.remove('active'); });
+        this.classList.add('active');
+        var pane = document.getElementById('mil-pane-' + this.dataset.subtab);
+        if (pane) pane.classList.add('active');
+        if (this.dataset.subtab === 'termometro') renderTermometro();
+        if (this.dataset.subtab === 'aportes')    renderAportes();
+      });
+    });
+
+    // Form de registro de aporte
+    var form = document.getElementById('mil-aporte-form');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var mes   = document.getElementById('mil-aporte-mes').value;    // "2026-04"
+        var ativo = document.getElementById('mil-aporte-ativo').value;
+        var valor = parseFloat(document.getElementById('mil-aporte-valor').value);
+        if (!mes || !ativo || isNaN(valor) || valor <= 0) return;
+        adicionarAporte({ mes_ano: mes + '-01', ativo: ativo, valor: valor });
+        document.getElementById('mil-aporte-valor').value = '';
+      });
+    }
+
+    carregarAportes();
+  }
+
+  function carregarAportes() {
+    fetch('/api/financeiro/aportes')
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data) {
+        APORTES = data;
+        renderTermometro();
+        renderAportes();
+      })
+      .catch(function(e){ console.error('Erro ao carregar aportes:', e); });
+  }
+
+  function renderAportes() {
+    var tbody = document.getElementById('mil-aporte-tbody');
+    var empty = document.getElementById('mil-aporte-empty');
+    var table = document.getElementById('mil-aporte-table');
+    if (!tbody) return;
+
+    if (APORTES.length === 0) {
+      if (empty) empty.classList.remove('hidden');
+      if (table) table.style.display = 'none';
+      return;
+    }
+    if (empty) empty.classList.add('hidden');
+    if (table) table.style.display = '';
+
+    var ativoLabel = {};
+    ATIVOS_CARTEIRA.forEach(function(a){ ativoLabel[a.key] = a; });
+
+    tbody.innerHTML = APORTES.map(function(ap) {
+      var a = ativoLabel[ap.ativo] || { label: ap.ativo, cor: '#b0bec5' };
+      var mesStr = ap.mes_ano ? ap.mes_ano.substring(0, 7) : ap.mes_ano;
+      return '<tr>' +
+        '<td>' + mesStr + '</td>' +
+        '<td style="color:' + a.cor + ';font-weight:600">' + a.label + '</td>' +
+        '<td style="color:#69f0ae">' + fmt(ap.valor) + '</td>' +
+        '<td><button class="mil-aporte-del-btn" data-id="' + ap.id + '" title="Remover">✕</button></td>' +
+      '</tr>';
+    }).join('');
+
+    tbody.querySelectorAll('.mil-aporte-del-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        deletarAporte(parseInt(this.dataset.id));
+      });
+    });
+  }
+
+  function adicionarAporte(dados) {
+    var status = document.getElementById('mil-aporte-status');
+    fetch('/api/financeiro/aportes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dados)
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(res) {
+      if (res.ok) {
+        APORTES.unshift({ id: res.id, mes_ano: dados.mes_ano, ativo: dados.ativo, valor: dados.valor });
+        renderAportes();
+        renderTermometro();
+        if (status) { status.textContent = '✓ Aporte registrado'; status.style.color = '#69f0ae'; setTimeout(function(){ status.textContent = ''; }, 2000); }
+      } else {
+        if (status) { status.textContent = '⚠ ' + (res.error || 'Erro'); status.style.color = '#ff5252'; }
+      }
+    })
+    .catch(function(e) {
+      if (status) { status.textContent = '⚠ Erro de conexão'; status.style.color = '#ff5252'; }
+      console.error('adicionarAporte erro:', e);
+    });
+  }
+
+  function deletarAporte(id) {
+    fetch('/api/financeiro/aportes/' + id, { method: 'DELETE' })
+      .then(function(r){ return r.json(); })
+      .then(function(res) {
+        if (res.ok) {
+          APORTES = APORTES.filter(function(a){ return a.id !== id; });
+          renderAportes();
+          renderTermometro();
+        }
+      })
+      .catch(function(e){ console.error('deletarAporte erro:', e); });
+  }
+
+  function renderTermometro() {
+    // implemented in Task 6
   }
 
   function calcularMilhao() {
