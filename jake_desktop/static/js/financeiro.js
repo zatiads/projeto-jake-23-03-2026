@@ -891,7 +891,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dados)
     })
-    .then(function(r){ return r.json(); })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(res) {
       if (res.ok) {
         APORTES.unshift({ id: res.id, mes_ano: dados.mes_ano, ativo: dados.ativo, valor: dados.valor });
@@ -910,7 +910,7 @@
 
   function deletarAporte(id) {
     fetch('/api/financeiro/aportes/' + id, { method: 'DELETE' })
-      .then(function(r){ return r.json(); })
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function(res) {
         if (res.ok) {
           APORTES = APORTES.filter(function(a){ return a.id !== id; });
