@@ -138,3 +138,80 @@ def test_init_aportes_table_cria_tabela(client):
     conn_mock.cursor().execute.assert_called()
     conn_mock.commit.assert_called_once()
     conn_mock.close.assert_called_once()
+
+
+# ── GET /api/financeiro/aportes ──────────────────────────────────────────────
+
+def test_listar_aportes(client):
+    rows = [
+        {"id": 1, "mes_ano": "2026-04-01", "ativo": "ivvb11", "valor": 113.0},
+        {"id": 2, "mes_ano": "2026-04-01", "ativo": "tesouro_selic", "valor": 170.0},
+    ]
+    with patch("app._get_db", return_value=_mock_conn(rows=rows)):
+        resp = client.get("/api/financeiro/aportes")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert len(data) == 2
+    assert data[0]["ativo"] == "ivvb11"
+
+
+def test_listar_aportes_anonimo_retorna_401(client_anonimo):
+    resp = client_anonimo.get("/api/financeiro/aportes")
+    assert resp.status_code in (401, 302)
+
+
+# ── POST /api/financeiro/aportes ─────────────────────────────────────────────
+
+def test_criar_aporte_valido(client):
+    with patch("app._get_db", return_value=_mock_conn(novo_id=7)):
+        resp = client.post("/api/financeiro/aportes", json={
+            "mes_ano": "2026-04-01",
+            "ativo": "ivvb11",
+            "valor": 113.0
+        })
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is True
+    assert data["id"] == 7
+
+
+def test_criar_aporte_ativo_invalido(client):
+    resp = client.post("/api/financeiro/aportes", json={
+        "mes_ano": "2026-04-01",
+        "ativo": "bitcoin",
+        "valor": 100.0
+    })
+    assert resp.status_code == 400
+
+
+def test_criar_aporte_valor_zero(client):
+    resp = client.post("/api/financeiro/aportes", json={
+        "mes_ano": "2026-04-01",
+        "ativo": "cdb",
+        "valor": 0
+    })
+    assert resp.status_code == 400
+
+
+def test_criar_aporte_sem_campos(client):
+    resp = client.post("/api/financeiro/aportes", json={"ativo": "cdb"})
+    assert resp.status_code == 400
+
+
+# ── DELETE /api/financeiro/aportes/<id> ──────────────────────────────────────
+
+def test_deletar_aporte_existente(client):
+    conn_mock = _mock_conn()
+    conn_mock.cursor().rowcount = 1
+    with patch("app._get_db", return_value=conn_mock):
+        resp = client.delete("/api/financeiro/aportes/1")
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+
+
+def test_deletar_aporte_nao_existente(client):
+    conn_mock = _mock_conn()
+    conn_mock.cursor().rowcount = 0
+    with patch("app._get_db", return_value=conn_mock):
+        resp = client.delete("/api/financeiro/aportes/999")
+    assert resp.status_code == 404

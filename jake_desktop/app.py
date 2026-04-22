@@ -2270,6 +2270,79 @@ def financeiro_salvar_raiox():
         return jsonify({"error": str(e)}), 500
 
 
+# ── Financeiro: Aportes de Investimento ──────────────────────────────────────
+
+_ATIVOS_VALIDOS = {"tesouro_selic", "cdb", "lci_lca", "ivvb11", "gold11"}
+
+
+@app.route("/api/financeiro/aportes", methods=["GET"])
+@login_required
+def financeiro_listar_aportes():
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute("""
+            SELECT id, mes_ano::text, ativo, valor
+            FROM aportes_investimento
+            ORDER BY mes_ano DESC, id DESC
+        """)
+        rows = cur.fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/aportes", methods=["POST"])
+@login_required
+def financeiro_criar_aporte():
+    d = request.get_json(force=True) or {}
+    mes_ano = d.get("mes_ano")
+    ativo   = d.get("ativo")
+    valor   = d.get("valor")
+    if not mes_ano:
+        return jsonify({"error": "mes_ano obrigatório"}), 400
+    if ativo not in _ATIVOS_VALIDOS:
+        return jsonify({"error": f"ativo inválido: {ativo}"}), 400
+    try:
+        valor = float(valor)
+        if valor <= 0:
+            raise ValueError()
+    except (TypeError, ValueError):
+        return jsonify({"error": "valor deve ser > 0"}), 400
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute("""
+            INSERT INTO aportes_investimento (mes_ano, ativo, valor)
+            VALUES (DATE_TRUNC('month', %s::date), %s, %s)
+            RETURNING id
+        """, (mes_ano, ativo, valor))
+        novo_id = cur.fetchone()["id"]
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True, "id": novo_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/aportes/<int:aid>", methods=["DELETE"])
+@login_required
+def financeiro_deletar_aporte(aid):
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute("DELETE FROM aportes_investimento WHERE id = %s", (aid,))
+        conn.commit()
+        rowcount = cur.rowcount
+        conn.close()
+        if rowcount == 0:
+            return jsonify({"error": "not found"}), 404
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ── API: Site Architect — geração de landing page ─────────────────────────────
 
 _SITE_ARCH_SYSTEM = """\
