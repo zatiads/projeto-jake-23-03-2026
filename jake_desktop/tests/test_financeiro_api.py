@@ -227,3 +227,80 @@ def test_init_ativos_personalizados_table(client):
     conn_mock.cursor().execute.assert_called()
     conn_mock.commit.assert_called_once()
     conn_mock.close.assert_called_once()
+
+
+# ── GET /api/financeiro/ativos ───────────────────────────────────────────────
+
+def test_listar_ativos_retorna_fixos_e_custom(client):
+    rows = [{"id": 1, "key": "custom_fii", "label": "FII XP", "cor": "#ff8a65", "meta": 5.0}]
+    with patch("app._get_db", return_value=_mock_conn(rows=rows)):
+        resp = client.get("/api/financeiro/ativos")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    keys = [a["key"] for a in data]
+    assert "tesouro_selic" in keys
+    assert "custom_fii" in keys
+    assert data[0]["fixo"] is True
+
+
+# ── POST /api/financeiro/ativos ──────────────────────────────────────────────
+
+def test_criar_ativo_valido(client):
+    conn_mock = _mock_conn(novo_id=1)
+    conn_mock.cursor.return_value.fetchone.return_value = {"n": 0, "id": 1}
+    with patch("app._get_db", return_value=conn_mock):
+        resp = client.post("/api/financeiro/ativos", json={"label": "FII XP", "meta": 5})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is True
+    assert data["ativo"]["key"] == "custom_fii_xp"
+    assert data["ativo"]["fixo"] is False
+
+
+def test_criar_ativo_sem_label(client):
+    resp = client.post("/api/financeiro/ativos", json={"meta": 5})
+    assert resp.status_code == 400
+
+
+def test_criar_ativo_meta_invalida(client):
+    resp = client.post("/api/financeiro/ativos", json={"label": "FII", "meta": 150})
+    assert resp.status_code == 400
+
+
+# ── DELETE /api/financeiro/ativos/<key> ──────────────────────────────────────
+
+def test_deletar_ativo_custom(client):
+    conn_mock = _mock_conn()
+    conn_mock.cursor.return_value.rowcount = 1
+    with patch("app._get_db", return_value=conn_mock):
+        resp = client.delete("/api/financeiro/ativos/custom_fii")
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+
+
+def test_deletar_ativo_fixo_rejeitado(client):
+    resp = client.delete("/api/financeiro/ativos/tesouro_selic")
+    assert resp.status_code == 400
+
+
+def test_deletar_ativo_inexistente(client):
+    conn_mock = _mock_conn()
+    conn_mock.cursor.return_value.rowcount = 0
+    with patch("app._get_db", return_value=conn_mock):
+        resp = client.delete("/api/financeiro/ativos/custom_xyz")
+    assert resp.status_code == 404
+
+
+# ── POST aporte aceita ativo customizado ─────────────────────────────────────
+
+def test_criar_aporte_ativo_customizado(client):
+    conn_mock = _mock_conn(novo_id=10)
+    conn_mock.cursor.return_value.fetchone.return_value = {"key": "custom_fii", "id": 10}
+    with patch("app._get_db", return_value=conn_mock):
+        resp = client.post("/api/financeiro/aportes", json={
+            "mes_ano": "2026-04-01",
+            "ativo": "custom_fii",
+            "valor": 200.0
+        })
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True

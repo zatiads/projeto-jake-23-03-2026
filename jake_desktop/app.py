@@ -2324,8 +2324,20 @@ def financeiro_criar_aporte():
     valor   = d.get("valor")
     if not mes_ano:
         return jsonify({"error": "mes_ano obrigatório"}), 400
-    if ativo not in _ATIVOS_VALIDOS:
+    if ativo not in _ATIVOS_VALIDOS and not ativo.startswith('custom_'):
         return jsonify({"error": f"ativo inválido: {ativo}"}), 400
+    if ativo.startswith('custom_'):
+        try:
+            _conn = _get_db()
+            try:
+                _cur = _conn.cursor()
+                _cur.execute("SELECT key FROM ativos_personalizados WHERE key = %s", (ativo,))
+                if not _cur.fetchone():
+                    return jsonify({"error": f"ativo inválido: {ativo}"}), 400
+            finally:
+                _conn.close()
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
     try:
         valor = float(valor)
         if valor <= 0:
@@ -2358,6 +2370,109 @@ def financeiro_deletar_aporte(aid):
         try:
             cur  = conn.cursor()
             cur.execute("DELETE FROM aportes_investimento WHERE id = %s", (aid,))
+            conn.commit()
+            rowcount = cur.rowcount
+        finally:
+            conn.close()
+        if rowcount == 0:
+            return jsonify({"error": "not found"}), 404
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ── Financeiro: Ativos Personalizados ────────────────────────────────────────
+
+_ATIVOS_FIXOS = [
+    {"key": "tesouro_selic", "label": "Tesouro Selic", "cor": "#00e5ff", "meta": 30},
+    {"key": "cdb",           "label": "CDB",           "cor": "#ffd740", "meta": 25},
+    {"key": "lci_lca",       "label": "LCI/LCA",       "cor": "#69f0ae", "meta": 15},
+    {"key": "ivvb11",        "label": "IVVB11",         "cor": "#ff5252", "meta": 20},
+    {"key": "gold11",        "label": "GOLD11",         "cor": "#7c4dff", "meta": 10},
+]
+_KEYS_FIXAS   = {a["key"] for a in _ATIVOS_FIXOS}
+_PALETA_CUSTOM = ['#ff8a65', '#ce93d8', '#80deea', '#a5d6a7', '#ffcc02', '#ef9a9a']
+
+
+def _gerar_key_ativo(label):
+    import re
+    slug = re.sub(r'[^a-z0-9 ]', '', label.lower().strip())
+    slug = re.sub(r'\s+', '_', slug).strip('_')
+    return ('custom_' + slug)[:50]
+
+
+@app.route("/api/financeiro/ativos", methods=["GET"])
+@login_required
+def financeiro_listar_ativos():
+    try:
+        conn = _get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT key, label, cor, meta FROM ativos_personalizados ORDER BY id ASC")
+            rows = cur.fetchall()
+        finally:
+            conn.close()
+        result = [{**a, "fixo": True} for a in _ATIVOS_FIXOS]
+        result += [{"key": r["key"], "label": r["label"], "cor": r["cor"],
+                    "meta": float(r["meta"]), "fixo": False} for r in rows]
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/ativos", methods=["POST"])
+@login_required
+def financeiro_criar_ativo():
+    d     = request.get_json(force=True) or {}
+    label = (d.get("label") or "").strip()
+    if not label:
+        return jsonify({"error": "label obrigatório"}), 400
+    if len(label) > 100:
+        return jsonify({"error": "label muito longo (máx 100)"}), 400
+    try:
+        meta = float(d.get("meta") or 0)
+        if not (0 <= meta <= 100):
+            raise ValueError()
+    except (TypeError, ValueError):
+        return jsonify({"error": "meta deve ser entre 0 e 100"}), 400
+    key = _gerar_key_ativo(label)
+    if key in _KEYS_FIXAS:
+        return jsonify({"error": f"Ativo com nome similar já existe (key: {key})"}), 400
+    try:
+        conn = _get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) AS n FROM ativos_personalizados")
+            n = cur.fetchone()["n"]
+            cor = _PALETA_CUSTOM[int(n) % len(_PALETA_CUSTOM)]
+            cur.execute("""
+                INSERT INTO ativos_personalizados (key, label, cor, meta)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (key) DO NOTHING
+                RETURNING id
+            """, (key, label, cor, meta))
+            row = cur.fetchone()
+            conn.commit()
+        finally:
+            conn.close()
+        if not row:
+            return jsonify({"error": f"Ativo com nome similar já existe (key: {key})"}), 400
+        ativo = {"key": key, "label": label, "cor": cor, "meta": meta, "fixo": False}
+        return jsonify({"ok": True, "ativo": ativo})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/ativos/<string:key>", methods=["DELETE"])
+@login_required
+def financeiro_deletar_ativo(key):
+    if key in _KEYS_FIXAS:
+        return jsonify({"error": "ativo fixo não pode ser removido"}), 400
+    try:
+        conn = _get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM ativos_personalizados WHERE key = %s", (key,))
             conn.commit()
             rowcount = cur.rowcount
         finally:
