@@ -196,6 +196,7 @@ def test_http_call_get_insights_success(http_client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["ok"] is True
+    assert "data" in data
 
 
 def test_http_call_unknown_tool(http_client):

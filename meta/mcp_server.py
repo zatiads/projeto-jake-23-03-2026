@@ -395,6 +395,14 @@ def run_stdio():
         try:
             req = _json.loads(line)
         except _json.JSONDecodeError:
+            sys.stdout.write(_json.dumps({
+                "jsonrpc": "2.0", "id": None,
+                "error": {"code": -32700, "message": "Parse error"}
+            }) + "\n")
+            sys.stdout.flush()
+            continue
+
+        if not isinstance(req, dict):
             continue
 
         req_id = req.get("id")
