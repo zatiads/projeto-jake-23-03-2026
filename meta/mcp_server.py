@@ -286,17 +286,16 @@ def execute_tool(name: str, args: dict) -> dict:
         # ── READ TOOLS (sem token_key) ─────────────────────────────────────────
         if name == "meta_get_insights":
             account_id = args["account_id"]
-            days = args.get("days", 7)
-            data = _api._get_insights(account_id, days=days)
+            data = _api._get_insights(account_id, days=int(args.get("days", 7)))
             if data is None:
-                return {"ok": False, "error": "Falha ao buscar insights (token, rede ou account_id inválido)"}
+                return {"ok": False, "error": "Sem dados retornados pela Meta API"}
             return {"ok": True, "data": data}
 
         if name == "meta_get_saldo":
             account_id = args["account_id"]
             data = _api.get_saldo_conta(account_id)
             if data is None:
-                return {"ok": False, "error": "Falha ao buscar saldo (token, rede ou account_id inválido)"}
+                return {"ok": False, "error": "Sem dados retornados pela Meta API"}
             return {"ok": True, "data": data}
 
         # ── WRITE TOOLS (com token_key) ────────────────────────────────────────
@@ -312,8 +311,8 @@ def execute_tool(name: str, args: dict) -> dict:
                 args["account_id"],
                 args["campanha_tipo"],
                 args["nome"],
-                args["orcamento"],
-                cbo=args.get("cbo", True),
+                float(args["orcamento"]),
+                cbo=bool(args.get("cbo", True)),
             )
             return {"ok": True, "campaign_id": campaign_id}
 
@@ -354,7 +353,7 @@ def execute_tool(name: str, args: dict) -> dict:
 
         if name == "meta_deletar_objeto":
             _api.deletar_objeto_meta(token, args["objeto_id"])
-            return {"ok": True}
+            return {"ok": True, "data": {"deleted": args["objeto_id"]}}
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
