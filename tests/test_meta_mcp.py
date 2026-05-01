@@ -209,3 +209,32 @@ def test_http_call_unknown_tool(http_client):
 def test_http_call_missing_body(http_client):
     resp = http_client.post("/call", json={})
     assert resp.status_code == 400
+
+
+# ── Testes meta/mcp_client.py ──────────────────────────────────────────────────
+
+def test_chamar_mcp_tool_sucesso():
+    """chamar_mcp_tool faz POST para localhost:5051/call e retorna resultado."""
+    from meta.mcp_client import chamar_mcp_tool
+    import requests as req_lib
+    with patch.object(req_lib, "post") as mock_post:
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"ok": True, "data": {"campanhas": []}}
+        mock_post.return_value = mock_resp
+        result = chamar_mcp_tool("meta_listar_campanhas", {"token_key": "META_ACCESS_TOKEN", "account_id": "act_123"})
+    assert result["ok"] is True
+    mock_post.assert_called_once_with(
+        "http://localhost:5051/call",
+        json={"tool": "meta_listar_campanhas", "args": {"token_key": "META_ACCESS_TOKEN", "account_id": "act_123"}},
+        timeout=10,
+    )
+
+
+def test_chamar_mcp_tool_servidor_offline():
+    """chamar_mcp_tool retorna {"ok": False} se servidor não estiver rodando."""
+    from meta.mcp_client import chamar_mcp_tool
+    import requests as req_lib
+    with patch.object(req_lib, "post", side_effect=Exception("Connection refused")):
+        result = chamar_mcp_tool("meta_get_insights", {"account_id": "act_123"})
+    assert result["ok"] is False
+    assert "Connection refused" in result["error"]
