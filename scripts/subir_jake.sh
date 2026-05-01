@@ -2,6 +2,7 @@
 # Sobe o Jake no Telegram em background.
 # OBRIGATÓRIO: usar o venv e PYTHONPATH=/root (projeto organizado em bot/, meta/, core/).
 cd /root
+mkdir -p /root/logs
 
 # Sobe o Meta MCP Server (HTTP :5051)
 pkill -f "mcp_server.py" 2>/dev/null; sleep 1
