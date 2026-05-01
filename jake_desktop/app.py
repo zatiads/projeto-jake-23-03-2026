@@ -508,26 +508,83 @@ SYSTEM_PROMPT = (
     "Quando o usuário pedir para mandar algo no Telegram, use a ferramenta send_telegram_message."
 )
 
+from meta.mcp_client import chamar_mcp_tool as _chamar_mcp_tool
+
+# Nota: apenas 3 tools expostas ao Jake chat (leitura + listar).
+# As tools de criação/upload são usadas via Claude Code.
+META_MCP_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "meta_get_insights",
+            "description": "Relatório de alcance, cliques, leads e CPL da conta Meta Ads nos últimos N dias.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "account_id": {"type": "string"},
+                    "days":       {"type": "integer", "default": 7},
+                },
+                "required": ["account_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "meta_get_saldo",
+            "description": "Saldo financeiro da conta Meta Ads.",
+            "parameters": {
+                "type": "object",
+                "properties": {"account_id": {"type": "string"}},
+                "required": ["account_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "meta_listar_campanhas",
+            "description": "Lista campanhas ativas/pausadas de uma conta Meta Ads.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "token_key":  {"type": "string"},
+                    "account_id": {"type": "string"},
+                },
+                "required": ["token_key", "account_id"],
+            },
+        },
+    },
+]
+
 def _chat_with_tools(client, messages):
+    all_tools = [TELEGRAM_TOOL] + META_MCP_TOOLS
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=messages,
-        tools=[TELEGRAM_TOOL],
+        tools=all_tools,
         tool_choice="auto",
     )
     msg = response.choices[0].message
     if getattr(msg, "tool_calls", None):
+        messages.append(msg)
         for tc in msg.tool_calls:
-            if getattr(tc.function, "name", "") == "send_telegram_message":
-                args = json.loads(getattr(tc.function, "arguments", "{}") or "{}")
+            fn_name = getattr(tc.function, "name", "")
+            args = json.loads(getattr(tc.function, "arguments", "{}") or "{}")
+            if fn_name == "send_telegram_message":
                 ok, detail = _send_telegram(args.get("message", ""))
-                messages.append(msg)
-                messages.append({
-                    "role":         "tool",
-                    "tool_call_id": getattr(tc, "id", ""),
-                    "content":      "Enviado no Telegram." if ok else f"Falha: {detail}",
-                })
-                return _chat_with_tools(client, messages)
+                content = "Enviado no Telegram." if ok else f"Falha: {detail}"
+            elif fn_name.startswith("meta_"):
+                result = _chamar_mcp_tool(fn_name, args)
+                content = json.dumps(result, ensure_ascii=False)
+            else:
+                content = f"Tool desconhecida: {fn_name}"
+            messages.append({
+                "role": "tool",
+                "tool_call_id": getattr(tc, "id", ""),
+                "content": content,
+            })
+        return _chat_with_tools(client, messages)
     return msg.content or ""
 
 # ── API: falar com o Jake ────────────────────────────────────────────────────
