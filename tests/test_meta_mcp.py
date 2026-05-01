@@ -226,7 +226,7 @@ def test_chamar_mcp_tool_sucesso():
     mock_post.assert_called_once_with(
         "http://localhost:5051/call",
         json={"tool": "meta_listar_campanhas", "args": {"token_key": "META_ACCESS_TOKEN", "account_id": "act_123"}},
-        timeout=10,
+        timeout=5,
     )
 
 

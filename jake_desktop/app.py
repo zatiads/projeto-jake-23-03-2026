@@ -35,6 +35,7 @@ import anthropic as _anthropic
 import sys as _sys
 _sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import meta.meta_api as _meta_api
+from meta.mcp_client import chamar_mcp_tool as _chamar_mcp_tool
 import brain
 
 _VALID_TOKEN_KEYS = {"META_TOKEN_PILOTI", "META_TOKEN_DENTTO", "META_ACCESS_TOKEN"}
@@ -508,8 +509,6 @@ SYSTEM_PROMPT = (
     "Quando o usuário pedir para mandar algo no Telegram, use a ferramenta send_telegram_message."
 )
 
-from meta.mcp_client import chamar_mcp_tool as _chamar_mcp_tool
-
 # Nota: apenas 3 tools expostas ao Jake chat (leitura + listar).
 # As tools de criação/upload são usadas via Claude Code.
 META_MCP_TOOLS = [
@@ -548,7 +547,7 @@ META_MCP_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "token_key":  {"type": "string"},
+                    "token_key":  {"type": "string", "description": "Token da conta: META_TOKEN_PILOTI | META_TOKEN_DENTTO | META_ACCESS_TOKEN"},
                     "account_id": {"type": "string"},
                 },
                 "required": ["token_key", "account_id"],
@@ -557,7 +556,9 @@ META_MCP_TOOLS = [
     },
 ]
 
-def _chat_with_tools(client, messages):
+def _chat_with_tools(client, messages, _depth=0):
+    if _depth >= 5:
+        return "[Erro: número máximo de chamadas de ferramentas atingido]"
     all_tools = [TELEGRAM_TOOL] + META_MCP_TOOLS
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -584,7 +585,7 @@ def _chat_with_tools(client, messages):
                 "tool_call_id": getattr(tc, "id", ""),
                 "content": content,
             })
-        return _chat_with_tools(client, messages)
+        return _chat_with_tools(client, messages, _depth + 1)
     return msg.content or ""
 
 # ── API: falar com o Jake ────────────────────────────────────────────────────

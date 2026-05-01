@@ -8,7 +8,7 @@ def chamar_mcp_tool(tool_name: str, args: dict) -> dict:
         r = requests.post(
             "http://localhost:5051/call",
             json={"tool": tool_name, "args": args},
-            timeout=10,
+            timeout=5,
         )
         return r.json()
     except Exception as e:
