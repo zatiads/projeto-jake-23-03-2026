@@ -358,3 +358,96 @@ def execute_tool(name: str, args: dict) -> dict:
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+# ── Modo HTTP (Flask) ─────────────────────────────────────────────────────────
+
+def create_app():
+    from flask import Flask, jsonify, request as flask_request
+    app = Flask(__name__)
+
+    @app.route("/list", methods=["GET"])
+    def route_list():
+        return jsonify({"tools": get_tools_list()})
+
+    @app.route("/call", methods=["POST"])
+    def route_call():
+        body = flask_request.get_json(silent=True)
+        if not body or "tool" not in body:
+            from flask import abort
+            abort(400)
+        result = execute_tool(body["tool"], body.get("args") or {})
+        return jsonify(result)
+
+    return app
+
+
+# ── Modo stdio (JSON-RPC 2.0) ─────────────────────────────────────────────────
+
+def run_stdio():
+    """Loop JSON-RPC 2.0 sobre stdin/stdout — protocolo MCP para Claude Code."""
+    import sys
+    import json as _json
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            req = _json.loads(line)
+        except _json.JSONDecodeError:
+            continue
+
+        req_id = req.get("id")
+        method = req.get("method", "")
+        params = req.get("params") or {}
+
+        # Handshake MCP
+        if method == "initialize":
+            resp = {
+                "jsonrpc": "2.0", "id": req_id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "meta-ads", "version": "1.0.0"},
+                },
+            }
+        elif method == "notifications/initialized":
+            continue  # notificação sem resposta
+        elif method == "tools/list":
+            resp = {"jsonrpc": "2.0", "id": req_id, "result": {"tools": get_tools_list()}}
+        elif method == "tools/call":
+            tool_name = params.get("name", "")
+            tool_args  = params.get("arguments") or {}
+            result = execute_tool(tool_name, tool_args)
+            if result["ok"]:
+                content = [{"type": "text", "text": _json.dumps(result["data"], ensure_ascii=False)}]
+                resp = {"jsonrpc": "2.0", "id": req_id, "result": {"content": content}}
+            else:
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "error": {"code": -32000, "message": result["error"]},
+                }
+        else:
+            resp = {
+                "jsonrpc": "2.0", "id": req_id,
+                "error": {"code": -32601, "message": f"Method not found: {method}"},
+            }
+
+        sys.stdout.write(_json.dumps(resp) + "\n")
+        sys.stdout.flush()
+
+
+# ── Entry point ───────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--stdio", action="store_true", help="Modo JSON-RPC stdio (Claude Code)")
+    parser.add_argument("--port", type=int, default=5051)
+    args_cli = parser.parse_args()
+
+    if args_cli.stdio:
+        run_stdio()
+    else:
+        app = create_app()
+        app.run(host="127.0.0.1", port=args_cli.port)

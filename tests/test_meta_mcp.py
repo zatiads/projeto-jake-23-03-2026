@@ -165,3 +165,46 @@ def test_execute_tool_meta_upload_video_returns_video_id():
     assert result["ok"] is True
     assert result["data"]["video_id"] == "vid_999"
     mock_upload.assert_called_once_with("tok", "act_123", fake_bytes, "test.mp4")
+
+
+# ── Testes HTTP ────────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def http_client():
+    from meta.mcp_server import create_app
+    app = create_app()
+    app.config["TESTING"] = True
+    with app.test_client() as client:
+        yield client
+
+
+def test_http_list_returns_tools(http_client):
+    resp = http_client.get("/list")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "tools" in data
+    assert len(data["tools"]) == 9
+
+
+def test_http_call_get_insights_success(http_client):
+    fake = {"data": [{"reach": "500", "spend": "20.00", "clicks": "100", "actions": []}]}
+    with patch("meta.meta_api._get_insights", return_value=fake):
+        resp = http_client.post("/call", json={
+            "tool": "meta_get_insights",
+            "args": {"account_id": "act_123", "days": 7}
+        })
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is True
+
+
+def test_http_call_unknown_tool(http_client):
+    resp = http_client.post("/call", json={"tool": "nao_existe", "args": {}})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is False
+
+
+def test_http_call_missing_body(http_client):
+    resp = http_client.post("/call", json={})
+    assert resp.status_code == 400
