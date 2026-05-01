@@ -325,7 +325,7 @@ def execute_tool(name: str, args: dict) -> dict:
                 args["campanha_tipo"],
                 args["publico"],
                 args["localizacao"],
-                orcamento=args.get("orcamento"),
+                orcamento=float(args["orcamento"]) if args.get("orcamento") is not None else None,
             )
             return {"ok": True, "data": {"adset_id": adset_id}}
 

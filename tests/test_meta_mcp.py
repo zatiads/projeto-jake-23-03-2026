@@ -238,3 +238,16 @@ def test_chamar_mcp_tool_servidor_offline():
         result = chamar_mcp_tool("meta_get_insights", {"account_id": "act_123"})
     assert result["ok"] is False
     assert "Connection refused" in result["error"]
+
+
+def test_execute_tool_meta_deletar_objeto_returns_deleted_id():
+    from meta.mcp_server import execute_tool
+    with patch("meta.meta_api._resolve_token", return_value="tok"), \
+         patch("meta.meta_api.deletar_objeto_meta") as mock_del:
+        result = execute_tool("meta_deletar_objeto", {
+            "token_key": "META_ACCESS_TOKEN",
+            "objeto_id": "camp_123",
+        })
+    assert result["ok"] is True
+    assert result["data"]["deleted"] == "camp_123"
+    mock_del.assert_called_once_with("tok", "camp_123")
