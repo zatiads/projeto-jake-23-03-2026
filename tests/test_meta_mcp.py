@@ -1,5 +1,5 @@
 """Testes para meta/mcp_server.py — tool registry e dispatch."""
-import sys, os
+import sys
 sys.path.insert(0, "/root")
 
 import pytest
@@ -94,3 +94,74 @@ def test_execute_tool_upload_imagem_decodes_base64():
         })
     assert result["ok"] is True
     mock_upload.assert_called_once_with("tok", "act_123", fake_bytes, "test.jpg")
+
+
+def test_execute_tool_meta_criar_campanha_returns_campaign_id():
+    from meta.mcp_server import execute_tool
+    with patch("meta.meta_api._resolve_token", return_value="tok"), \
+         patch("meta.meta_api.criar_campanha", return_value="camp_123"):
+        result = execute_tool("meta_criar_campanha", {
+            "token_key": "META_ACCESS_TOKEN",
+            "account_id": "act_123",
+            "nome": "Campanha Teste",
+            "campanha_tipo": "MESSAGES",
+            "orcamento": 50.0,
+            "cbo": True,
+        })
+    assert result["ok"] is True
+    assert result["data"]["campaign_id"] == "camp_123"
+
+
+def test_execute_tool_meta_criar_conjunto_returns_adset_id():
+    from meta.mcp_server import execute_tool
+    publico = {"idade_min": 18, "idade_max": 65}
+    localizacao = {"paises": ["BR"], "cidades": []}
+    with patch("meta.meta_api._resolve_token", return_value="tok"), \
+         patch("meta.meta_api.criar_conjunto", return_value="adset_456"):
+        result = execute_tool("meta_criar_conjunto", {
+            "token_key": "META_ACCESS_TOKEN",
+            "account_id": "act_123",
+            "campaign_id": "camp_123",
+            "campanha_tipo": "MESSAGES",
+            "publico": publico,
+            "localizacao": localizacao,
+        })
+    assert result["ok"] is True
+    assert result["data"]["adset_id"] == "adset_456"
+
+
+def test_execute_tool_meta_criar_anuncio_returns_ad_id():
+    from meta.mcp_server import execute_tool
+    creative_ref = {"tipo": "imagem", "hash": "abc123"}
+    with patch("meta.meta_api._resolve_token", return_value="tok"), \
+         patch("meta.meta_api.criar_anuncio", return_value="ad_789"):
+        result = execute_tool("meta_criar_anuncio", {
+            "token_key": "META_ACCESS_TOKEN",
+            "account_id": "act_123",
+            "adset_id": "adset_456",
+            "page_id": "page_000",
+            "creative_ref": creative_ref,
+            "titulo": "Titulo Teste",
+            "texto": "Texto do anuncio",
+            "cta": "SEND_MESSAGE",
+        })
+    assert result["ok"] is True
+    assert result["data"]["ad_id"] == "ad_789"
+
+
+def test_execute_tool_meta_upload_video_returns_video_id():
+    import base64
+    from meta.mcp_server import execute_tool
+    fake_bytes = b"fake_video"
+    b64 = base64.b64encode(fake_bytes).decode()
+    with patch("meta.meta_api._resolve_token", return_value="tok"), \
+         patch("meta.meta_api.upload_video", return_value="vid_999") as mock_upload:
+        result = execute_tool("meta_upload_video", {
+            "token_key": "META_ACCESS_TOKEN",
+            "account_id": "act_123",
+            "video_base64": b64,
+            "filename": "test.mp4",
+        })
+    assert result["ok"] is True
+    assert result["data"]["video_id"] == "vid_999"
+    mock_upload.assert_called_once_with("tok", "act_123", fake_bytes, "test.mp4")

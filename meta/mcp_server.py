@@ -6,14 +6,15 @@ Expõe:
   execute_tool(name, args) → dict — executa a tool e retorna {"ok": True/False, ...}
 """
 import base64
-from typing import Any
 
 import meta.meta_api as _api
 
 # ── Classificação das tools ────────────────────────────────────────────────────
-_READ_TOOLS = {"meta_get_insights", "meta_get_saldo"}
+# Tools que não exigem token_key
+_NO_TOKEN_TOOLS = {"meta_get_insights", "meta_get_saldo"}
 
-_WRITE_TOOLS = {
+# Tools que exigem token_key
+_TOKEN_TOOLS = {
     "meta_listar_campanhas",
     "meta_criar_campanha",
     "meta_criar_conjunto",
@@ -23,7 +24,7 @@ _WRITE_TOOLS = {
     "meta_deletar_objeto",
 }
 
-_ALL_TOOLS = _READ_TOOLS | _WRITE_TOOLS
+_ALL_TOOLS = _NO_TOKEN_TOOLS | _TOKEN_TOOLS
 
 
 # ── Tool registry ──────────────────────────────────────────────────────────────
@@ -283,7 +284,7 @@ def execute_tool(name: str, args: dict) -> dict:
         return {"ok": False, "error": f"Tool desconhecida: {name}"}
 
     try:
-        # ── READ TOOLS (sem token_key) ─────────────────────────────────────────
+        # ── NO TOKEN TOOLS (sem token_key) ────────────────────────────────────
         if name == "meta_get_insights":
             account_id = args["account_id"]
             data = _api._get_insights(account_id, days=int(args.get("days", 7)))
@@ -298,7 +299,7 @@ def execute_tool(name: str, args: dict) -> dict:
                 return {"ok": False, "error": "Sem dados retornados pela Meta API"}
             return {"ok": True, "data": data}
 
-        # ── WRITE TOOLS (com token_key) ────────────────────────────────────────
+        # ── TOKEN TOOLS (com token_key) ───────────────────────────────────────
         token = _api._resolve_token(args["token_key"])
 
         if name == "meta_listar_campanhas":
@@ -314,7 +315,7 @@ def execute_tool(name: str, args: dict) -> dict:
                 float(args["orcamento"]),
                 cbo=bool(args.get("cbo", True)),
             )
-            return {"ok": True, "campaign_id": campaign_id}
+            return {"ok": True, "data": {"campaign_id": campaign_id}}
 
         if name == "meta_criar_conjunto":
             adset_id = _api.criar_conjunto(
@@ -326,7 +327,7 @@ def execute_tool(name: str, args: dict) -> dict:
                 args["localizacao"],
                 orcamento=args.get("orcamento"),
             )
-            return {"ok": True, "adset_id": adset_id}
+            return {"ok": True, "data": {"adset_id": adset_id}}
 
         if name == "meta_criar_anuncio":
             ad_id = _api.criar_anuncio(
@@ -339,7 +340,7 @@ def execute_tool(name: str, args: dict) -> dict:
                 args["texto"],
                 args["cta"],
             )
-            return {"ok": True, "ad_id": ad_id}
+            return {"ok": True, "data": {"ad_id": ad_id}}
 
         if name == "meta_upload_imagem":
             imagem_bytes = base64.b64decode(args["imagem_base64"])
@@ -349,7 +350,7 @@ def execute_tool(name: str, args: dict) -> dict:
         if name == "meta_upload_video":
             video_bytes = base64.b64decode(args["video_base64"])
             video_id = _api.upload_video(token, args["account_id"], video_bytes, args["filename"])
-            return {"ok": True, "video_id": video_id}
+            return {"ok": True, "data": {"video_id": video_id}}
 
         if name == "meta_deletar_objeto":
             _api.deletar_objeto_meta(token, args["objeto_id"])
