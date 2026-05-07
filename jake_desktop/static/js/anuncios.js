@@ -11,6 +11,19 @@
   var _creativeRef  = null;    // {tipo, hash|video_id}
   var _creativeB64  = null;    // base64 da imagem para copy
   var _creativeMime = null;
+  var _publicos     = [];
+  var _pubEditId    = null;
+
+  // ── Sub-navegação tabs ──────────────────────────────
+  window.anuSwitchTab = function(tab) {
+    ['publicar', 'publicos'].forEach(function(t) {
+      var el  = document.getElementById('anu-tab-' + t);
+      var btn = document.querySelector('[data-tab="' + t + '"]');
+      if (el)  el.style.display = (t === tab) ? '' : 'none';
+      if (btn) btn.classList.toggle('active', t === tab);
+    });
+    if (tab === 'publicos') carregarPublicos();
+  };
 
   // ── Init ───────────────────────────────────────────
   function init() {
@@ -22,6 +35,7 @@
     bindCopyEvents();
     bindRevisaoEvents();
     bindModalEvents();
+    bindPublicosEvents();
   }
 
   // ── Carregar e renderizar clientes ─────────────────
@@ -98,7 +112,19 @@
     _set('anu-pf-agencia',    c.agencia);
     _set('anu-pf-account-id', c.account_id);
     _set('anu-pf-token-key',  c.token_key);
-    _set('anu-pf-page-id',    c.page_id||'');
+    _set('anu-pf-business-id', c.business_id||'');
+    // Pré-popular dropdown de páginas com o valor salvo
+    var sel = document.getElementById('anu-pf-page-id');
+    if (sel && c.page_id) {
+      var exists = sel.querySelector('option[value="'+c.page_id+'"]');
+      if (!exists) {
+        var opt = document.createElement('option');
+        opt.value = c.page_id;
+        opt.textContent = c.page_id;
+        opt.selected = true;
+        sel.appendChild(opt);
+      } else { exists.selected = true; }
+    }
     _set('anu-pf-whatsapp',   c.whatsapp||'');
     _set('anu-pf-segmento',   c.segmento||'');
     _set('anu-pf-camp-tipo',  c.campanha_tipo||'MESSAGES');
@@ -118,6 +144,40 @@
     var e=document.getElementById('anu-btn-editar-cliente'); if(e) e.addEventListener('click',function(){
       if (_clienteAtivo) abrirFormPerfil(_clienteAtivo.id);
     });
+    var b=document.getElementById('anu-btn-buscar-pages'); if(b) b.addEventListener('click',buscarPaginas);
+  }
+
+  function buscarPaginas() {
+    var tokenKey = _val('anu-pf-token-key');
+    var btn = document.getElementById('anu-btn-buscar-pages');
+    var sel = document.getElementById('anu-pf-page-id');
+    if (!tokenKey) { alert('Selecione o token primeiro.'); return; }
+    if (btn) btn.textContent = 'Buscando...';
+    var businessId = _val('anu-pf-business-id') || '';
+    var qs = 'token_key=' + tokenKey + (businessId ? '&business_id=' + businessId : '');
+    fetch('/api/anuncios/pages?' + qs)
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (btn) btn.textContent = '🔍 Buscar Páginas';
+        if (data.error) { alert('Erro: ' + data.error); return; }
+        var pages = data.pages || [];
+        if (!pages.length) { alert('Nenhuma página encontrada para esse token.'); return; }
+        var current = sel ? sel.value : '';
+        if (sel) {
+          sel.innerHTML = '<option value="">— selecione —</option>';
+          pages.forEach(function(p){
+            var opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.name + ' (' + p.id + ')';
+            if (p.id === current) opt.selected = true;
+            sel.appendChild(opt);
+          });
+        }
+      })
+      .catch(function(e){
+        if (btn) btn.textContent = '🔍 Buscar Páginas';
+        alert('Erro de rede: ' + e);
+      });
   }
 
   function salvarPerfil() {
@@ -132,6 +192,7 @@
     var payload={
       nome:nome, agencia:_val('anu-pf-agencia'), account_id:account_id,
       token_key:_val('anu-pf-token-key'), page_id:_val('anu-pf-page-id'),
+      business_id:_val('anu-pf-business-id'),
       whatsapp:_val('anu-pf-whatsapp'), segmento:_val('anu-pf-segmento'),
       campanha_tipo:_val('anu-pf-camp-tipo'),
       orcamento_diario:parseFloat(_val('anu-pf-orcamento'))||null,
@@ -413,7 +474,8 @@
       campanha_nome:_val('anu-camp-nome')||('Campanha '+_clienteAtivo.nome),
       orcamento_diario:parseFloat(_val('anu-camp-orcamento'))||30,
       creative_ref:_creativeRef,
-      copy:{titulo:_val('anu-copy-titulo'),texto:_val('anu-copy-texto'),cta:_val('anu-copy-cta')||'SEND_MESSAGE'}
+      copy:{titulo:_val('anu-copy-titulo'),texto:_val('anu-copy-texto'),cta:_val('anu-copy-cta')||'SEND_MESSAGE'},
+      audience_id: parseInt(_val('anu-pub-selector')) || null
     };
 
     fetch('/api/anuncios/publicar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
@@ -426,6 +488,168 @@
         mostrarCriacao();
       })
       .catch(function(e){fecharModal();alert('Erro de rede: '+e);});
+  }
+
+  // ── Públicos Salvos ─────────────────────────────────
+  function carregarPublicos() {
+    var accountId = _clienteAtivo ? _clienteAtivo.account_id : '';
+    var url = '/api/anuncios/audiences' + (accountId ? '?account_id=' + accountId : '');
+    fetch(url).then(function(r){return r.json();}).then(function(d){
+      _publicos = d.audiences || [];
+      renderPublicos();
+      popularSeletorPublico();
+    });
+  }
+
+  function renderPublicos() {
+    var el = document.getElementById('anu-publicos-lista');
+    if (!el) return;
+    if (!_publicos.length) {
+      el.innerHTML = '<div style="color:#888;font-size:13px;padding:12px 0">Nenhum público salvo. Importe do Meta ou crie manualmente.</div>';
+      return;
+    }
+    var badge = {'manual':'Manual','salvo_meta':'Meta Salvo','custom_meta':'Custom'};
+    el.innerHTML = _publicos.map(function(p){
+      var editBtn = p.tipo !== 'custom_meta'
+        ? '<button class="anu-btn-secondary" style="padding:2px 10px;font-size:12px" onclick="abrirEditPublico('+p.id+')">Editar</button>'
+        : '<button class="anu-btn-secondary" style="padding:2px 10px;font-size:12px" onclick="abrirEditPublicoNome('+p.id+')">Renomear</button>';
+      return '<div class="anu-bloco" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;margin-bottom:6px">'
+        + '<div><strong>'+_esc(p.nome)+'</strong><span style="font-size:11px;color:#888;margin-left:8px">['+badge[p.tipo]+']</span></div>'
+        + '<div style="display:flex;gap:6px;">'+editBtn
+        + '<button class="anu-btn-secondary" style="padding:2px 10px;font-size:12px;color:#e55" onclick="deletarPublico('+p.id+')">✕</button>'
+        + '</div></div>';
+    }).join('');
+  }
+
+  window.abrirEditPublico = function(id) {
+    var p = _publicos.find(function(x){return x.id===id;});
+    if (!p) return;
+    _pubEditId = id;
+    _set('anu-pub-nome', p.nome);
+    _set('anu-pub-age-min', (p.targeting_json||{}).age_min||18);
+    _set('anu-pub-age-max', (p.targeting_json||{}).age_max||65);
+    _set('anu-pub-genero', ((p.targeting_json||{}).genders||[])[0]||'');
+    _set('anu-pub-pais', ((p.targeting_json||{}).countries||[])[0]||'BR');
+    _setText('anu-publico-form-titulo','Editar Público');
+    mostrar('anu-publico-form');
+  };
+
+  window.abrirEditPublicoNome = function(id) {
+    var p = _publicos.find(function(x){return x.id===id;});
+    if (!p) return;
+    _pubEditId = id;
+    _set('anu-pub-nome', p.nome);
+    _setText('anu-publico-form-titulo','Renomear Público');
+    mostrar('anu-publico-form');
+  };
+
+  window.deletarPublico = function(id) {
+    if (!confirm('Deletar este público?')) return;
+    fetch('/api/anuncios/audiences/'+id,{method:'DELETE'})
+      .then(function(r){return r.json();})
+      .then(function(d){ if(d.ok) carregarPublicos(); else alert('Erro: '+d.error); });
+  };
+
+  function popularClientesDropdowns() {
+    ['anu-pub-cliente','anu-imp-cliente'].forEach(function(selId){
+      var sel = document.getElementById(selId);
+      if (!sel) return;
+      sel.innerHTML = '<option value="">— selecione —</option>';
+      _clientes.forEach(function(c){
+        var opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.nome + ' (' + c.account_id + ')';
+        opt.dataset.accountId = c.account_id;
+        opt.dataset.tokenKey  = c.token_key;
+        sel.appendChild(opt);
+      });
+    });
+  }
+
+  function popularSeletorPublico() {
+    var sel = document.getElementById('anu-pub-selector');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Usar perfil do cliente</option>';
+    _publicos.forEach(function(p){
+      var opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.nome;
+      sel.appendChild(opt);
+    });
+  }
+
+  function bindPublicosEvents() {
+    var btnNovo = document.getElementById('anu-btn-novo-publico');
+    if (btnNovo) btnNovo.addEventListener('click', function(){
+      _pubEditId = null;
+      _set('anu-pub-nome',''); _set('anu-pub-age-min','18'); _set('anu-pub-age-max','65');
+      _set('anu-pub-genero',''); _set('anu-pub-pais','BR');
+      _setText('anu-publico-form-titulo','Novo Público');
+      popularClientesDropdowns();
+      mostrar('anu-publico-form');
+      esconder('anu-modal-importar');
+    });
+
+    var btnSalvar = document.getElementById('anu-pub-salvar');
+    if (btnSalvar) btnSalvar.addEventListener('click', function(){
+      var nome = _val('anu-pub-nome').trim();
+      if (!nome) { alert('Nome obrigatório'); return; }
+      var generoVal = _val('anu-pub-genero');
+      var targeting = {
+        age_min: parseInt(_val('anu-pub-age-min'))||18,
+        age_max: parseInt(_val('anu-pub-age-max'))||65,
+        genders: generoVal ? [parseInt(generoVal)] : [],
+        countries: [(_val('anu-pub-pais').trim()||'BR')]
+      };
+      if (_pubEditId) {
+        var payload = {nome: nome, targeting_json: targeting};
+        fetch('/api/anuncios/audiences/'+_pubEditId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+          .then(function(r){return r.json();})
+          .then(function(d){ if(d.ok){esconder('anu-publico-form');carregarPublicos();}else alert('Erro: '+d.error); });
+      } else {
+        var sel = document.getElementById('anu-pub-cliente');
+        var opt = sel ? sel.options[sel.selectedIndex] : null;
+        if (!opt||!opt.dataset.accountId) { alert('Selecione um cliente'); return; }
+        fetch('/api/anuncios/audiences',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+          nome:nome, account_id:opt.dataset.accountId, token_key:opt.dataset.tokenKey,
+          tipo:'manual', targeting_json:targeting
+        })}).then(function(r){return r.json();})
+          .then(function(d){ if(d.ok){esconder('anu-publico-form');carregarPublicos();}else alert('Erro: '+d.error); });
+      }
+    });
+
+    var btnCancelar = document.getElementById('anu-pub-cancelar');
+    if (btnCancelar) btnCancelar.addEventListener('click', function(){ esconder('anu-publico-form'); });
+
+    var btnImportar = document.getElementById('anu-btn-importar-meta');
+    if (btnImportar) btnImportar.addEventListener('click', function(){
+      popularClientesDropdowns();
+      _set('anu-imp-resultado','');
+      mostrar('anu-modal-importar');
+      esconder('anu-publico-form');
+    });
+
+    var btnImpConf = document.getElementById('anu-imp-confirmar');
+    if (btnImpConf) btnImpConf.addEventListener('click', function(){
+      var sel = document.getElementById('anu-imp-cliente');
+      var opt = sel ? sel.options[sel.selectedIndex] : null;
+      if (!opt||!opt.dataset.accountId) { alert('Selecione um cliente'); return; }
+      btnImpConf.textContent = 'Importando...';
+      fetch('/api/anuncios/audiences/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        account_id:opt.dataset.accountId, token_key:opt.dataset.tokenKey
+      })}).then(function(r){return r.json();})
+        .then(function(d){
+          btnImpConf.textContent = 'Importar';
+          var res = document.getElementById('anu-imp-resultado');
+          if (d.ok) {
+            if (res) res.textContent = 'Importados: '+d.importados+' | Atualizados: '+d.atualizados+(d.erros.length?' | Erros: '+d.erros.join('; '):'');
+            carregarPublicos();
+          } else { alert('Erro: '+d.error); }
+        });
+    });
+
+    var btnImpCanc = document.getElementById('anu-imp-cancelar');
+    if (btnImpCanc) btnImpCanc.addEventListener('click', function(){ esconder('anu-modal-importar'); });
   }
 
   // ── Utilitários ─────────────────────────────────────

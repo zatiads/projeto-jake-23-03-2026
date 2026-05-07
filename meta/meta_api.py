@@ -227,6 +227,7 @@ import json as _json_meta
 _OBJETIVO_MAP = {
     "MESSAGES":   "OUTCOME_MESSAGES",
     "ENGAGEMENT": "OUTCOME_ENGAGEMENT",
+    "PURCHASE":   "OUTCOME_SALES",
 }
 
 VALID_TOKEN_KEYS = {"META_TOKEN_PILOTI", "META_TOKEN_DENTTO", "META_ACCESS_TOKEN"}
@@ -278,6 +279,45 @@ def upload_video(token: str, account_id: str, video_bytes: bytes, filename: str)
     raise Exception("Timeout: vídeo não ficou pronto em 60 segundos")
 
 
+def listar_publicos_salvos(token: str, account_id: str) -> list:
+    """Lista saved audiences da conta. Retorna lista de dicts com id, name, targeting."""
+    url = f"{GRAPH_URL}/{account_id}/saved_audiences"
+    resp = requests.get(url, params={"fields": "id,name,targeting", "access_token": token, "limit": 50})
+    data = resp.json()
+    if "data" in data:
+        return data["data"]
+    raise Exception(data.get("error", {}).get("message", "Erro ao listar saved audiences"))
+
+
+def listar_custom_audiences(token: str, account_id: str) -> list:
+    """Lista custom audiences da conta. Retorna lista de dicts com id, name, subtype."""
+    url = f"{GRAPH_URL}/{account_id}/customaudiences"
+    resp = requests.get(url, params={"fields": "id,name,subtype", "access_token": token, "limit": 50})
+    data = resp.json()
+    if "data" in data:
+        return data["data"]
+    raise Exception(data.get("error", {}).get("message", "Erro ao listar custom audiences"))
+
+
+def listar_paginas(token: str, business_id: str = None) -> list:
+    """Lista páginas gerenciadas. Tenta /me/accounts; se vazio e business_id fornecido, usa /{biz}/owned_pages."""
+    url = f"{GRAPH_URL}/me/accounts"
+    resp = requests.get(url, params={"fields": "id,name,category", "access_token": token, "limit": 50})
+    data = resp.json()
+    if "data" in data and data["data"]:
+        return data["data"]
+
+    if business_id:
+        url2 = f"{GRAPH_URL}/{business_id}/owned_pages"
+        resp2 = requests.get(url2, params={"fields": "id,name,category", "access_token": token, "limit": 50})
+        data2 = resp2.json()
+        if "data" in data2:
+            return data2["data"]
+        raise Exception(data2.get("error", {}).get("message", "Erro ao listar páginas da BM"))
+
+    return []
+
+
 def listar_campanhas(token: str, account_id: str) -> list:
     """Lista campanhas ativas/pausadas da conta. Retorna lista de dicts."""
     url = f"{GRAPH_URL}/{account_id}/campaigns"
@@ -297,8 +337,8 @@ def criar_campanha(token: str, account_id: str, campanha_tipo: str,
                    nome: str, orcamento: float, cbo: bool = True) -> str:
     """
     Cria campanha com status PAUSED.
-    campanha_tipo: 'MESSAGES' ou 'ENGAGEMENT' (mapeado para objective correto).
-    cbo=True: orçamento ao nível da campanha (MESSAGES).
+    campanha_tipo: 'MESSAGES', 'ENGAGEMENT' ou 'PURCHASE' (mapeado para objective correto).
+    cbo=True: orçamento ao nível da campanha (MESSAGES). PURCHASE usa orçamento no adset.
     Retorna campaign_id.
     """
     objetivo = _OBJETIVO_MAP.get(campanha_tipo, "OUTCOME_MESSAGES")
@@ -333,15 +373,19 @@ def criar_conjunto(token: str, account_id: str, campaign_id: str,
     """
     url = f"{GRAPH_URL}/{account_id}/adsets"
     targeting = {
-        "age_min": publico.get("idade_min", 18),
-        "age_max": publico.get("idade_max", 65),
+        "age_min": publico.get("idade_min") or publico.get("age_min", 18),
+        "age_max": publico.get("idade_max") or publico.get("age_max", 65),
         "geo_locations": {
             "countries": localizacao.get("paises", ["BR"]),
             "cities": localizacao.get("cidades", []),
         }
     }
-    if publico.get("genero"):
+    if publico.get("genders"):
+        targeting["genders"] = publico["genders"]
+    elif publico.get("genero"):
         targeting["genders"] = publico["genero"]
+    if publico.get("custom_audience_id"):
+        targeting["custom_audiences"] = [{"id": publico["custom_audience_id"]}]
 
     payload = {
         "campaign_id": campaign_id,
@@ -354,6 +398,11 @@ def criar_conjunto(token: str, account_id: str, campaign_id: str,
     if campanha_tipo == "MESSAGES":
         payload["optimization_goal"] = "CONVERSATIONS"
         payload["billing_event"] = "IMPRESSIONS"
+    elif campanha_tipo == "PURCHASE":
+        payload["optimization_goal"] = "OFFSITE_CONVERSIONS"
+        payload["billing_event"] = "IMPRESSIONS"
+        if orcamento:
+            payload["daily_budget"] = int(orcamento * 100)
     else:  # ENGAGEMENT
         payload["optimization_goal"] = "POST_ENGAGEMENT"
         payload["billing_event"] = "IMPRESSIONS"

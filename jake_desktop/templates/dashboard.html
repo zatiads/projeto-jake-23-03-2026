@@ -510,6 +510,15 @@
           <!-- ── Área Principal ── -->
           <main class="anu-main">
 
+            <!-- Sub-navegação Anúncios -->
+            <div style="display:flex;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">
+              <button class="anu-btn-secondary anu-tab-btn active" data-tab="publicar" onclick="anuSwitchTab('publicar')" style="font-size:13px">Publicar</button>
+              <button class="anu-btn-secondary anu-tab-btn" data-tab="publicos" onclick="anuSwitchTab('publicos')" style="font-size:13px">Públicos Salvos</button>
+            </div>
+
+            <!-- Tab: Publicar -->
+            <div id="anu-tab-publicar">
+
             <div class="anu-empty-state" id="anu-empty">
               <div class="anu-empty-icon">◈</div>
               <p class="anu-empty-text">Selecione um cliente na sidebar<br>para começar</p>
@@ -526,11 +535,18 @@
                   <label class="anu-label">Nome do cliente<input type="text" id="anu-pf-nome" class="anu-input" placeholder="Ex: Clínica Odonto"></label>
                   <label class="anu-label">Agência<select id="anu-pf-agencia" class="anu-select"><option value="piloti">Piloti</option><option value="dentto">Dentto</option><option value="freelance">Freelance</option></select></label>
                   <label class="anu-label">Account ID (Meta)<input type="text" id="anu-pf-account-id" class="anu-input" placeholder="act_XXXXXXXXX"></label>
-                  <label class="anu-label">Token<select id="anu-pf-token-key" class="anu-select"><option value="META_TOKEN_PILOTI">META_TOKEN_PILOTI</option><option value="META_TOKEN_DENTTO">META_TOKEN_DENTTO</option><option value="META_ACCESS_TOKEN">META_ACCESS_TOKEN</option></select></label>
-                  <label class="anu-label">Page ID (Facebook)<input type="text" id="anu-pf-page-id" class="anu-input" placeholder="Ex: 123456789"><span class="anu-hint">⚠ Obrigatório para criar anúncios</span></label>
+                  <label class="anu-label">Token<select id="anu-pf-token-key" class="anu-select"><option value="META_TOKEN_PILOTI">META_TOKEN_PILOTI</option><option value="META_TOKEN_DENTTO">META_TOKEN_DENTTO</option><option value="META_ACCESS_TOKEN">META_ACCESS_TOKEN</option><option value="META_TOKEN_VIELIFE">META_TOKEN_VIELIFE</option></select></label>
+                  <label class="anu-label">Business ID (BM)<input type="text" id="anu-pf-business-id" class="anu-input" placeholder="Ex: 1083321289184097"><span class="anu-hint">Necessário para buscar páginas de usuário de sistema</span></label>
+                  <label class="anu-label">Page ID (Facebook)
+                    <div style="display:flex;gap:8px;align-items:center;">
+                      <select id="anu-pf-page-id" class="anu-select" style="flex:1"><option value="">— selecione após buscar —</option></select>
+                      <button type="button" id="anu-btn-buscar-pages" class="anu-btn-sec" style="white-space:nowrap">🔍 Buscar Páginas</button>
+                    </div>
+                    <span class="anu-hint">⚠ Obrigatório — selecione o token acima e clique em Buscar</span>
+                  </label>
                   <label class="anu-label">WhatsApp<input type="text" id="anu-pf-whatsapp" class="anu-input" placeholder="+5554999999999"></label>
                   <label class="anu-label">Segmento<input type="text" id="anu-pf-segmento" class="anu-input" placeholder="Ex: odontologia, advocacia"></label>
-                  <label class="anu-label">Tipo campanha padrão<select id="anu-pf-camp-tipo" class="anu-select"><option value="MESSAGES">Mensagem (WhatsApp)</option><option value="ENGAGEMENT">Engajamento</option></select></label>
+                  <label class="anu-label">Tipo campanha padrão<select id="anu-pf-camp-tipo" class="anu-select"><option value="MESSAGES">Mensagem (WhatsApp)</option><option value="ENGAGEMENT">Engajamento</option><option value="PURCHASE">Conversão (Purchase/LP)</option></select></label>
                   <label class="anu-label">Orçamento diário (R$)<input type="number" id="anu-pf-orcamento" class="anu-input" placeholder="30.00" step="0.01" min="1"></label>
                   <label class="anu-label anu-label-full">Localização (JSON)<textarea id="anu-pf-localizacao" class="anu-textarea" rows="3" placeholder='{"paises": ["BR"], "cidades": [{"key": "1521902", "radius": 15, "distance_unit": "kilometer"}]}'></textarea><span class="anu-hint">⚠ Obrigatório — sem localização a publicação é bloqueada</span></label>
                   <label class="anu-label anu-label-full">Público (JSON)<textarea id="anu-pf-publico" class="anu-textarea" rows="2" placeholder='{"idade_min": 25, "idade_max": 55, "genero": [1, 2]}'></textarea></label>
@@ -617,10 +633,52 @@
                   <h3 class="anu-bloco-title">Revisão Final</h3>
                 </div>
                 <div class="anu-revisao-grid" id="anu-revisao-grid"></div>
+                <label class="anu-label" style="margin-bottom:12px">Público
+                  <select id="anu-pub-selector" class="anu-select"><option value="">Usar perfil do cliente</option></select>
+                  <span class="anu-hint">Opcional — sobrescreve o público do perfil do cliente</span>
+                </label>
                 <div class="anu-localizacao-alerta hidden" id="anu-localizacao-alerta">⚠ Localização não configurada — edite o perfil do cliente antes de publicar</div>
                 <button class="anu-btn-publicar" id="anu-btn-publicar" disabled>🚀 Publicar Anúncio</button>
               </div>
             </div>
+
+            </div><!-- /anu-tab-publicar -->
+
+            <!-- Tab: Públicos Salvos -->
+            <div id="anu-tab-publicos" style="display:none">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <span style="font-weight:600">Públicos Salvos</span>
+                <div style="display:flex;gap:8px;">
+                  <button class="anu-btn-secondary" id="anu-btn-importar-meta" style="font-size:13px">Importar do Meta</button>
+                  <button class="anu-btn-secondary" id="anu-btn-novo-publico" style="font-size:13px">+ Novo Público</button>
+                </div>
+              </div>
+              <div id="anu-publicos-lista"></div>
+
+              <div id="anu-publico-form" class="anu-bloco hidden" style="margin-top:12px">
+                <div id="anu-publico-form-titulo" style="font-weight:600;margin-bottom:12px">Novo Público</div>
+                <label class="anu-label">Nome<input type="text" id="anu-pub-nome" class="anu-input" placeholder="Ex: Mulheres BR 25-45"></label>
+                <label class="anu-label">Cliente<select id="anu-pub-cliente" class="anu-select"></select></label>
+                <label class="anu-label">Idade mínima<input type="number" id="anu-pub-age-min" class="anu-input" value="18" min="13" max="65"></label>
+                <label class="anu-label">Idade máxima<input type="number" id="anu-pub-age-max" class="anu-input" value="65" min="13" max="65"></label>
+                <label class="anu-label">Gênero<select id="anu-pub-genero" class="anu-select"><option value="">Todos</option><option value="1">Masculino</option><option value="2">Feminino</option></select></label>
+                <label class="anu-label">País<input type="text" id="anu-pub-pais" class="anu-input" value="BR" placeholder="BR"></label>
+                <div style="display:flex;gap:8px;margin-top:12px;">
+                  <button class="anu-btn-primary" id="anu-pub-salvar">Salvar</button>
+                  <button class="anu-btn-secondary" id="anu-pub-cancelar">Cancelar</button>
+                </div>
+              </div>
+
+              <div id="anu-modal-importar" class="anu-bloco hidden" style="margin-top:12px">
+                <div style="font-weight:600;margin-bottom:12px">Importar do Meta</div>
+                <label class="anu-label">Cliente<select id="anu-imp-cliente" class="anu-select"></select></label>
+                <div style="display:flex;gap:8px;margin-top:12px;">
+                  <button class="anu-btn-primary" id="anu-imp-confirmar">Importar</button>
+                  <button class="anu-btn-secondary" id="anu-imp-cancelar">Cancelar</button>
+                </div>
+                <div id="anu-imp-resultado" style="margin-top:8px;font-size:13px"></div>
+              </div>
+            </div><!-- /anu-tab-publicos -->
 
           </main>
         </div>

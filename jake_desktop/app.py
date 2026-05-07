@@ -38,7 +38,7 @@ import meta.meta_api as _meta_api
 from meta.mcp_client import chamar_mcp_tool as _chamar_mcp_tool
 import brain
 
-_VALID_TOKEN_KEYS = {"META_TOKEN_PILOTI", "META_TOKEN_DENTTO", "META_ACCESS_TOKEN"}
+_VALID_TOKEN_KEYS = {"META_TOKEN_PILOTI", "META_TOKEN_DENTTO", "META_ACCESS_TOKEN", "META_TOKEN_VIELIFE"}
 
 
 def _get_db():
@@ -3005,7 +3005,7 @@ def anuncios_listar_clientes():
         conn = _get_db()
         cur  = conn.cursor()
         cur.execute("""
-            SELECT id, nome, agencia, account_id, token_key, page_id, whatsapp,
+            SELECT id, nome, agencia, account_id, token_key, page_id, business_id, whatsapp,
                    segmento, campanha_tipo, localizacao_json, publico_json,
                    orcamento_diario, campanha_id_existente
             FROM ad_client_profiles ORDER BY agencia, nome
@@ -3035,13 +3035,13 @@ def anuncios_criar_cliente():
         cur  = conn.cursor()
         cur.execute("""
             INSERT INTO ad_client_profiles
-                (nome, agencia, account_id, token_key, page_id, whatsapp, segmento,
+                (nome, agencia, account_id, token_key, page_id, business_id, whatsapp, segmento,
                  campanha_tipo, localizacao_json, publico_json, orcamento_diario,
                  campanha_id_existente)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
         """, (
             d["nome"], d["agencia"], d["account_id"], d["token_key"],
-            d.get("page_id"), d.get("whatsapp"), d.get("segmento"),
+            d.get("page_id"), d.get("business_id"), d.get("whatsapp"), d.get("segmento"),
             d.get("campanha_tipo", "MESSAGES"),
             json.dumps(d["localizacao_json"]),
             json.dumps(d.get("publico_json") or {}),
@@ -3065,8 +3065,8 @@ def anuncios_atualizar_cliente(cid):
     campos, valores = [], []
     mapa = {
         "nome": "nome", "agencia": "agencia", "account_id": "account_id",
-        "token_key": "token_key", "page_id": "page_id", "whatsapp": "whatsapp",
-        "segmento": "segmento", "campanha_tipo": "campanha_tipo",
+        "token_key": "token_key", "page_id": "page_id", "business_id": "business_id",
+        "whatsapp": "whatsapp", "segmento": "segmento", "campanha_tipo": "campanha_tipo",
         "orcamento_diario": "orcamento_diario", "campanha_id_existente": "campanha_id_existente"
     }
     for k, col in mapa.items():
@@ -3108,8 +3108,172 @@ def anuncios_deletar_cliente(cid):
 
 
 # ══════════════════════════════════════════════════════════════════════════
+#  ABA SUBIR ANÚNCIOS — CRUD de públicos salvos
+# ══════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/anuncios/audiences")
+@login_required
+def audiences_listar():
+    account_id = request.args.get("account_id", "").strip() or None
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        if account_id:
+            cur.execute("SELECT * FROM ad_audiences WHERE account_id=%s ORDER BY tipo, nome", (account_id,))
+        else:
+            cur.execute("SELECT * FROM ad_audiences ORDER BY account_id, tipo, nome")
+        rows = cur.fetchall(); conn.close()
+        return jsonify({"audiences": [dict(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/anuncios/audiences", methods=["POST"])
+@login_required
+def audiences_criar():
+    d = request.get_json() or {}
+    for f in ("nome", "account_id", "token_key", "targeting_json"):
+        if not d.get(f):
+            return jsonify({"error": f"Campo obrigatório: {f}"}), 400
+    if d.get("token_key") not in _VALID_TOKEN_KEYS:
+        return jsonify({"error": "token_key inválido"}), 400
+    tipo = d.get("tipo", "manual")
+    if tipo not in ("manual", "salvo_meta", "custom_meta"):
+        return jsonify({"error": "tipo inválido"}), 400
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO ad_audiences (nome, account_id, token_key, tipo, targeting_json, meta_audience_id)
+            VALUES (%s,%s,%s,%s,%s,%s) RETURNING id
+        """, (d["nome"], d["account_id"], d["token_key"], tipo,
+              json.dumps(d["targeting_json"]), d.get("meta_audience_id")))
+        novo_id = cur.fetchone()["id"]; conn.commit(); conn.close()
+        return jsonify({"ok": True, "id": novo_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/anuncios/audiences/<int:aid>", methods=["PUT"])
+@login_required
+def audiences_atualizar(aid):
+    d = request.get_json() or {}
+    campos, valores = [], []
+    if "nome" in d:
+        campos.append("nome = %s"); valores.append(d["nome"])
+    if "targeting_json" in d:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("SELECT tipo FROM ad_audiences WHERE id=%s", (aid,))
+        row = cur.fetchone(); conn.close()
+        if row and row["tipo"] == "custom_meta":
+            return jsonify({"error": "custom_meta: apenas nome pode ser editado"}), 400
+        campos.append("targeting_json = %s"); valores.append(json.dumps(d["targeting_json"]))
+    if not campos:
+        return jsonify({"error": "Nenhum campo para atualizar"}), 400
+    valores.append(aid)
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute(f"UPDATE ad_audiences SET {', '.join(campos)} WHERE id=%s", valores)
+        conn.commit(); conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/anuncios/audiences/<int:aid>", methods=["DELETE"])
+@login_required
+def audiences_deletar(aid):
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("DELETE FROM ad_audiences WHERE id=%s", (aid,))
+        conn.commit(); conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/anuncios/audiences/importar", methods=["POST"])
+@login_required
+def audiences_importar():
+    d = request.get_json() or {}
+    account_id = d.get("account_id", "").strip()
+    token_key  = d.get("token_key", "").strip()
+    if not account_id or not token_key:
+        return jsonify({"error": "account_id e token_key obrigatórios"}), 400
+    if token_key not in _VALID_TOKEN_KEYS:
+        return jsonify({"error": "token_key inválido"}), 400
+    token = os.getenv(token_key, "")
+    if not token:
+        return jsonify({"error": f"{token_key} não configurado"}), 500
+
+    importados = atualizados = 0
+    erros = []
+
+    def _upsert(nome, tipo, targeting_j, meta_id):
+        nonlocal importados, atualizados
+        try:
+            conn = _get_db(); cur = conn.cursor()
+            cur.execute("SELECT id FROM ad_audiences WHERE account_id=%s AND meta_audience_id=%s",
+                        (account_id, meta_id))
+            row = cur.fetchone()
+            if row:
+                cur.execute("UPDATE ad_audiences SET nome=%s, targeting_json=%s WHERE id=%s",
+                            (nome, json.dumps(targeting_j), row["id"]))
+                atualizados += 1
+            else:
+                cur.execute("""
+                    INSERT INTO ad_audiences (nome, account_id, token_key, tipo, targeting_json, meta_audience_id)
+                    VALUES (%s,%s,%s,%s,%s,%s)
+                """, (nome, account_id, token_key, tipo, json.dumps(targeting_j), meta_id))
+                importados += 1
+            conn.commit(); conn.close()
+        except Exception as e:
+            erros.append(f"{nome}: {e}")
+
+    try:
+        salvos = _meta_api.listar_publicos_salvos(token, account_id)
+        for s in salvos:
+            t = s.get("targeting") or {}
+            geo = t.get("geo_locations") or {}
+            targeting_j = {
+                "age_min":   t.get("age_min", 18),
+                "age_max":   t.get("age_max", 65),
+                "genders":   t.get("genders", []),
+                "countries": geo.get("countries", []),
+                "cities":    [c.get("name", "") for c in geo.get("cities", [])],
+            }
+            _upsert(s["name"], "salvo_meta", targeting_j, s["id"])
+    except Exception as e:
+        erros.append(f"saved_audiences: {e}")
+
+    try:
+        customs = _meta_api.listar_custom_audiences(token, account_id)
+        for c in customs:
+            targeting_j = {"custom_audience_id": c["id"]}
+            _upsert(f"{c['name']} ({c.get('subtype','?')})", "custom_meta", targeting_j, c["id"])
+    except Exception as e:
+        erros.append(f"custom_audiences: {e}")
+
+    return jsonify({"ok": True, "importados": importados, "atualizados": atualizados, "erros": erros})
+
+
 #  ABA SUBIR ANÚNCIOS — Meta API (campanhas, upload, copy, publicar)
 # ══════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/anuncios/pages")
+@login_required
+def anuncios_listar_pages():
+    token_key = request.args.get("token_key", "META_ACCESS_TOKEN")
+    if token_key not in _VALID_TOKEN_KEYS:
+        return jsonify({"error": "token_key inválido"}), 400
+    token = os.getenv(token_key, "")
+    if not token:
+        return jsonify({"error": f"{token_key} não configurado"}), 500
+    business_id = request.args.get("business_id", "").strip() or None
+    try:
+        pages = _meta_api.listar_paginas(token, business_id=business_id)
+        return jsonify({"pages": pages})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/anuncios/campanhas/<account_id>")
 @login_required
@@ -3274,7 +3438,17 @@ def anuncios_publicar():
     token      = os.getenv(token_key, "")
     account_id = cliente["account_id"]
     camp_tipo  = cliente.get("campanha_tipo", "MESSAGES")
+    audience_id = d.get("audience_id")
     publico    = cliente.get("publico_json") or {}
+    if audience_id:
+        try:
+            conn2 = _get_db(); cur2 = conn2.cursor()
+            cur2.execute("SELECT targeting_json, tipo FROM ad_audiences WHERE id=%s", (audience_id,))
+            aud_row = cur2.fetchone(); conn2.close()
+            if aud_row:
+                publico = aud_row["targeting_json"] or {}
+        except Exception:
+            pass
 
     if not token:
         return jsonify({"error": f"{token_key} não configurado"}), 500
@@ -3284,7 +3458,7 @@ def anuncios_publicar():
         if campanha_exist_id:
             campaign_id = campanha_exist_id
         else:
-            cbo = camp_tipo == "MESSAGES"
+            cbo = camp_tipo not in ("ENGAGEMENT", "PURCHASE")
             campaign_id = _meta_api.criar_campanha(
                 token, account_id, camp_tipo, campanha_nome, orcamento, cbo=cbo
             )
@@ -3292,7 +3466,7 @@ def anuncios_publicar():
         try:
             adset_id = _meta_api.criar_conjunto(
                 token, account_id, campaign_id, camp_tipo, publico, localizacao,
-                orcamento=(orcamento if camp_tipo == "ENGAGEMENT" else None)
+                orcamento=(orcamento if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None)
             )
         except Exception as e2:
             if not campanha_exist_id:
@@ -3316,9 +3490,10 @@ def anuncios_publicar():
             cur  = conn.cursor()
             cur.execute("""
                 INSERT INTO ad_publish_log
-                    (cliente_id, account_id, campaign_id, adset_id, ad_id, status, payload_json)
-                VALUES (%s,%s,%s,%s,%s,'sucesso',%s)
-            """, (cliente_id, account_id, campaign_id, adset_id, ad_id, json.dumps(d)))
+                    (cliente_id, account_id, campaign_id, adset_id, ad_id, status, audience_id, payload_json)
+                VALUES (%s,%s,%s,%s,%s,'sucesso',%s,%s)
+            """, (cliente_id, account_id, campaign_id, adset_id, ad_id,
+                  audience_id if audience_id else None, json.dumps(d)))
             conn.commit()
             conn.close()
         except Exception:
