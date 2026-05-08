@@ -38,7 +38,11 @@ import meta.meta_api as _meta_api
 from meta.mcp_client import chamar_mcp_tool as _chamar_mcp_tool
 import brain
 
+import glob as _glob
+
 _VALID_TOKEN_KEYS = {"META_TOKEN_PILOTI", "META_TOKEN_DENTTO", "META_ACCESS_TOKEN", "META_TOKEN_VIELIFE"}
+_lote_payloads: dict = {}   # lote_token → payload dict (em memória)
+_TMP_DIR = "/tmp"           # diretório para arquivos temporários de preview
 
 
 def _get_db():
@@ -3296,11 +3300,10 @@ def anuncios_listar_campanhas(account_id):
 @app.route("/api/anuncios/upload-criativo", methods=["POST"])
 @login_required
 def anuncios_upload_criativo():
-    if "arquivo" not in request.files:
-        return jsonify({"error": "Campo 'arquivo' ausente"}), 400
-    arquivo    = request.files["arquivo"]
-    account_id = request.form.get("account_id", "")
-    token_key  = request.form.get("token_key", "META_ACCESS_TOKEN")
+    import re as _re
+    tmp_uuid_val = request.form.get("tmp_uuid", "").strip()
+    account_id   = request.form.get("account_id", "")
+    token_key    = request.form.get("token_key", "META_ACCESS_TOKEN")
     if token_key not in _VALID_TOKEN_KEYS:
         return jsonify({"error": "token_key inválido"}), 400
     if not account_id:
@@ -3309,6 +3312,35 @@ def anuncios_upload_criativo():
     if not token:
         return jsonify({"error": f"{token_key} não configurado"}), 500
 
+    # Caminho via tmp_uuid (criativo importado por URL)
+    if tmp_uuid_val:
+        if not _re.match(r'^[a-f0-9\-]{36}$', tmp_uuid_val):
+            return jsonify({"error": "tmp_uuid inválido"}), 400
+        matches = _glob.glob(os.path.join(_TMP_DIR, f"{tmp_uuid_val}.*"))
+        if not matches:
+            return jsonify({"error": "Arquivo temporário não encontrado ou expirado"}), 404
+        tmp_path = matches[0]
+        ext = os.path.splitext(tmp_path)[1].lower()
+        filename = f"url_import{ext}"
+        with open(tmp_path, "rb") as f:
+            file_bytes = f.read()
+        mime = "video/mp4" if ext == ".mp4" else "image/jpeg"
+        try:
+            if "video" in mime:
+                video_id = _meta_api.upload_video(token, account_id, file_bytes, filename)
+                os.remove(tmp_path)
+                return jsonify({"tipo": "video", "video_id": video_id, "ok": True})
+            else:
+                resultado = _meta_api.upload_imagem(token, account_id, file_bytes, filename)
+                os.remove(tmp_path)
+                return jsonify({"tipo": "imagem", "hash": resultado["hash"], "ok": True})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # Caminho normal via upload de arquivo
+    if "arquivo" not in request.files:
+        return jsonify({"error": "Campo 'arquivo' ou 'tmp_uuid' ausente"}), 400
+    arquivo    = request.files["arquivo"]
     filename   = arquivo.filename or "criativo"
     file_bytes = arquivo.read()
     mime       = arquivo.content_type or ""
@@ -3527,6 +3559,261 @@ def anuncios_publicar():
         except Exception:
             pass
         return jsonify({"error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  ABA SUBIR ANÚNCIOS — Builder de Lote
+# ══════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/anuncios/publicar-lote", methods=["POST"])
+@login_required
+def anuncios_publicar_lote():
+    """Etapa 1: valida payload, armazena em memória, retorna lote_token."""
+    d = request.get_json() or {}
+    if not d.get("cliente_id"):
+        return jsonify({"error": "cliente_id obrigatório"}), 400
+    if not d.get("conjuntos"):
+        return jsonify({"error": "conjuntos não podem ser vazios"}), 400
+    lote_token = str(uuid.uuid4())
+    _lote_payloads[lote_token] = d
+    return jsonify({"lote_token": lote_token})
+
+
+@app.route("/api/anuncios/publicar-lote/stream/<lote_token>")
+@login_required
+def anuncios_publicar_lote_stream(lote_token):
+    """Etapa 2: processa lote sequencialmente via SSE."""
+    payload = _lote_payloads.pop(lote_token, None)
+
+    def _sse(data: dict) -> str:
+        return f"data: {json.dumps(data)}\n\n"
+
+    def gerar():
+        if payload is None:
+            yield _sse({"tipo": "erro_fatal", "erro": "Lote não encontrado ou já processado"})
+            return
+
+        cliente_id      = payload["cliente_id"]
+        camp_nome       = payload.get("campanha_nome", "Campanha Jake OS")
+        camp_tipo       = payload.get("campanha_tipo", "MESSAGES")
+        orcamento_total = float(payload.get("orcamento_diario_total", 0))
+        conjuntos       = payload["conjuntos"]
+        lote_id         = payload.get("lote_id", lote_token)
+        n_conjuntos     = len(conjuntos)
+
+        try:
+            conn = _get_db(); cur = conn.cursor()
+            cur.execute("SELECT * FROM ad_client_profiles WHERE id = %s", (cliente_id,))
+            cliente = cur.fetchone(); conn.close()
+        except Exception as e:
+            yield _sse({"tipo": "erro_fatal", "erro": f"Erro ao buscar cliente: {e}"})
+            return
+        if not cliente:
+            yield _sse({"tipo": "erro_fatal", "erro": "Cliente não encontrado"})
+            return
+
+        token_key = cliente["token_key"]
+        if token_key not in _VALID_TOKEN_KEYS:
+            yield _sse({"tipo": "erro_fatal", "erro": "token_key inválido"}); return
+        token      = os.getenv(token_key, "")
+        account_id = cliente["account_id"]
+        page_id    = cliente.get("page_id", "")
+        link_url   = cliente.get("link_url") or ""
+        localizacao = cliente.get("localizacao_json") or {}
+        opt_goal   = cliente.get("optimization_goal") or None
+        pixel_id   = cliente.get("pixel_id") or None
+
+        cbo = camp_tipo not in ("ENGAGEMENT", "PURCHASE")
+        try:
+            campaign_id = _meta_api.criar_campanha(
+                token, account_id, camp_tipo, camp_nome, orcamento_total, cbo=cbo
+            )
+            yield _sse({"tipo": "campanha_ok", "campaign_id": campaign_id})
+        except Exception as e:
+            yield _sse({"tipo": "erro_fatal", "erro": str(e)}); return
+
+        total = sum(len(c.get("criativos", [])) for c in conjuntos)
+        sucesso = 0; falha = 0
+
+        for ci, conjunto in enumerate(conjuntos):
+            audience_id = conjunto.get("audience_id")
+            publico = cliente.get("publico_json") or {}
+            if audience_id:
+                try:
+                    conn2 = _get_db(); cur2 = conn2.cursor()
+                    cur2.execute("SELECT targeting_json FROM ad_audiences WHERE id=%s", (audience_id,))
+                    row = cur2.fetchone(); conn2.close()
+                    if row and row["targeting_json"]:
+                        publico = row["targeting_json"]
+                except Exception:
+                    pass
+
+            orcamento_conj = (orcamento_total / n_conjuntos) if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None
+            try:
+                adset_id = _meta_api.criar_conjunto(
+                    token, account_id, campaign_id, camp_tipo, publico, localizacao,
+                    orcamento=orcamento_conj, optimization_goal=opt_goal,
+                    pixel_id=pixel_id, nome=conjunto.get("nome")
+                )
+                yield _sse({"tipo": "conjunto_ok", "conjunto_idx": ci, "adset_id": adset_id})
+            except Exception as e:
+                yield _sse({"tipo": "conjunto_erro", "conjunto_idx": ci, "erro": str(e)})
+                falha += len(conjunto.get("criativos", []))
+                continue
+
+            for ri, criativo in enumerate(conjunto.get("criativos", [])):
+                copy = criativo.get("copy", {})
+                try:
+                    ad_id = _meta_api.criar_anuncio(
+                        token, account_id, adset_id, page_id,
+                        criativo["creative_ref"],
+                        copy.get("titulo", ""), copy.get("texto", ""),
+                        copy.get("cta", "SEND_MESSAGE"),
+                        link_url=link_url
+                    )
+                    try:
+                        conn3 = _get_db(); cur3 = conn3.cursor()
+                        cur3.execute("""
+                            INSERT INTO ad_publish_log
+                                (cliente_id, account_id, campaign_id, adset_id, ad_id,
+                                 status, audience_id, lote_id, payload_json)
+                            VALUES (%s,%s,%s,%s,%s,'sucesso',%s,%s,%s)
+                        """, (cliente_id, account_id, campaign_id, adset_id, ad_id,
+                              audience_id, lote_id, json.dumps(criativo)))
+                        conn3.commit(); conn3.close()
+                    except Exception:
+                        pass
+                    sucesso += 1
+                    yield _sse({"tipo": "anuncio_ok", "conjunto_idx": ci,
+                                "criativo_idx": ri, "ad_id": ad_id})
+                except Exception as e:
+                    falha += 1
+                    yield _sse({"tipo": "anuncio_erro", "conjunto_idx": ci,
+                                "criativo_idx": ri, "erro": str(e)})
+
+        yield _sse({"tipo": "fim", "total": total, "sucesso": sucesso, "falha": falha})
+
+    return app.response_class(
+        gerar(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+
+
+@app.route("/api/anuncios/preview-url", methods=["POST"])
+@login_required
+def anuncios_preview_url():
+    """Baixa URL externa, detecta tipo, salva em /tmp, retorna tmp_uuid."""
+    d = request.get_json() or {}
+    url = (d.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "url obrigatória"}), 400
+
+    MAX_SIZE = 50 * 1024 * 1024  # 50MB
+    try:
+        resp = requests.get(url, timeout=30, stream=True)
+        content_type = resp.headers.get("Content-Type", "")
+        content_length = int(resp.headers.get("Content-Length", 0) or 0)
+        if content_length > MAX_SIZE:
+            return jsonify({"error": "Arquivo muito grande (máx 50MB)"}), 400
+
+        if content_type.startswith("image/"):
+            tipo = "imagem"
+            ext  = content_type.split("/")[1].split(";")[0].strip() or "jpg"
+        elif content_type.startswith("video/"):
+            tipo = "video"
+            ext  = content_type.split("/")[1].split(";")[0].strip() or "mp4"
+        else:
+            return jsonify({"error": "Formato não suportado. Use imagem ou vídeo."}), 400
+
+        tmp_uuid_val = str(uuid.uuid4())
+        tmp_path = os.path.join(_TMP_DIR, f"{tmp_uuid_val}.{ext}")
+        size = 0
+        with open(tmp_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                size += len(chunk)
+                if size > MAX_SIZE:
+                    f.close()
+                    os.remove(tmp_path)
+                    return jsonify({"error": "Arquivo muito grande (máx 50MB)"}), 400
+                f.write(chunk)
+
+        threading.Timer(1800, lambda p=tmp_path: os.path.exists(p) and os.remove(p)).start()
+        return jsonify({"tmp_uuid": tmp_uuid_val, "tipo": tipo, "ok": True})
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Timeout ao acessar a URL (30s)"}), 400
+    except Exception as e:
+        return jsonify({"error": f"Não foi possível acessar a URL: {e}"}), 400
+
+
+@app.route("/api/anuncios/tmp-preview/<tmp_uuid_val>")
+@login_required
+def anuncios_tmp_preview(tmp_uuid_val):
+    """Serve arquivo temporário de preview."""
+    import re
+    if not re.match(r'^[a-f0-9\-]{36}$', tmp_uuid_val):
+        return jsonify({"error": "uuid inválido"}), 400
+    matches = _glob.glob(os.path.join(_TMP_DIR, f"{tmp_uuid_val}.*"))
+    if not matches:
+        return jsonify({"error": "Preview não encontrado ou expirado"}), 404
+    from flask import send_file
+    return send_file(matches[0])
+
+
+@app.route("/api/anuncios/copy-lote", methods=["POST"])
+@login_required
+def anuncios_copy_lote():
+    """Gera N copies via Claude para o lote."""
+    import re
+    d = request.get_json() or {}
+    cliente_id = d.get("cliente_id")
+    camp_tipo  = d.get("campanha_tipo", "MESSAGES")
+    criativos  = d.get("criativos", [])
+    if not cliente_id or not criativos:
+        return jsonify({"error": "cliente_id e criativos obrigatórios"}), 400
+
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("SELECT nome, segmento FROM ad_client_profiles WHERE id=%s", (cliente_id,))
+        cliente = cur.fetchone(); conn.close()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    nome_cliente = (cliente or {}).get("nome", "cliente")
+    segmento     = (cliente or {}).get("segmento", "")
+    objetivo_txt = {
+        "MESSAGES":   "gerar mensagens no WhatsApp",
+        "ENGAGEMENT": "gerar engajamento no post",
+        "PURCHASE":   "gerar conversões/vendas na landing page",
+    }.get(camp_tipo, "gerar conversões")
+    cta_sugerido = "SEND_MESSAGE" if camp_tipo == "MESSAGES" else "LEARN_MORE"
+
+    lista_txt = "\n".join(
+        f"- indice: {c['indice']}, tipo: {c['tipo']}, descricao: {c.get('descricao','(sem descricao)')}"
+        for c in criativos
+    )
+    prompt = (
+        f"Cliente: {nome_cliente} | Segmento: {segmento} | Objetivo: {objetivo_txt}\n\n"
+        f"Gere {len(criativos)} copies distintas para anuncios Meta Ads. Uma copy por criativo listado abaixo.\n"
+        f"Cada copy deve ter:\n"
+        f"- titulo: max 40 caracteres, impactante\n"
+        f"- texto: max 125 caracteres, direto ao ponto com CTA implicito ({cta_sugerido})\n\n"
+        f"Criativos:\n{lista_txt}\n\n"
+        f'Responda SOMENTE com JSON valido, no formato:\n[{{"indice": "X-X", "titulo": "...", "texto": "..."}}]'
+    )
+
+    try:
+        resp = _anthropic_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw = resp.content[0].text.strip()
+        match = re.search(r'\[.*\]', raw, re.DOTALL)
+        copies = json.loads(match.group(0) if match else raw)
+        return jsonify({"copies": copies})
+    except Exception as e:
+        return jsonify({"error": f"Erro ao gerar copies: {e}"}), 500
 
 
 # ══════════════════════════════════════════════════════════════════════════
