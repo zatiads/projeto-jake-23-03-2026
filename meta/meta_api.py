@@ -347,11 +347,14 @@ def criar_campanha(token: str, account_id: str, campanha_tipo: str,
         "name": nome,
         "objective": objetivo,
         "status": "PAUSED",
+        "special_ad_categories": "[]",
         "access_token": token,
     }
     if cbo:
         payload["daily_budget"] = int(orcamento * 100)  # Meta usa centavos
         payload["bid_strategy"] = "LOWEST_COST_WITHOUT_CAP"
+    else:
+        payload["is_adset_budget_sharing_enabled"] = "false"
 
     resp = requests.post(url, data=payload)
     data = resp.json()
@@ -362,7 +365,8 @@ def criar_campanha(token: str, account_id: str, campanha_tipo: str,
 
 def criar_conjunto(token: str, account_id: str, campaign_id: str,
                    campanha_tipo: str, publico: dict, localizacao: dict,
-                   orcamento: float = None) -> str:
+                   orcamento: float = None, optimization_goal: str = None,
+                   pixel_id: str = None) -> str:
     """
     Cria ad set com status PAUSED.
     campanha_tipo: 'MESSAGES' → optimization_goal=CONVERSATIONS
@@ -378,7 +382,8 @@ def criar_conjunto(token: str, account_id: str, campaign_id: str,
         "geo_locations": {
             "countries": localizacao.get("paises", ["BR"]),
             "cities": localizacao.get("cidades", []),
-        }
+        },
+        "targeting_automation": {"advantage_audience": 0},
     }
     if publico.get("genders"):
         targeting["genders"] = publico["genders"]
@@ -399,8 +404,12 @@ def criar_conjunto(token: str, account_id: str, campaign_id: str,
         payload["optimization_goal"] = "CONVERSATIONS"
         payload["billing_event"] = "IMPRESSIONS"
     elif campanha_tipo == "PURCHASE":
-        payload["optimization_goal"] = "OFFSITE_CONVERSIONS"
+        goal = optimization_goal or "LINK_CLICKS"
+        payload["optimization_goal"] = goal
         payload["billing_event"] = "IMPRESSIONS"
+        payload["bid_strategy"] = "LOWEST_COST_WITHOUT_CAP"
+        if goal == "OFFSITE_CONVERSIONS" and pixel_id:
+            payload["promoted_object"] = _json_meta.dumps({"pixel_id": pixel_id, "custom_event_type": "PURCHASE"})
         if orcamento:
             payload["daily_budget"] = int(orcamento * 100)
     else:  # ENGAGEMENT
@@ -417,7 +426,8 @@ def criar_conjunto(token: str, account_id: str, campaign_id: str,
 
 
 def criar_anuncio(token: str, account_id: str, adset_id: str, page_id: str,
-                  creative_ref: dict, titulo: str, texto: str, cta: str) -> str:
+                  creative_ref: dict, titulo: str, texto: str, cta: str,
+                  link_url: str = "") -> str:
     """
     Cria AdCreative + Ad com status PAUSED.
     creative_ref: {'tipo': 'imagem', 'hash': '...'} ou {'tipo': 'video', 'video_id': '...'}
@@ -427,26 +437,28 @@ def criar_anuncio(token: str, account_id: str, adset_id: str, page_id: str,
     """
     creative_url = f"{GRAPH_URL}/{account_id}/adcreatives"
 
+    cta_value = {"value": {"link": link_url}} if link_url and cta != "SEND_MESSAGE" else {}
+
     if creative_ref["tipo"] == "imagem":
-        story_spec = {
-            "page_id": page_id,
-            "link_data": {
-                "image_hash": creative_ref["hash"],
-                "message": texto,
-                "name": titulo,
-                "call_to_action": {"type": cta},
-            }
+        link_data = {
+            "image_hash": creative_ref["hash"],
+            "message": texto,
+            "name": titulo,
+            "call_to_action": {"type": cta, **cta_value},
         }
+        if link_url and cta != "SEND_MESSAGE":
+            link_data["link"] = link_url
+        story_spec = {"page_id": page_id, "link_data": link_data}
     else:
-        story_spec = {
-            "page_id": page_id,
-            "video_data": {
-                "video_id": creative_ref["video_id"],
-                "message": texto,
-                "title": titulo,
-                "call_to_action": {"type": cta},
-            }
+        video_data = {
+            "video_id": creative_ref["video_id"],
+            "message": texto,
+            "title": titulo,
+            "call_to_action": {"type": cta, **cta_value},
         }
+        if link_url and cta != "SEND_MESSAGE":
+            video_data["link"] = link_url
+        story_spec = {"page_id": page_id, "video_data": video_data}
 
     cr = requests.post(creative_url, data={
         "name": f"Criativo - {titulo[:30]}",

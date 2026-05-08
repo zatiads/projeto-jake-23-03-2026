@@ -36,6 +36,7 @@
     bindRevisaoEvents();
     bindModalEvents();
     bindPublicosEvents();
+    carregarPublicos();
   }
 
   // ── Carregar e renderizar clientes ─────────────────
@@ -113,6 +114,7 @@
     _set('anu-pf-account-id', c.account_id);
     _set('anu-pf-token-key',  c.token_key);
     _set('anu-pf-business-id', c.business_id||'');
+    _set('anu-pf-link-url',    c.link_url||'');
     // Pré-popular dropdown de páginas com o valor salvo
     var sel = document.getElementById('anu-pf-page-id');
     if (sel && c.page_id) {
@@ -128,6 +130,8 @@
     _set('anu-pf-whatsapp',   c.whatsapp||'');
     _set('anu-pf-segmento',   c.segmento||'');
     _set('anu-pf-camp-tipo',  c.campanha_tipo||'MESSAGES');
+    _set('anu-pf-optimization-goal', c.optimization_goal||'LINK_CLICKS');
+    _set('anu-pf-pixel-id',  c.pixel_id||'');
     _set('anu-pf-orcamento',  c.orcamento_diario||'');
     var elLoc=document.getElementById('anu-pf-localizacao');
     if (elLoc) elLoc.value = c.localizacao_json ? JSON.stringify(c.localizacao_json,null,2):'';
@@ -192,9 +196,11 @@
     var payload={
       nome:nome, agencia:_val('anu-pf-agencia'), account_id:account_id,
       token_key:_val('anu-pf-token-key'), page_id:_val('anu-pf-page-id'),
-      business_id:_val('anu-pf-business-id'),
+      business_id:_val('anu-pf-business-id'), link_url:_val('anu-pf-link-url'),
       whatsapp:_val('anu-pf-whatsapp'), segmento:_val('anu-pf-segmento'),
       campanha_tipo:_val('anu-pf-camp-tipo'),
+      optimization_goal:_val('anu-pf-optimization-goal')||'LINK_CLICKS',
+      pixel_id:_val('anu-pf-pixel-id')||null,
       orcamento_diario:parseFloat(_val('anu-pf-orcamento'))||null,
       localizacao_json:loc, publico_json:pub
     };

@@ -3005,9 +3005,9 @@ def anuncios_listar_clientes():
         conn = _get_db()
         cur  = conn.cursor()
         cur.execute("""
-            SELECT id, nome, agencia, account_id, token_key, page_id, business_id, whatsapp,
+            SELECT id, nome, agencia, account_id, token_key, page_id, business_id, link_url, whatsapp,
                    segmento, campanha_tipo, localizacao_json, publico_json,
-                   orcamento_diario, campanha_id_existente
+                   orcamento_diario, campanha_id_existente, optimization_goal, pixel_id
             FROM ad_client_profiles ORDER BY agencia, nome
         """)
         rows = cur.fetchall()
@@ -3035,17 +3035,18 @@ def anuncios_criar_cliente():
         cur  = conn.cursor()
         cur.execute("""
             INSERT INTO ad_client_profiles
-                (nome, agencia, account_id, token_key, page_id, business_id, whatsapp, segmento,
+                (nome, agencia, account_id, token_key, page_id, business_id, link_url, whatsapp, segmento,
                  campanha_tipo, localizacao_json, publico_json, orcamento_diario,
-                 campanha_id_existente)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+                 campanha_id_existente, optimization_goal, pixel_id)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
         """, (
             d["nome"], d["agencia"], d["account_id"], d["token_key"],
-            d.get("page_id"), d.get("business_id"), d.get("whatsapp"), d.get("segmento"),
+            d.get("page_id"), d.get("business_id"), d.get("link_url"), d.get("whatsapp"), d.get("segmento"),
             d.get("campanha_tipo", "MESSAGES"),
             json.dumps(d["localizacao_json"]),
             json.dumps(d.get("publico_json") or {}),
-            d.get("orcamento_diario"), d.get("campanha_id_existente")
+            d.get("orcamento_diario"), d.get("campanha_id_existente"),
+            d.get("optimization_goal", "LINK_CLICKS"), d.get("pixel_id")
         ))
         novo_id = cur.fetchone()["id"]
         conn.commit()
@@ -3066,8 +3067,9 @@ def anuncios_atualizar_cliente(cid):
     mapa = {
         "nome": "nome", "agencia": "agencia", "account_id": "account_id",
         "token_key": "token_key", "page_id": "page_id", "business_id": "business_id",
-        "whatsapp": "whatsapp", "segmento": "segmento", "campanha_tipo": "campanha_tipo",
-        "orcamento_diario": "orcamento_diario", "campanha_id_existente": "campanha_id_existente"
+        "link_url": "link_url", "whatsapp": "whatsapp", "segmento": "segmento", "campanha_tipo": "campanha_tipo",
+        "orcamento_diario": "orcamento_diario", "campanha_id_existente": "campanha_id_existente",
+        "optimization_goal": "optimization_goal", "pixel_id": "pixel_id"
     }
     for k, col in mapa.items():
         if k in d:
@@ -3466,7 +3468,9 @@ def anuncios_publicar():
         try:
             adset_id = _meta_api.criar_conjunto(
                 token, account_id, campaign_id, camp_tipo, publico, localizacao,
-                orcamento=(orcamento if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None)
+                orcamento=(orcamento if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None),
+                optimization_goal=cliente.get("optimization_goal") or None,
+                pixel_id=cliente.get("pixel_id") or None
             )
         except Exception as e2:
             if not campanha_exist_id:
@@ -3474,10 +3478,12 @@ def anuncios_publicar():
             raise Exception(f"Falha no conjunto (campanha removida): {e2}")
 
         try:
+            link_url = cliente.get("link_url") or ""
             ad_id = _meta_api.criar_anuncio(
                 token, account_id, adset_id, page_id, creative_ref,
                 copy_data["titulo"], copy_data["texto"],
-                copy_data.get("cta", "SEND_MESSAGE")
+                copy_data.get("cta", "SEND_MESSAGE"),
+                link_url=link_url
             )
         except Exception as e3:
             _meta_api.deletar_objeto_meta(token, adset_id)
