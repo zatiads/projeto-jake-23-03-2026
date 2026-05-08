@@ -366,7 +366,7 @@ def criar_campanha(token: str, account_id: str, campanha_tipo: str,
 def criar_conjunto(token: str, account_id: str, campaign_id: str,
                    campanha_tipo: str, publico: dict, localizacao: dict,
                    orcamento: float = None, optimization_goal: str = None,
-                   pixel_id: str = None) -> str:
+                   pixel_id: str = None, nome: str = None) -> str:
     """
     Cria ad set com status PAUSED.
     campanha_tipo: 'MESSAGES' → optimization_goal=CONVERSATIONS
@@ -394,7 +394,7 @@ def criar_conjunto(token: str, account_id: str, campaign_id: str,
 
     payload = {
         "campaign_id": campaign_id,
-        "name": f"Conjunto - {campanha_tipo}",
+        "name": nome or f"Conjunto - {campanha_tipo}",
         "targeting": _json_meta.dumps(targeting),
         "status": "PAUSED",
         "access_token": token,
@@ -449,7 +449,7 @@ def criar_anuncio(token: str, account_id: str, adset_id: str, page_id: str,
         if link_url and cta != "SEND_MESSAGE":
             link_data["link"] = link_url
         story_spec = {"page_id": page_id, "link_data": link_data}
-    else:
+    elif creative_ref["tipo"] == "video":
         video_data = {
             "video_id": creative_ref["video_id"],
             "message": texto,
@@ -459,6 +459,23 @@ def criar_anuncio(token: str, account_id: str, adset_id: str, page_id: str,
         if link_url and cta != "SEND_MESSAGE":
             video_data["link"] = link_url
         story_spec = {"page_id": page_id, "video_data": video_data}
+    elif creative_ref["tipo"] == "carrossel":
+        child_attachments = [
+            {
+                "link": link_url,
+                "image_hash": card["hash"],
+                "call_to_action": {"type": cta, "value": {"link": link_url}},
+            }
+            for card in creative_ref["cards"]
+        ]
+        link_data = {
+            "link": link_url,
+            "child_attachments": child_attachments,
+            "multi_share_optimized": True,
+        }
+        story_spec = {"page_id": page_id, "link_data": link_data}
+    else:
+        raise ValueError(f"creative_ref.tipo desconhecido: {creative_ref['tipo']}")
 
     cr = requests.post(creative_url, data={
         "name": f"Criativo - {titulo[:30]}",
