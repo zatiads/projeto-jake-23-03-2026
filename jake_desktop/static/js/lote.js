@@ -13,6 +13,8 @@
   var MAX_CONJ   = 10;
   var MAX_CRIAT  = 10;
 
+  var _LS_KEY = 'jakeos_lote_v1';
+
   // ── Helpers ────────────────────────────────────────
   function _val(id)       { var el=document.getElementById(id); return el?el.value:''; }
   function _set(id, v)    { var el=document.getElementById(id); if(el) el.value=String(v||''); }
@@ -21,12 +23,72 @@
   function _hide(id)      { var el=_el(id); if(el) el.classList.add('hidden'); }
   function _esc(s)        { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
 
+  // ── LocalStorage ───────────────────────────────────
+  function _salvarLocal() {
+    try {
+      // Preview blob: são efêmeros — salvar só URLs reais
+      var conjSalvos = _conjuntos.map(function(conj) {
+        return {
+          nome: conj.nome,
+          audience_id: conj.audience_id,
+          criativos: conj.criativos.map(function(r) {
+            var preview = (r.preview && r.preview.indexOf('blob:') !== 0) ? r.preview : null;
+            return {
+              tipo: r.tipo,
+              creative_ref: r.creative_ref,
+              copy: r.copy,
+              preview: preview,
+              _url: r._url || null,
+            };
+          })
+        };
+      });
+      localStorage.setItem(_LS_KEY, JSON.stringify({
+        conjuntos: conjSalvos,
+        campNome: _val('lote-camp-nome'),
+        campTipo: _val('lote-camp-tipo'),
+        orcamento: _val('lote-orcamento'),
+        clienteId: _cliente ? _cliente.id : null,
+      }));
+    } catch(e) {}
+  }
+
+  function _restaurarLocal() {
+    try {
+      var raw = localStorage.getItem(_LS_KEY);
+      if (!raw) return;
+      var s = JSON.parse(raw);
+      if (s.conjuntos && s.conjuntos.length) {
+        _conjuntos = s.conjuntos;
+      }
+      if (s.campNome) _set('lote-camp-nome', s.campNome);
+      if (s.campTipo) _set('lote-camp-tipo', s.campTipo);
+      if (s.orcamento) _set('lote-orcamento', s.orcamento);
+      // Se o cliente salvo é o mesmo ativo, tudo certo; senão avisa
+      if (s.clienteId && _cliente && s.clienteId !== _cliente.id) {
+        var aviso = _el('lote-restaurar-aviso');
+        if (aviso) { aviso.textContent = '⚠ Estado salvo é de outro cliente.'; aviso.style.display=''; }
+      }
+    } catch(e) {}
+  }
+
+  window.loteLimparLocal = function() {
+    localStorage.removeItem(_LS_KEY);
+    _conjuntos = []; _conjIdx = null; _criatIdx = null;
+    _renderConjuntos(); _renderCriativos(); _renderCopy(); _atualizarContador();
+  };
+
   // ── Init (chamado por anuSwitchTab) ────────────────
+  var _iniciado = false;
   window.loteInit = function() {
     if (typeof window._anuClienteAtivo !== 'undefined') {
       _cliente = window._anuClienteAtivo;
     }
     _carregarPublicos();
+    if (!_iniciado) {
+      _restaurarLocal();
+      _iniciado = true;
+    }
     _renderTopo();
     _renderConjuntos();
     _renderCriativos();
@@ -118,7 +180,7 @@
 
   window.loteRenomearConj = function(i) {
     var novo = prompt('Nome do conjunto:', _conjuntos[i].nome);
-    if (novo && novo.trim()) { _conjuntos[i].nome = novo.trim(); _renderConjuntos(); }
+    if (novo && novo.trim()) { _conjuntos[i].nome = novo.trim(); _renderConjuntos(); _salvarLocal(); }
   };
 
   window.loteRemoverConj = function(i) {
@@ -127,7 +189,7 @@
     if (_conjIdx >= _conjuntos.length) _conjIdx = _conjuntos.length ? _conjuntos.length-1 : null;
     _criatIdx = null;
     _renderConjuntos(); _renderCriativos(); _renderCopy();
-    _atualizarContador();
+    _atualizarContador(); _salvarLocal();
   };
 
   function _adicionarConjunto() {
@@ -137,7 +199,7 @@
     _conjIdx  = _conjuntos.length - 1;
     _criatIdx = null;
     _renderConjuntos(); _renderCriativos(); _renderCopy();
-    _atualizarContador();
+    _atualizarContador(); _salvarLocal();
   }
 
   // ── Renderizar Criativos ───────────────────────────
@@ -189,7 +251,7 @@
     _conjuntos[_conjIdx].criativos.splice(i, 1);
     if (_criatIdx >= _conjuntos[_conjIdx].criativos.length) _criatIdx = null;
     _renderCriativos(); _renderCopy();
-    _atualizarContador();
+    _atualizarContador(); _salvarLocal();
   };
 
   function _adicionarCriativo() {
@@ -200,7 +262,7 @@
     _criatIdx = conj.criativos.length - 1;
     _renderCriativos();
     _renderCopy();
-    _atualizarContador();
+    _atualizarContador(); _salvarLocal();
   }
 
   function _ctaPadrao() {
@@ -249,6 +311,7 @@
     r.copy.cta    = _val('lote-copy-cta');
     _renderCriativos();
     _atualizarBotaoPublicar();
+    _salvarLocal();
   }
 
   // ── Upload de Criativos ────────────────────────────
@@ -302,7 +365,7 @@
     r.creative_ref = null;
     r.preview = null;
     r._url = null;
-    _renderCopy();
+    _renderCopy(); _salvarLocal();
   };
 
   function _getCliente() { return _cliente || {}; }
@@ -328,6 +391,7 @@
         _renderCriativos();
         _renderCopy();
         _atualizarBotaoPublicar();
+        _salvarLocal();
       })
       .catch(function(e){ alert('Erro de rede: ' + e); });
   }
@@ -350,6 +414,7 @@
         _renderCriativos();
         _renderCopy();
         _atualizarBotaoPublicar();
+        _salvarLocal();
       })
       .catch(function(e){ alert('Erro de rede: ' + e); });
   }
@@ -396,6 +461,7 @@
         _renderCriativos();
         _renderCopy();
         _atualizarBotaoPublicar();
+        _salvarLocal();
       })
       .catch(function(e){ alert('Erro de rede: ' + e); });
   };
@@ -440,6 +506,7 @@
       _renderCriativos();
       _renderCopy();
       _atualizarBotaoPublicar();
+      _salvarLocal();
     })
     .catch(function(e){ alert('Erro de rede: ' + e); })
     .finally(function() {

@@ -734,7 +734,10 @@
 
               <!-- Rodapé -->
               <div class="lote-rodape">
-                <button class="lote-btn-gerar" id="lote-btn-gerar-copies">✦ Gerar todas as copies</button>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <button class="lote-btn-gerar" id="lote-btn-gerar-copies">✦ Gerar todas as copies</button>
+                  <button class="anu-btn-secondary" style="font-size:.75rem;opacity:.6" onclick="if(confirm('Limpar tudo e apagar o rascunho salvo?')) loteLimparLocal()" title="Limpar rascunho salvo">🗑 Limpar</button>
+                </div>
                 <button class="lote-btn-publicar" id="lote-btn-publicar" disabled>🚀 Publicar Lote</button>
               </div>
 
