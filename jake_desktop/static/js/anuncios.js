@@ -49,32 +49,42 @@
   }
 
   function renderSidebar() {
+    // Popular listas ocultas (compatibilidade)
     var grupos = { piloti:[], dentto:[], freelance:[] };
     _clientes.forEach(function(c){ if(grupos[c.agencia]) grupos[c.agencia].push(c); });
     ['piloti','dentto','freelance'].forEach(function(ag) {
       var ul = document.getElementById('anu-lista-'+ag);
       if (!ul) return;
       ul.innerHTML = grupos[ag].map(function(c) {
-        var ativo = _clienteAtivo && _clienteAtivo.id===c.id ? ' active':'';
-        return '<li class="anu-cliente-item'+ativo+'" data-id="'+c.id+'">' +
-          '<span>'+_esc(c.nome)+'</span>' +
-          '<button class="anu-cliente-edit-btn" data-id="'+c.id+'" title="Editar">✎</button>' +
-          '</li>';
+        return '<li class="anu-cliente-item" data-id="'+c.id+'"><span>'+_esc(c.nome)+'</span></li>';
       }).join('');
-      ul.querySelectorAll('.anu-cliente-item').forEach(function(li) {
-        li.addEventListener('click', function(e) {
-          if (e.target.classList.contains('anu-cliente-edit-btn')) return;
-          selecionarCliente(parseInt(this.dataset.id));
-        });
+    });
+    // Popular select do header
+    var sel = document.getElementById('anu-select-cliente');
+    if (!sel) return;
+    var atvId = _clienteAtivo ? _clienteAtivo.id : null;
+    var agencias = ['piloti','dentto','freelance'];
+    var labels = {piloti:'Piloti', dentto:'Dentto', freelance:'Freelance'};
+    sel.innerHTML = '<option value="">— selecione —</option>';
+    agencias.forEach(function(ag) {
+      if (!grupos[ag].length) return;
+      var grp = document.createElement('optgroup');
+      grp.label = '📁 ' + labels[ag];
+      grupos[ag].forEach(function(c) {
+        var opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.nome;
+        if (c.id === atvId) opt.selected = true;
+        grp.appendChild(opt);
       });
-      ul.querySelectorAll('.anu-cliente-edit-btn').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          abrirFormPerfil(parseInt(this.dataset.id));
-        });
-      });
+      sel.appendChild(grp);
     });
   }
+
+  window.anuSelecionarPorSelect = function(val) {
+    if (!val) return;
+    selecionarCliente(parseInt(val));
+  };
 
   function selecionarCliente(id) {
     _clienteAtivo = _clientes.find(function(c){ return c.id===id; }) || null;

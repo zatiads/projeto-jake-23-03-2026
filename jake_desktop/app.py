@@ -3803,7 +3803,7 @@ def anuncios_copy_lote():
     )
 
     try:
-        resp = _anthropic_client.messages.create(
+        resp = _anthropic_client().messages.create(
             model="claude-sonnet-4-6",
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}]

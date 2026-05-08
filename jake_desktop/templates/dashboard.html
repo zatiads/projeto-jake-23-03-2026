@@ -478,44 +478,37 @@
       <section class="page" id="page-anuncios">
         <div class="anu-layout">
 
-          <!-- ── Sidebar de Clientes ── -->
-          <aside class="anu-sidebar">
-            <div class="anu-sidebar-header">
-              <span class="anu-sidebar-title">Clientes</span>
-              <button class="anu-btn-icon" id="anu-btn-refresh-clientes" title="Recarregar">↺</button>
+          <!-- ── Header-bar: Cliente + Tabs ── -->
+          <div class="anu-header-bar">
+            <div class="anu-header-cliente">
+              <span class="anu-header-cliente-label">Cliente</span>
+              <select id="anu-select-cliente" onchange="anuSelecionarPorSelect(this.value)">
+                <option value="">— selecione —</option>
+              </select>
             </div>
-            <div class="anu-agencia-group">
-              <div class="anu-agencia-header">
-                <span>📁 Piloti</span>
-                <button class="anu-btn-novo-cliente" data-agencia="piloti">+</button>
-              </div>
-              <ul class="anu-cliente-list" id="anu-lista-piloti"></ul>
-            </div>
-            <div class="anu-agencia-group">
-              <div class="anu-agencia-header">
-                <span>📁 Dentto</span>
-                <button class="anu-btn-novo-cliente" data-agencia="dentto">+</button>
-              </div>
-              <ul class="anu-cliente-list" id="anu-lista-dentto"></ul>
-            </div>
-            <div class="anu-agencia-group">
-              <div class="anu-agencia-header">
-                <span>📁 Freelance</span>
-                <button class="anu-btn-novo-cliente" data-agencia="freelance">+</button>
-              </div>
-              <ul class="anu-cliente-list" id="anu-lista-freelance"></ul>
-            </div>
-          </aside>
-
-          <!-- ── Área Principal ── -->
-          <main class="anu-main">
-
-            <!-- Sub-navegação Anúncios -->
-            <div style="display:flex;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">
+            <div class="anu-header-divider"></div>
+            <div class="anu-header-tabs">
               <button class="anu-btn-secondary anu-tab-btn active" data-tab="publicar" onclick="anuSwitchTab('publicar')" style="font-size:13px">Publicar</button>
               <button class="anu-btn-secondary anu-tab-btn" data-tab="publicos" onclick="anuSwitchTab('publicos')" style="font-size:13px">Públicos Salvos</button>
               <button class="anu-btn-secondary anu-tab-btn" data-tab="lote" onclick="anuSwitchTab('lote')" style="font-size:13px">Lote ⚡</button>
             </div>
+            <div class="anu-header-actions">
+              <button class="anu-btn-icon" id="anu-btn-refresh-clientes" title="Recarregar clientes">↺</button>
+              <button class="anu-btn-novo-cliente" data-agencia="piloti" title="Novo cliente Piloti" style="font-size:.7rem;padding:0 8px;width:auto;border-radius:6px">+ Piloti</button>
+              <button class="anu-btn-novo-cliente" data-agencia="dentto" title="Novo cliente Dentto" style="font-size:.7rem;padding:0 8px;width:auto;border-radius:6px">+ Dentto</button>
+              <button class="anu-btn-novo-cliente" data-agencia="freelance" title="Novo cliente Freelance" style="font-size:.7rem;padding:0 8px;width:auto;border-radius:6px">+ Free</button>
+            </div>
+          </div>
+
+          <!-- Listas ocultas mantidas para compatibilidade JS -->
+          <aside class="anu-sidebar" aria-hidden="true">
+            <ul class="anu-cliente-list" id="anu-lista-piloti"></ul>
+            <ul class="anu-cliente-list" id="anu-lista-dentto"></ul>
+            <ul class="anu-cliente-list" id="anu-lista-freelance"></ul>
+          </aside>
+
+          <!-- ── Área Principal ── -->
+          <main class="anu-main">
 
             <!-- Tab: Publicar -->
             <div id="anu-tab-publicar">
