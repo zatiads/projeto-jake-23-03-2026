@@ -514,6 +514,7 @@
             <div style="display:flex;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">
               <button class="anu-btn-secondary anu-tab-btn active" data-tab="publicar" onclick="anuSwitchTab('publicar')" style="font-size:13px">Publicar</button>
               <button class="anu-btn-secondary anu-tab-btn" data-tab="publicos" onclick="anuSwitchTab('publicos')" style="font-size:13px">Públicos Salvos</button>
+              <button class="anu-btn-secondary anu-tab-btn" data-tab="lote" onclick="anuSwitchTab('lote')" style="font-size:13px">Lote ⚡</button>
             </div>
 
             <!-- Tab: Publicar -->
@@ -682,6 +683,83 @@
                 <div id="anu-imp-resultado" style="margin-top:8px;font-size:13px"></div>
               </div>
             </div><!-- /anu-tab-publicos -->
+
+            <!-- Tab: Lote -->
+            <div id="anu-tab-lote" style="display:none">
+              <!-- Topo: configurações da campanha -->
+              <div class="lote-topo">
+                <label class="anu-label">Nome da campanha
+                  <input type="text" id="lote-camp-nome" class="anu-input" placeholder="Campanha Maio 2026">
+                </label>
+                <label class="anu-label">Tipo de campanha
+                  <select id="lote-camp-tipo" class="anu-select">
+                    <option value="MESSAGES">Mensagem (WhatsApp)</option>
+                    <option value="ENGAGEMENT">Engajamento</option>
+                    <option value="PURCHASE">Conversão (Purchase)</option>
+                  </select>
+                </label>
+                <label class="anu-label">Orçamento total (R$/dia)
+                  <input type="number" id="lote-orcamento" class="anu-input" placeholder="50.00" step="0.01" min="1">
+                </label>
+                <div class="lote-contador" id="lote-contador">0 × 0 = 0 anúncios</div>
+              </div>
+
+              <!-- 3 colunas -->
+              <div class="lote-colunas">
+                <!-- Col 1: Conjuntos -->
+                <div class="lote-col">
+                  <div class="lote-col-header">
+                    <span>Conjuntos</span>
+                    <button class="anu-btn-icon" id="lote-btn-add-conjunto" title="Adicionar conjunto">+</button>
+                  </div>
+                  <div class="lote-col-body" id="lote-conjuntos-body"></div>
+                </div>
+                <!-- Col 2: Criativos -->
+                <div class="lote-col">
+                  <div class="lote-col-header">
+                    <span id="lote-criativos-header">Criativos</span>
+                    <button class="anu-btn-icon" id="lote-btn-add-criativo" title="Adicionar criativo" style="display:none">+</button>
+                  </div>
+                  <div class="lote-col-body" id="lote-criativos-body">
+                    <div class="anu-empty-state" style="height:auto;padding:2rem 0">
+                      <div class="anu-empty-text" style="font-size:.82rem">Selecione um conjunto</div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Col 3: Copy -->
+                <div class="lote-col">
+                  <div class="lote-col-header">
+                    <span id="lote-copy-header">Copy</span>
+                  </div>
+                  <div class="lote-col-body" id="lote-copy-body">
+                    <div class="anu-empty-state" style="height:auto;padding:2rem 0">
+                      <div class="anu-empty-text" style="font-size:.82rem">Selecione um criativo</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Rodapé -->
+              <div class="lote-rodape">
+                <button class="lote-btn-gerar" id="lote-btn-gerar-copies">✦ Gerar todas as copies</button>
+                <button class="lote-btn-publicar" id="lote-btn-publicar" disabled>🚀 Publicar Lote</button>
+              </div>
+
+              <!-- Modal de progresso SSE -->
+              <div class="anu-modal-overlay hidden" id="lote-modal-progresso">
+                <div class="anu-modal lote-progress-modal">
+                  <h3 class="lote-progress-title">Publicando lote...</h3>
+                  <div class="lote-progress-bar-wrap">
+                    <div class="lote-progress-bar"><div class="lote-progress-fill" id="lote-prog-fill" style="width:0%"></div></div>
+                    <div class="lote-progress-stats" id="lote-prog-stats">Iniciando...</div>
+                  </div>
+                  <div class="lote-progress-log" id="lote-prog-log"></div>
+                  <div class="anu-modal-actions" style="margin-top:1rem">
+                    <button class="anu-btn-secondary hidden" id="lote-prog-fechar">Fechar</button>
+                  </div>
+                </div>
+              </div>
+            </div><!-- /anu-tab-lote -->
 
           </main>
         </div>
@@ -2481,6 +2559,7 @@
   <script src="{{ url_for('static', filename='js/copys.js') }}"></script>
   <script src="{{ url_for('static', filename='js/creative_factory.js') }}"></script>
   <script src="{{ url_for('static', filename='js/anuncios.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/lote.js') }}"></script>
   <script src="{{ url_for('static', filename='js/criativos.js') }}"></script>
   <script src="{{ url_for('static', filename='js/financeiro.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance.js') }}"></script>

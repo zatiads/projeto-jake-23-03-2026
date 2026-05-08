@@ -79,3 +79,44 @@
 .anu-btn-publicar-confirm:hover { background:rgba(0,229,255,.25); }
 .anu-btn-publicar-confirm.loading { opacity:.6; pointer-events:none; }
 .hidden { display:none !important; }
+
+/* ── Builder de Lote ─────────────────────────────── */
+.lote-topo { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:.75rem; align-items:end; margin-bottom:1rem; padding-bottom:1rem; border-bottom:1px solid rgba(0,229,255,.1); }
+.lote-contador { font-family:var(--ff-h); font-size:.8rem; color:rgba(0,229,255,.6); white-space:nowrap; padding-top:.3rem; }
+.lote-colunas { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; min-height:400px; }
+.lote-col { display:flex; flex-direction:column; gap:.5rem; }
+.lote-col-header { font-family:var(--ff-h); font-size:.8rem; letter-spacing:.08em; text-transform:uppercase; color:rgba(0,229,255,.5); padding:.4rem .6rem; border-bottom:1px solid rgba(0,229,255,.08); display:flex; align-items:center; justify-content:space-between; }
+.lote-col-body { flex:1; display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; }
+.lote-card { background:rgba(0,229,255,.03); border:1px solid rgba(0,229,255,.1); border-radius:8px; padding:.75rem; cursor:pointer; transition:border-color .2s,background .2s; }
+.lote-card:hover { border-color:rgba(0,229,255,.3); background:rgba(0,229,255,.06); }
+.lote-card.active { border-color:rgba(0,229,255,.5); background:rgba(0,229,255,.08); }
+.lote-card.erro { border-color:rgba(255,82,82,.4); }
+.lote-card-titulo { font-size:.85rem; color:#e0e0e0; margin-bottom:.3rem; display:flex; align-items:center; gap:.4rem; }
+.lote-card-meta { font-size:.72rem; color:rgba(176,190,197,.4); }
+.lote-card-actions { display:flex; gap:.3rem; margin-top:.4rem; }
+.lote-tipo-btns { display:flex; gap:.3rem; margin-bottom:.5rem; flex-wrap:wrap; }
+.lote-tipo-btn { background:rgba(0,0,0,.2); border:1px solid rgba(0,229,255,.15); color:rgba(176,190,197,.6); border-radius:6px; padding:.25rem .6rem; font-size:.75rem; cursor:pointer; transition:all .2s; }
+.lote-tipo-btn.active { background:rgba(0,229,255,.12); border-color:rgba(0,229,255,.4); color:#00e5ff; }
+.lote-slot-preview { width:100%; max-height:120px; object-fit:cover; border-radius:6px; border:1px solid rgba(0,229,255,.15); margin-top:.4rem; display:block; }
+.lote-carrossel-cards { display:flex; gap:.3rem; flex-wrap:wrap; margin-top:.4rem; }
+.lote-carrossel-thumb { width:48px; height:48px; object-fit:cover; border-radius:4px; border:1px solid rgba(0,229,255,.2); }
+.lote-url-row { display:flex; gap:.4rem; align-items:center; }
+.lote-url-row .anu-input { flex:1; }
+.lote-rodape { display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:1rem; border-top:1px solid rgba(0,229,255,.1); }
+.lote-btn-gerar { background:rgba(105,240,174,.08); border:1px solid rgba(105,240,174,.25); color:#69f0ae; border-radius:8px; padding:.55rem 1.2rem; font-size:.85rem; cursor:pointer; transition:all .2s; }
+.lote-btn-gerar:hover { background:rgba(105,240,174,.15); }
+.lote-btn-publicar { background:linear-gradient(135deg,rgba(0,229,255,.15),rgba(105,240,174,.1)); border:1px solid rgba(0,229,255,.35); color:#00e5ff; border-radius:10px; padding:.7rem 1.8rem; font-family:var(--ff-h); font-size:.95rem; cursor:pointer; transition:all .2s; }
+.lote-btn-publicar:hover:not(:disabled) { background:linear-gradient(135deg,rgba(0,229,255,.25),rgba(105,240,174,.18)); box-shadow:0 0 20px rgba(0,229,255,.12); }
+.lote-btn-publicar:disabled { opacity:.35; cursor:not-allowed; }
+.lote-progress-modal { max-width:560px; }
+.lote-progress-title { font-family:var(--ff-h); color:#00e5ff; margin:0 0 1rem; font-size:1.1rem; }
+.lote-progress-log { background:rgba(0,0,0,.3); border-radius:8px; padding:.75rem 1rem; max-height:260px; overflow-y:auto; font-size:.8rem; line-height:1.8; color:#b0bec5; font-family:monospace; }
+.lote-progress-log .ok { color:#69f0ae; }
+.lote-progress-log .erro { color:#ff5252; }
+.lote-progress-log .info { color:#00e5ff; }
+.lote-progress-bar-wrap { margin:.75rem 0; }
+.lote-progress-bar { height:6px; background:rgba(0,229,255,.1); border-radius:3px; overflow:hidden; }
+.lote-progress-fill { height:100%; background:linear-gradient(90deg,#00e5ff,#69f0ae); transition:width .4s; }
+.lote-progress-stats { font-size:.78rem; color:rgba(176,190,197,.5); margin-top:.3rem; }
+.lote-publico-row { display:flex; align-items:center; gap:.5rem; }
+.lote-publico-row .anu-select { flex:1; }

@@ -16,13 +16,14 @@
 
   // ── Sub-navegação tabs ──────────────────────────────
   window.anuSwitchTab = function(tab) {
-    ['publicar', 'publicos'].forEach(function(t) {
+    ['publicar', 'publicos', 'lote'].forEach(function(t) {
       var el  = document.getElementById('anu-tab-' + t);
       var btn = document.querySelector('[data-tab="' + t + '"]');
       if (el)  el.style.display = (t === tab) ? '' : 'none';
       if (btn) btn.classList.toggle('active', t === tab);
     });
     if (tab === 'publicos') carregarPublicos();
+    if (tab === 'lote' && typeof loteInit === 'function') loteInit();
   };
 
   // ── Init ───────────────────────────────────────────
@@ -77,6 +78,7 @@
 
   function selecionarCliente(id) {
     _clienteAtivo = _clientes.find(function(c){ return c.id===id; }) || null;
+    window._anuClienteAtivo = _clienteAtivo;
     renderSidebar();
     mostrarCriacao();
   }
