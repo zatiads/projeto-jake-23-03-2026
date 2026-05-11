@@ -118,3 +118,38 @@
 .lote-progress-stats { font-size:.78rem; color:rgba(176,190,197,.5); margin-top:.3rem; }
 .lote-publico-row { display:flex; align-items:center; gap:.5rem; }
 .lote-publico-row .anu-select { flex:1; }
+
+/* ── Multi-Cliente Stepper ───────────────────── */
+.mc-stepper {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(176,190,197,.08);
+}
+.mc-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(176,190,197,.35);
+  font-weight: 500;
+  letter-spacing: .04em;
+}
+.mc-step.active {
+  color: rgba(176,190,197,.9);
+}
+.mc-step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(176,190,197,.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+.mc-step.active .mc-step-num {
+  background: rgba(100,181,246,.25);
+  color: #64b5f6;
+}
