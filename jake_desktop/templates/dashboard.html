@@ -491,6 +491,7 @@
               <button class="anu-btn-secondary anu-tab-btn active" data-tab="publicar" onclick="anuSwitchTab('publicar')" style="font-size:13px">Publicar</button>
               <button class="anu-btn-secondary anu-tab-btn" data-tab="publicos" onclick="anuSwitchTab('publicos')" style="font-size:13px">Públicos Salvos</button>
               <button class="anu-btn-secondary anu-tab-btn" data-tab="lote" onclick="anuSwitchTab('lote')" style="font-size:13px">Lote ⚡</button>
+              <button class="anu-btn-secondary anu-tab-btn" data-tab="multi" onclick="anuSwitchTab('multi')" style="font-size:13px">Multi-Cliente</button>
             </div>
             <div class="anu-header-actions">
               <button class="anu-btn-icon" id="anu-btn-refresh-clientes" title="Recarregar clientes">↺</button>
@@ -756,6 +757,76 @@
                 </div>
               </div>
             </div><!-- /anu-tab-lote -->
+
+            <!-- Tab: Multi-Cliente -->
+            <div id="anu-tab-multi" style="display:none">
+
+              <!-- Stepper header -->
+              <div class="mc-stepper">
+                <div class="mc-step active" data-step="1"><span class="mc-step-num">1</span> Clientes</div>
+                <div class="mc-step" data-step="2"><span class="mc-step-num">2</span> Criativo</div>
+                <div class="mc-step" data-step="3"><span class="mc-step-num">3</span> Revisar</div>
+              </div>
+
+              <!-- Passo 1: Selecionar Clientes -->
+              <div id="mc-passo-1">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                  <span style="font-weight:600;font-size:14px">Selecione os clientes</span>
+                  <div style="display:flex;gap:8px;">
+                    <button class="anu-btn-secondary" style="font-size:12px" onclick="mcSelecionarAgencia('dentto')">Todos Dentto</button>
+                    <button class="anu-btn-secondary" style="font-size:12px" onclick="mcSelecionarAgencia('piloti')">Todos Piloti</button>
+                    <button class="anu-btn-secondary" style="font-size:12px" onclick="mcLimparSelecao()">Limpar</button>
+                  </div>
+                </div>
+                <div id="mc-lista-clientes" style="display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;margin-bottom:16px;"></div>
+                <button class="anu-btn-primary" onclick="mcIrPasso(2)" id="mc-btn-passo2" disabled>Próximo →</button>
+              </div>
+
+              <!-- Passo 2: Criativo -->
+              <div id="mc-passo-2" style="display:none">
+                <div style="display:flex;flex-direction:column;gap:12px;max-width:520px;">
+                  <label class="anu-label">Imagem do anúncio
+                    <div id="mc-dropzone" style="margin-top:4px;min-height:120px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px dashed rgba(176,190,197,.2);border-radius:8px;position:relative;">
+                      <input type="file" id="mc-file-input" accept="image/*,video/mp4" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;">
+                      <div id="mc-dropzone-placeholder" style="text-align:center;pointer-events:none;"><span style="font-size:24px">⬆</span><p style="margin:4px 0 0;font-size:12px;color:rgba(176,190,197,.4)">Clique ou arraste a imagem</p></div>
+                      <img id="mc-preview-img" style="display:none;max-width:100%;max-height:200px;border-radius:6px;pointer-events:none;">
+                    </div>
+                    <div id="mc-upload-status" style="font-size:11px;color:rgba(176,190,197,.4);margin-top:4px;"></div>
+                  </label>
+                  <label class="anu-label">Nome da campanha
+                    <input type="text" id="mc-camp-nome" class="anu-input" placeholder="Campanha Maio 2026">
+                  </label>
+                  <label class="anu-label">Título do anúncio
+                    <input type="text" id="mc-copy-titulo" class="anu-input" placeholder="Título">
+                  </label>
+                  <label class="anu-label">Texto do anúncio
+                    <textarea id="mc-copy-texto" class="anu-input" rows="4" placeholder="Texto do anúncio..."></textarea>
+                  </label>
+                  <label class="anu-label">Orçamento diário (R$)
+                    <input type="number" id="mc-orcamento" class="anu-input" placeholder="30" min="1">
+                  </label>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:16px;">
+                  <button class="anu-btn-secondary" onclick="mcIrPasso(1)">← Voltar</button>
+                  <button class="anu-btn-primary" onclick="mcIrPasso(3)" id="mc-btn-passo3">Revisar →</button>
+                </div>
+              </div>
+
+              <!-- Passo 3: Revisão + Publicar -->
+              <div id="mc-passo-3" style="display:none">
+                <p style="font-size:13px;color:rgba(176,190,197,.5);margin-bottom:12px;">Confirme o público de cada cliente antes de publicar.</p>
+                <div id="mc-revisao-cards" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;max-height:400px;overflow-y:auto;"></div>
+                <div id="mc-progresso" style="display:none;margin-bottom:16px;">
+                  <div style="font-size:13px;font-weight:600;margin-bottom:8px">Publicando...</div>
+                  <div id="mc-prog-lista" style="display:flex;flex-direction:column;gap:4px;font-size:12px;"></div>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <button class="anu-btn-secondary" onclick="mcIrPasso(2)" id="mc-btn-voltar3">← Voltar</button>
+                  <button class="anu-btn-primary" onclick="mcPublicar()" id="mc-btn-publicar">Publicar Tudo</button>
+                </div>
+              </div>
+
+            </div><!-- /anu-tab-multi -->
 
           </main>
         </div>
@@ -2556,6 +2627,7 @@
   <script src="{{ url_for('static', filename='js/creative_factory.js') }}"></script>
   <script src="{{ url_for('static', filename='js/anuncios.js') }}"></script>
   <script src="{{ url_for('static', filename='js/lote.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/multi-cliente.js') }}"></script>
   <script src="{{ url_for('static', filename='js/criativos.js') }}"></script>
   <script src="{{ url_for('static', filename='js/financeiro.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance.js') }}"></script>
