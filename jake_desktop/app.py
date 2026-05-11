@@ -3612,7 +3612,12 @@ def anuncios_multi_cliente_preparar():
         return jsonify({"error": "Nome da campanha obrigatório"}), 400
     if not d.get("orcamento"):
         return jsonify({"error": "Orçamento obrigatório"}), 400
+    try:
+        orcamento_float = float(d["orcamento"])
+    except (TypeError, ValueError):
+        return jsonify({"error": "Orçamento deve ser um número"}), 400
 
+    conn = None
     try:
         conn = _get_db(); cur = conn.cursor()
         cur.execute(
@@ -3622,12 +3627,18 @@ def anuncios_multi_cliente_preparar():
             (cliente_ids,)
         )
         clientes = [dict(c) for c in cur.fetchall()]
-        conn.close()
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar clientes: {e}"}), 500
+    finally:
+        try: conn.close()
+        except Exception: pass
 
     if not clientes:
         return jsonify({"error": "Nenhum cliente encontrado"}), 404
+
+    tmp_matches = _glob.glob(os.path.join(_TMP_DIR, f"{d['tmp_uuid']}.*"))
+    if not tmp_matches:
+        return jsonify({"error": "Criativo temporário não encontrado — faça o upload novamente"}), 400
 
     erros = []
     for c in clientes:
@@ -3636,6 +3647,8 @@ def anuncios_multi_cliente_preparar():
             erros.append(f"{c['nome']}: localização não configurada")
         if not c.get("page_id"):
             erros.append(f"{c['nome']}: page_id não configurado")
+        if not c.get("account_id"):
+            erros.append(f"{c['nome']}: account_id não configurado")
         if c.get("token_key") not in _VALID_TOKEN_KEYS:
             erros.append(f"{c['nome']}: token_key inválido")
     if erros:
@@ -3648,7 +3661,7 @@ def anuncios_multi_cliente_preparar():
         "tmp_ext":       d.get("tmp_ext", ".jpg"),
         "copy":          d.get("copy") or {},
         "campanha_nome": d["campanha_nome"],
-        "orcamento":     float(d["orcamento"]),
+        "orcamento":     orcamento_float,
     }
 
     clientes_revisao = []
@@ -3668,7 +3681,7 @@ def anuncios_multi_cliente_preparar():
                 "cidades":   cidades,
                 "paises":    loc.get("paises") or [],
             },
-            "orcamento": d["orcamento"],
+            "orcamento": orcamento_float,
         })
 
     return jsonify({"token": mc_token, "clientes": clientes_revisao})
