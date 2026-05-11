@@ -3734,6 +3734,10 @@ def anuncios_multi_cliente_stream(mc_token):
 
             yield _sse({"status": "publicando", "cliente": nome, "idx": idx + 1, "total": total})
 
+            if token_key not in _VALID_TOKEN_KEYS or not token_val:
+                yield _sse({"status": "erro", "cliente": nome, "erro": "token_key inválido ou token ausente", "idx": idx + 1, "total": total})
+                continue
+
             campaign_id = adset_id = ad_id = None
             try:
                 # 1. Upload imagem para a conta deste cliente
@@ -3783,9 +3787,12 @@ def anuncios_multi_cliente_stream(mc_token):
                         VALUES (%s,%s,%s,%s,%s,'sucesso',NULL,%s)
                     """, (cliente["id"], account_id, campaign_id, adset_id, ad_id,
                           json.dumps(copy_data)))
-                    conn.commit(); conn.close()
+                    conn.commit()
                 except Exception:
                     pass
+                finally:
+                    try: conn.close()
+                    except Exception: pass
 
                 yield _sse({"status": "ok", "cliente": nome, "ad_id": ad_id, "idx": idx + 1, "total": total})
 
@@ -3799,9 +3806,12 @@ def anuncios_multi_cliente_stream(mc_token):
                         VALUES (%s,%s,%s,%s,%s,'erro',NULL,%s,%s)
                     """, (cliente["id"], account_id, campaign_id, adset_id, ad_id,
                           str(e), json.dumps(copy_data)))
-                    conn.commit(); conn.close()
+                    conn.commit()
                 except Exception:
                     pass
+                finally:
+                    try: conn.close()
+                    except Exception: pass
                 yield _sse({"status": "erro", "cliente": nome, "erro": str(e), "idx": idx + 1, "total": total})
 
         # Limpar arquivo temp
