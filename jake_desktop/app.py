@@ -3663,6 +3663,9 @@ def anuncios_multi_cliente_preparar():
         "campanha_nome": d["campanha_nome"],
         "orcamento":     orcamento_float,
     }
+    def _cleanup_token():
+        _lote_payloads.pop(mc_token, None)
+    threading.Timer(1800, _cleanup_token).start()
 
     clientes_revisao = []
     for c in clientes:
@@ -3714,7 +3717,9 @@ def anuncios_multi_cliente_stream(mc_token):
             with open(tmp_path, "rb") as f:
                 file_bytes = f.read()
             filename = f"mc_criativo{tmp_ext}"
-            mime = "video/mp4" if tmp_ext == ".mp4" else "image/jpeg"
+            _EXT_MIME = {".mp4": "video/mp4", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                         ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp"}
+            mime = _EXT_MIME.get(tmp_ext, "image/jpeg")
         except Exception as e:
             yield _sse({"status": "erro", "cliente": "upload", "erro": f"Arquivo temp não encontrado: {e}", "idx": 0, "total": total})
             return
@@ -3767,10 +3772,12 @@ def anuncios_multi_cliente_stream(mc_token):
 
                 # 4. Anúncio
                 try:
+                    _CAMP_CTA = {"MESSAGES": "SEND_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}
+                    cta = _CAMP_CTA.get(camp_tipo, "SEND_MESSAGE")
                     ad_id = _meta_api.criar_anuncio(
                         token_val, account_id, adset_id, page_id, creative_ref,
                         copy_data.get("titulo", ""), copy_data.get("texto", ""),
-                        copy_data.get("cta", "SEND_MESSAGE"), link_url=link_url
+                        cta, link_url=link_url
                     )
                 except Exception as e3:
                     _meta_api.deletar_objeto_meta(token_val, adset_id)

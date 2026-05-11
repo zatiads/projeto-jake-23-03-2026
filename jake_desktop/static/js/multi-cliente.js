@@ -221,7 +221,8 @@
         if (el) { el.textContent = '\u2717 ' + d.cliente + ' \u2014 ' + d.erro; el.style.color = '#ef5350'; }
       } else if (d.status === 'concluido') {
         es.close();
-        if (btnPublicar) { btnPublicar.disabled = false; btnPublicar.textContent = 'Conclu\u00eddo \u2713'; }
+        _revisaoToken = null;
+        if (btnPublicar) { btnPublicar.disabled = true; btnPublicar.textContent = 'Conclu\u00eddo \u2713'; }
         if (btnVoltar)   btnVoltar.disabled = false;
       }
     };
