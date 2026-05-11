@@ -3687,6 +3687,138 @@ def anuncios_multi_cliente_preparar():
     return jsonify({"token": mc_token, "clientes": clientes_revisao})
 
 
+@app.route("/api/anuncios/multi-cliente/stream/<mc_token>")
+@login_required
+def anuncios_multi_cliente_stream(mc_token):
+    """Para cada cliente: faz upload da imagem na conta dele, cria campanha+conjunto+anúncio via SSE."""
+    payload = _lote_payloads.pop(mc_token, None)
+
+    def _sse(data: dict) -> str:
+        return "data: " + json.dumps(data, ensure_ascii=False) + "\n\n"
+
+    def _gerar():
+        if not payload:
+            yield _sse({"status": "erro", "cliente": "", "erro": "Token inválido ou expirado", "idx": 0, "total": 0})
+            return
+
+        clientes      = payload["clientes"]
+        tmp_uuid_val  = payload["tmp_uuid"]
+        tmp_ext       = payload.get("tmp_ext", ".jpg")
+        copy_data     = payload["copy"]
+        campanha_nome = payload["campanha_nome"]
+        orcamento     = payload["orcamento"]
+        total         = len(clientes)
+
+        tmp_path = os.path.join(_TMP_DIR, f"{tmp_uuid_val}{tmp_ext}")
+        try:
+            with open(tmp_path, "rb") as f:
+                file_bytes = f.read()
+            filename = f"mc_criativo{tmp_ext}"
+            mime = "video/mp4" if tmp_ext == ".mp4" else "image/jpeg"
+        except Exception as e:
+            yield _sse({"status": "erro", "cliente": "upload", "erro": f"Arquivo temp não encontrado: {e}", "idx": 0, "total": total})
+            return
+
+        for idx, cliente in enumerate(clientes):
+            nome       = cliente["nome"]
+            account_id = cliente["account_id"]
+            token_key  = cliente["token_key"]
+            token_val  = os.getenv(token_key, "")
+            page_id    = cliente.get("page_id", "")
+            camp_tipo  = cliente.get("campanha_tipo", "MESSAGES")
+            localizacao = cliente.get("localizacao_json") or {}
+            publico    = cliente.get("publico_json") or {}
+            link_url   = cliente.get("link_url") or ""
+            opt_goal   = cliente.get("optimization_goal") or None
+            pixel_id   = cliente.get("pixel_id") or None
+
+            yield _sse({"status": "publicando", "cliente": nome, "idx": idx + 1, "total": total})
+
+            campaign_id = adset_id = ad_id = None
+            try:
+                # 1. Upload imagem para a conta deste cliente
+                if "video" in mime:
+                    video_id = _meta_api.upload_video(token_val, account_id, file_bytes, filename)
+                    creative_ref = {"tipo": "video", "video_id": video_id}
+                else:
+                    resultado = _meta_api.upload_imagem(token_val, account_id, file_bytes, filename)
+                    creative_ref = {"tipo": "imagem", "hash": resultado["hash"]}
+
+                # 2. Campanha
+                cbo = camp_tipo not in ("ENGAGEMENT", "PURCHASE")
+                campaign_id = _meta_api.criar_campanha(
+                    token_val, account_id, camp_tipo, campanha_nome, orcamento, cbo=cbo
+                )
+
+                # 3. Conjunto
+                try:
+                    adset_id = _meta_api.criar_conjunto(
+                        token_val, account_id, campaign_id, camp_tipo, publico, localizacao,
+                        orcamento=(orcamento if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None),
+                        optimization_goal=opt_goal, pixel_id=pixel_id
+                    )
+                except Exception as e2:
+                    _meta_api.deletar_objeto_meta(token_val, campaign_id)
+                    raise Exception(f"Falha no conjunto: {e2}")
+
+                # 4. Anúncio
+                try:
+                    ad_id = _meta_api.criar_anuncio(
+                        token_val, account_id, adset_id, page_id, creative_ref,
+                        copy_data.get("titulo", ""), copy_data.get("texto", ""),
+                        copy_data.get("cta", "SEND_MESSAGE"), link_url=link_url
+                    )
+                except Exception as e3:
+                    _meta_api.deletar_objeto_meta(token_val, adset_id)
+                    _meta_api.deletar_objeto_meta(token_val, campaign_id)
+                    raise Exception(f"Falha no anúncio: {e3}")
+
+                # 5. Log
+                try:
+                    conn = _get_db(); cur = conn.cursor()
+                    cur.execute("""
+                        INSERT INTO ad_publish_log
+                            (cliente_id, account_id, campaign_id, adset_id, ad_id,
+                             status, audience_id, payload_json)
+                        VALUES (%s,%s,%s,%s,%s,'sucesso',NULL,%s)
+                    """, (cliente["id"], account_id, campaign_id, adset_id, ad_id,
+                          json.dumps(copy_data)))
+                    conn.commit(); conn.close()
+                except Exception:
+                    pass
+
+                yield _sse({"status": "ok", "cliente": nome, "ad_id": ad_id, "idx": idx + 1, "total": total})
+
+            except Exception as e:
+                try:
+                    conn = _get_db(); cur = conn.cursor()
+                    cur.execute("""
+                        INSERT INTO ad_publish_log
+                            (cliente_id, account_id, campaign_id, adset_id, ad_id,
+                             status, audience_id, erro_msg, payload_json)
+                        VALUES (%s,%s,%s,%s,%s,'erro',NULL,%s,%s)
+                    """, (cliente["id"], account_id, campaign_id, adset_id, ad_id,
+                          str(e), json.dumps(copy_data)))
+                    conn.commit(); conn.close()
+                except Exception:
+                    pass
+                yield _sse({"status": "erro", "cliente": nome, "erro": str(e), "idx": idx + 1, "total": total})
+
+        # Limpar arquivo temp
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
+        yield _sse({"status": "concluido", "total": total})
+
+    return app.response_class(
+        _gerar(),
+        mimetype="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"}
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════════
 #  ABA SUBIR ANÚNCIOS — Builder de Lote
 # ══════════════════════════════════════════════════════════════════════════
