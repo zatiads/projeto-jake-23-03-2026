@@ -16,7 +16,7 @@
 
   // ── Sub-navegação tabs ──────────────────────────────
   window.anuSwitchTab = function(tab) {
-    ['publicar', 'publicos', 'lote'].forEach(function(t) {
+    ['publicar', 'publicos', 'lote', 'multi'].forEach(function(t) {
       var el  = document.getElementById('anu-tab-' + t);
       var btn = document.querySelector('[data-tab="' + t + '"]');
       if (el)  el.style.display = (t === tab) ? '' : 'none';
@@ -24,6 +24,7 @@
     });
     if (tab === 'publicos') carregarPublicos();
     if (tab === 'lote' && typeof loteInit === 'function') loteInit();
+    if (tab === 'multi' && typeof mcInit === 'function') mcInit();
   };
 
   // ── Init ───────────────────────────────────────────
