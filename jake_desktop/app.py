@@ -3562,6 +3562,25 @@ def anuncios_publicar():
 
 
 # ══════════════════════════════════════════════════════════════════════════
+#  ABA SUBIR ANÚNCIOS — Multi-Cliente
+# ══════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/anuncios/multi-cliente/upload-temp", methods=["POST"])
+@login_required
+def anuncios_multi_cliente_upload_temp():
+    """Salva o criativo em /tmp e retorna tmp_uuid. Upload real para cada conta ocorre na stream."""
+    if "criativo" not in request.files:
+        return jsonify({"error": "Campo 'criativo' ausente"}), 400
+    arq  = request.files["criativo"]
+    ext  = os.path.splitext(arq.filename or "img")[1].lower() or ".jpg"
+    mime = arq.content_type or "image/jpeg"
+    tmp_uuid_val = str(uuid.uuid4())
+    tmp_path = os.path.join(_TMP_DIR, f"{tmp_uuid_val}{ext}")
+    arq.save(tmp_path)
+    return jsonify({"tmp_uuid": tmp_uuid_val, "ext": ext, "mime": mime, "ok": True})
+
+
+# ══════════════════════════════════════════════════════════════════════════
 #  ABA SUBIR ANÚNCIOS — Builder de Lote
 # ══════════════════════════════════════════════════════════════════════════
 
