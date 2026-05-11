@@ -3598,6 +3598,82 @@ def anuncios_multi_cliente_upload_temp():
     return jsonify({"tmp_uuid": tmp_uuid_val, "ext": ext, "mime": mime, "ok": True})
 
 
+@app.route("/api/anuncios/multi-cliente/preparar", methods=["POST"])
+@login_required
+def anuncios_multi_cliente_preparar():
+    """Valida payload, busca perfis dos clientes, armazena em memória, retorna token + dados para revisão."""
+    d = request.get_json() or {}
+    cliente_ids = d.get("cliente_ids") or []
+    if not cliente_ids:
+        return jsonify({"error": "Selecione ao menos um cliente"}), 400
+    if not d.get("tmp_uuid"):
+        return jsonify({"error": "Criativo obrigatório — faça upload primeiro"}), 400
+    if not d.get("campanha_nome"):
+        return jsonify({"error": "Nome da campanha obrigatório"}), 400
+    if not d.get("orcamento"):
+        return jsonify({"error": "Orçamento obrigatório"}), 400
+
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute(
+            "SELECT id, nome, agencia, account_id, token_key, page_id, link_url, "
+            "campanha_tipo, optimization_goal, pixel_id, localizacao_json, publico_json "
+            "FROM ad_client_profiles WHERE id = ANY(%s)",
+            (cliente_ids,)
+        )
+        clientes = [dict(c) for c in cur.fetchall()]
+        conn.close()
+    except Exception as e:
+        return jsonify({"error": f"Erro ao buscar clientes: {e}"}), 500
+
+    if not clientes:
+        return jsonify({"error": "Nenhum cliente encontrado"}), 404
+
+    erros = []
+    for c in clientes:
+        loc = c.get("localizacao_json") or {}
+        if not (loc.get("paises") or loc.get("cidades")):
+            erros.append(f"{c['nome']}: localização não configurada")
+        if not c.get("page_id"):
+            erros.append(f"{c['nome']}: page_id não configurado")
+        if c.get("token_key") not in _VALID_TOKEN_KEYS:
+            erros.append(f"{c['nome']}: token_key inválido")
+    if erros:
+        return jsonify({"error": "Clientes com configuração incompleta", "detalhes": erros}), 400
+
+    mc_token = str(uuid.uuid4())
+    _lote_payloads[mc_token] = {
+        "clientes":      clientes,
+        "tmp_uuid":      d["tmp_uuid"],
+        "tmp_ext":       d.get("tmp_ext", ".jpg"),
+        "copy":          d.get("copy") or {},
+        "campanha_nome": d["campanha_nome"],
+        "orcamento":     float(d["orcamento"]),
+    }
+
+    clientes_revisao = []
+    for c in clientes:
+        pub = c.get("publico_json") or {}
+        loc = c.get("localizacao_json") or {}
+        cidades_raw = loc.get("cidades") or []
+        cidades = [ci.get("name", ci) if isinstance(ci, dict) else ci for ci in cidades_raw]
+        clientes_revisao.append({
+            "id":       c["id"],
+            "nome":     c["nome"],
+            "agencia":  c["agencia"],
+            "publico": {
+                "idade_min": pub.get("idade_min", 18),
+                "idade_max": pub.get("idade_max", 65),
+                "genero":    pub.get("genders", []),
+                "cidades":   cidades,
+                "paises":    loc.get("paises") or [],
+            },
+            "orcamento": d["orcamento"],
+        })
+
+    return jsonify({"token": mc_token, "clientes": clientes_revisao})
+
+
 # ══════════════════════════════════════════════════════════════════════════
 #  ABA SUBIR ANÚNCIOS — Builder de Lote
 # ══════════════════════════════════════════════════════════════════════════
