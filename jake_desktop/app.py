@@ -3572,11 +3572,29 @@ def anuncios_multi_cliente_upload_temp():
     if "criativo" not in request.files:
         return jsonify({"error": "Campo 'criativo' ausente"}), 400
     arq  = request.files["criativo"]
-    ext  = os.path.splitext(arq.filename or "img")[1].lower() or ".jpg"
+    # Limite de 10 MB
+    file_bytes = arq.read()
+    if len(file_bytes) > 10 * 1024 * 1024:
+        return jsonify({"error": "Arquivo muito grande (máx 10 MB)"}), 400
+    _ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4"}
+    raw_ext = os.path.splitext(arq.filename or "img")[1].lower()
+    ext  = raw_ext if raw_ext in _ALLOWED_EXTS else ".jpg"
     mime = arq.content_type or "image/jpeg"
     tmp_uuid_val = str(uuid.uuid4())
     tmp_path = os.path.join(_TMP_DIR, f"{tmp_uuid_val}{ext}")
-    arq.save(tmp_path)
+    try:
+        with open(tmp_path, "wb") as f:
+            f.write(file_bytes)
+    except Exception as e:
+        return jsonify({"error": f"Erro ao salvar arquivo: {e}"}), 500
+    # Limpeza automática após 30 min
+    def _cleanup():
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
+    threading.Timer(1800, _cleanup).start()
     return jsonify({"tmp_uuid": tmp_uuid_val, "ext": ext, "mime": mime, "ok": True})
 
 
