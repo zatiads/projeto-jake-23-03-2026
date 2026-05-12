@@ -3837,6 +3837,585 @@ def anuncios_multi_cliente_stream(mc_token):
 
 
 # ══════════════════════════════════════════════════════════════════════════
+#  ABA DRIVE BATCH — Publicar lote via Google Drive
+# ══════════════════════════════════════════════════════════════════════════
+
+_DRIVE_MIME_EXT = {
+    "image/jpeg": ".jpg",
+    "image/png":  ".png",
+    "image/webp": ".webp",
+    "image/gif":  ".gif",
+}
+
+
+@app.route("/api/anuncios/drive/listar", methods=["POST"])
+@login_required
+def drive_listar():
+    """Lista arquivos de imagem de uma pasta pública do Google Drive."""
+    d = request.get_json() or {}
+    url = (d.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "URL obrigatória"}), 400
+
+    # Extrair folder_id da URL
+    folder_id = None
+    if "/folders/" in url:
+        folder_id = url.split("/folders/")[1].split("?")[0].split("/")[0]
+    elif "id=" in url:
+        from urllib.parse import urlparse, parse_qs
+        folder_id = parse_qs(urlparse(url).query).get("id", [None])[0]
+    if not folder_id:
+        return jsonify({"error": "Não foi possível extrair o ID da pasta. Use um link no formato drive.google.com/drive/folders/..."}), 400
+
+    api_key = os.getenv("GOOGLE_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "GOOGLE_API_KEY não configurada no servidor"}), 500
+
+    try:
+        resp = requests.get(
+            "https://www.googleapis.com/drive/v3/files",
+            params={
+                "q": f"'{folder_id}' in parents",
+                "fields": "files(id,name,mimeType,thumbnailLink)",
+                "key": api_key,
+                "pageSize": 100,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        return jsonify({"error": f"Erro ao acessar Google Drive: {e}"}), 500
+
+    files = [
+        {"id": f["id"], "name": f["name"], "thumbnailLink": f.get("thumbnailLink", ""),
+         "ext": _DRIVE_MIME_EXT.get(f["mimeType"], ".jpg"), "mimeType": f["mimeType"]}
+        for f in data.get("files", [])
+        if f.get("mimeType") in _DRIVE_MIME_EXT
+    ]
+    if not files:
+        return jsonify({"error": "Nenhuma imagem encontrada na pasta (suporta JPG, PNG, WebP, GIF)"}), 400
+
+    return jsonify({"files": files, "total": len(files)})
+
+
+@app.route("/api/anuncios/drive/campanhas")
+@login_required
+def drive_campanhas():
+    """Busca campanhas ativas/pausadas de um cliente para seleção na UI."""
+    cliente_id = request.args.get("cliente_id")
+    if not cliente_id:
+        return jsonify({"error": "cliente_id obrigatório"}), 400
+
+    conn = None
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute(
+            "SELECT account_id, token_key FROM ad_client_profiles WHERE id = %s",
+            (cliente_id,)
+        )
+        row = cur.fetchone()
+    except Exception as e:
+        return jsonify({"error": f"Erro ao buscar cliente: {e}"}), 500
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    if not row:
+        return jsonify({"error": "Cliente não encontrado"}), 404
+
+    account_id = row["account_id"]
+    token_key  = row["token_key"]
+    token      = os.getenv(token_key, "")
+    if not token:
+        return jsonify({"error": f"Token '{token_key}' não configurado"}), 500
+
+    try:
+        resp = requests.get(
+            f"https://graph.facebook.com/v21.0/{account_id}/campaigns",
+            params={
+                "fields": "id,name,effective_status",
+                "filtering": '[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]',
+                "access_token": token,
+                "limit": 50,
+            },
+            timeout=15,
+        )
+        data = resp.json()
+        if "error" in data:
+            return jsonify({"error": data["error"].get("message", "Erro Meta API")}), 400
+        campanhas = [{"id": c["id"], "name": c["name"], "status": c.get("effective_status", "")}
+                     for c in data.get("data", [])]
+    except Exception as e:
+        return jsonify({"error": f"Erro ao buscar campanhas: {e}"}), 500
+
+    return jsonify({"campanhas": campanhas})
+
+
+@app.route("/api/anuncios/drive/iniciar-copies", methods=["POST"])
+@login_required
+def drive_iniciar_copies():
+    """Armazena lista de arquivos em memória e retorna token para o stream de geração de copies."""
+    d = request.get_json() or {}
+    files = d.get("files") or []
+    campanha_tipo = d.get("campanha_tipo", "MESSAGES")
+    cliente_id    = d.get("cliente_id")
+
+    if not files:
+        return jsonify({"error": "Lista de arquivos vazia"}), 400
+    if campanha_tipo not in ("MESSAGES", "PURCHASE", "ENGAGEMENT"):
+        return jsonify({"error": "campanha_tipo inválido"}), 400
+
+    # Buscar nome do cliente para usar no prompt (opcional, melhora copy)
+    cliente_nome = ""
+    if cliente_id:
+        conn = None
+        try:
+            conn = _get_db(); cur = conn.cursor()
+            cur.execute("SELECT nome FROM ad_client_profiles WHERE id = %s", (cliente_id,))
+            row = cur.fetchone()
+            if row:
+                cliente_nome = row["nome"]
+        except Exception:
+            pass
+        finally:
+            try: conn.close()
+            except Exception: pass
+
+    copies_token = str(uuid.uuid4())
+    _lote_payloads[copies_token] = {
+        "files":          files,
+        "campanha_tipo":  campanha_tipo,
+        "cliente_nome":   cliente_nome,
+    }
+    def _cleanup():
+        _lote_payloads.pop(copies_token, None)
+    threading.Timer(1800, _cleanup).start()
+
+    return jsonify({"copies_token": copies_token})
+
+
+_COPY_PROMPTS = {
+    "MESSAGES": (
+        "Você é especialista em copywriting para anúncios de WhatsApp. "
+        "Analise a imagem e crie uma copy persuasiva focada em gerar mensagens no WhatsApp. "
+        "Retorne APENAS JSON válido, sem markdown: "
+        '{"titulo": "string máx 40 chars", "texto": "string máx 125 chars"}'
+    ),
+    "PURCHASE": (
+        "Você é especialista em copywriting de conversão. "
+        "Analise a imagem e crie uma copy focada em venda direta com urgência. "
+        "Retorne APENAS JSON válido, sem markdown: "
+        '{"titulo": "string máx 40 chars", "texto": "string máx 125 chars"}'
+    ),
+    "ENGAGEMENT": (
+        "Você é especialista em copywriting de engajamento. "
+        "Analise a imagem e crie uma copy instigante que gere curtidas e comentários. "
+        "Retorne APENAS JSON válido, sem markdown: "
+        '{"titulo": "string máx 40 chars", "texto": "string máx 125 chars"}'
+    ),
+}
+
+
+@app.route("/api/anuncios/drive/gerar-copies/stream/<copies_token>")
+@login_required
+def drive_gerar_copies_stream(copies_token):
+    """SSE: para cada arquivo do Drive, baixa, gera copy com Claude Vision, emite evento."""
+    payload = _lote_payloads.pop(copies_token, None)
+
+    def _sse(data: dict) -> str:
+        return "data: " + json.dumps(data, ensure_ascii=False) + "\n\n"
+
+    def _gerar():
+        if not payload:
+            yield _sse({"event": "erro", "index": 0, "msg": "Token inválido ou expirado"})
+            return
+
+        files         = payload["files"]
+        camp_tipo     = payload["campanha_tipo"]
+        cliente_nome  = payload.get("cliente_nome", "")
+        total         = len(files)
+        system_prompt = _COPY_PROMPTS.get(camp_tipo, _COPY_PROMPTS["MESSAGES"])
+        if cliente_nome:
+            system_prompt += f"\n\nCliente: {cliente_nome}"
+
+        api_key = os.getenv("GOOGLE_API_KEY", "")
+        client  = _anthropic_client()
+
+        for idx, f in enumerate(files):
+            file_id   = f["id"]
+            file_name = f["name"]
+            mime_type = f.get("mimeType", "image/jpeg")
+            ext       = _DRIVE_MIME_EXT.get(mime_type, ".jpg")
+
+            # 1. Baixar imagem do Drive
+            try:
+                dl_resp = requests.get(
+                    f"https://www.googleapis.com/drive/v3/files/{file_id}",
+                    params={"alt": "media", "key": api_key},
+                    timeout=30,
+                )
+                dl_resp.raise_for_status()
+                file_bytes = dl_resp.content
+            except Exception as e:
+                yield _sse({"event": "erro", "index": idx, "file_id": file_id, "msg": f"Download falhou: {e}"})
+                continue
+
+            # 2. Salvar em /tmp com TTL de 30 min
+            tmp_uuid_val = str(uuid.uuid4())
+            tmp_path     = os.path.join(_TMP_DIR, f"{tmp_uuid_val}{ext}")
+            try:
+                with open(tmp_path, "wb") as fp:
+                    fp.write(file_bytes)
+            except Exception as e:
+                yield _sse({"event": "erro", "index": idx, "file_id": file_id, "msg": f"Erro ao salvar tmp: {e}"})
+                continue
+
+            def _cleanup_tmp(path=tmp_path):
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except Exception:
+                    pass
+            threading.Timer(1800, _cleanup_tmp).start()
+
+            # 3. Gerar copy com Claude Vision
+            if not client:
+                yield _sse({"event": "erro", "index": idx, "file_id": file_id, "msg": "ANTHROPIC_API_KEY não configurada"})
+                continue
+            try:
+                b64 = base64.b64encode(file_bytes).decode("utf-8")
+                msg = client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=300,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": [
+                        {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": b64}},
+                        {"type": "text", "text": "Gere a copy para este criativo."},
+                    ]}]
+                )
+                raw = msg.content[0].text.strip()
+                if "```" in raw:
+                    raw = raw.split("```")[1]
+                    if raw.startswith("json\n"):
+                        raw = raw[5:]
+                resultado = json.loads(raw)
+                titulo = resultado.get("titulo", "")
+                texto  = resultado.get("texto", "")
+            except Exception as e:
+                yield _sse({"event": "erro", "index": idx, "file_id": file_id,
+                            "tmp_uuid": tmp_uuid_val, "ext": ext, "msg": f"Erro IA: {e}"})
+                continue
+
+            yield _sse({
+                "event":    "copy",
+                "index":    idx,
+                "file_id":  file_id,
+                "file_name": file_name,
+                "tmp_uuid": tmp_uuid_val,
+                "ext":      ext,
+                "titulo":   titulo,
+                "texto":    texto,
+            })
+
+        yield _sse({"event": "concluido", "total": total})
+
+    return app.response_class(
+        _gerar(),
+        mimetype="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
+
+
+@app.route("/api/anuncios/drive/preparar", methods=["POST"])
+@login_required
+def drive_preparar():
+    """Valida payload completo, verifica arquivos tmp, armazena em memória, retorna token."""
+    d             = request.get_json() or {}
+    cliente_ids   = d.get("cliente_ids") or []
+    mode          = d.get("mode", "single")
+    campanha_cfg  = d.get("campanha") or {}
+    conjuntos_cfg = d.get("conjuntos") or {}
+    camp_tipo     = d.get("campanha_tipo", "MESSAGES")
+    copies        = d.get("copies") or []
+
+    # Validação básica
+    if not cliente_ids:
+        return jsonify({"error": "Selecione ao menos um cliente"}), 400
+    if not copies:
+        return jsonify({"error": "Lista de copies vazia"}), 400
+
+    try:
+        num_conj   = int(conjuntos_cfg.get("num", 0))
+        criat_por  = int(conjuntos_cfg.get("criativos_por", 0))
+        orcamento  = float(conjuntos_cfg.get("orcamento", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Configuração de conjuntos inválida"}), 400
+
+    if num_conj < 1 or criat_por < 1:
+        return jsonify({"error": "Número de conjuntos e criativos por conjunto devem ser >= 1"}), 400
+    if num_conj * criat_por != len(copies):
+        return jsonify({
+            "error": f"{num_conj} conjuntos × {criat_por} criativos = {num_conj * criat_por}, mas há {len(copies)} copies"
+        }), 400
+
+    # Buscar clientes no banco
+    conn = None
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute(
+            "SELECT id, nome, agencia, account_id, token_key, page_id, link_url, "
+            "campanha_tipo, optimization_goal, pixel_id, localizacao_json, publico_json, "
+            "campanha_id_existente "
+            "FROM ad_client_profiles WHERE id = ANY(%s)",
+            (cliente_ids,)
+        )
+        clientes = [dict(c) for c in cur.fetchall()]
+    except Exception as e:
+        return jsonify({"error": f"Erro ao buscar clientes: {e}"}), 500
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    if len(clientes) != len(cliente_ids):
+        return jsonify({"error": "Um ou mais clientes não encontrados"}), 404
+
+    # Validar campanha salva para modo multi com tipo=salva
+    if mode == "multi" and campanha_cfg.get("tipo") == "salva":
+        sem_campanha = [c["nome"] for c in clientes if not c.get("campanha_id_existente")]
+        if sem_campanha:
+            return jsonify({"error": f"Clientes sem campanha salva: {', '.join(sem_campanha)}"}), 400
+
+    # Validar campos obrigatórios por cliente
+    erros = []
+    for c in clientes:
+        if not c.get("account_id"):
+            erros.append(f"{c['nome']}: account_id não configurado")
+        if not c.get("page_id"):
+            erros.append(f"{c['nome']}: page_id não configurado")
+        if c.get("token_key") not in _VALID_TOKEN_KEYS:
+            erros.append(f"{c['nome']}: token_key inválido")
+        loc = c.get("localizacao_json") or {}
+        if not (loc.get("paises") or loc.get("cidades")):
+            erros.append(f"{c['nome']}: localização não configurada")
+    if erros:
+        return jsonify({"error": "Clientes com configuração incompleta", "detalhes": erros}), 400
+
+    # Verificar arquivos tmp no disco
+    for cp in copies:
+        tmp_uuid_val = cp.get("tmp_uuid", "")
+        ext          = cp.get("ext", ".jpg")
+        tmp_path     = os.path.join(_TMP_DIR, f"{tmp_uuid_val}{ext}")
+        if not os.path.exists(tmp_path):
+            return jsonify({"error": "Arquivos expirados — regere as copies antes de publicar", "expired": True}), 400
+
+    # Armazenar payload
+    db_token = str(uuid.uuid4())
+    _lote_payloads[db_token] = {
+        "clientes":     clientes,
+        "mode":         mode,
+        "campanha_cfg": campanha_cfg,
+        "conjuntos":    {"num": num_conj, "orcamento": orcamento, "criativos_por": criat_por},
+        "camp_tipo":    camp_tipo,
+        "copies":       copies,
+    }
+    def _cleanup_token():
+        _lote_payloads.pop(db_token, None)
+    threading.Timer(1800, _cleanup_token).start()
+
+    return jsonify({
+        "token": db_token,
+        "resumo": {
+            "clientes":   len(clientes),
+            "conjuntos":  num_conj,
+            "total_ads":  len(clientes) * num_conj * criat_por,
+        }
+    })
+
+
+@app.route("/api/anuncios/drive/stream/<db_token>")
+@login_required
+def drive_stream(db_token):
+    """SSE: para cada cliente, cria campanha+conjuntos+anúncios no Meta Ads."""
+    payload = _lote_payloads.pop(db_token, None)
+
+    def _sse(data: dict) -> str:
+        return "data: " + json.dumps(data, ensure_ascii=False) + "\n\n"
+
+    _CAMP_CTA = {"MESSAGES": "SEND_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}
+
+    def _gerar():
+        if not payload:
+            yield _sse({"status": "erro", "msg": "Token inválido ou expirado"})
+            return
+
+        clientes     = payload["clientes"]
+        campanha_cfg = payload["campanha_cfg"]
+        conjuntos    = payload["conjuntos"]
+        camp_tipo    = payload["camp_tipo"]
+        copies       = payload["copies"]
+        num_conj     = conjuntos["num"]
+        criat_por    = conjuntos["criativos_por"]
+        orcamento    = conjuntos["orcamento"]
+        camp_nome    = campanha_cfg.get("nome", "Campanha Drive Batch")
+        cta          = _CAMP_CTA.get(camp_tipo, "SEND_MESSAGE")
+        cbo          = (camp_tipo == "MESSAGES")
+
+        all_tmp_paths = set()
+
+        for idx_c, cliente in enumerate(clientes):
+            nome         = cliente["nome"]
+            account_id   = cliente["account_id"]
+            token_key    = cliente["token_key"]
+            token_val    = os.getenv(token_key, "")
+            page_id      = cliente.get("page_id", "")
+            localizacao  = cliente.get("localizacao_json") or {}
+            publico      = cliente.get("publico_json") or {}
+            opt_goal     = cliente.get("optimization_goal") or None
+            pixel_id     = cliente.get("pixel_id") or None
+            link_url     = cliente.get("link_url") or ""
+
+            if not token_val:
+                yield _sse({"status": "erro", "msg": f"{nome}: token não encontrado", "cliente": nome})
+                continue
+
+            yield _sse({"status": "publicando", "msg": f"Iniciando {nome}...", "cliente": nome})
+
+            # Resolver campaign_id
+            newly_created_campaign = False
+            campaign_id = None
+            try:
+                tipo_camp = campanha_cfg.get("tipo", "nova")
+                if tipo_camp == "existente":
+                    campaign_id = campanha_cfg["id"]
+                elif tipo_camp == "salva":
+                    campaign_id = cliente.get("campanha_id_existente")
+                    if not campaign_id:
+                        yield _sse({"status": "erro", "msg": f"{nome}: campanha_id_existente não definida", "cliente": nome})
+                        continue
+                else:  # nova
+                    camp_budget = (num_conj * orcamento) if cbo else orcamento
+                    campaign_id = _meta_api.criar_campanha(
+                        token_val, account_id, camp_tipo, camp_nome, camp_budget, cbo=cbo
+                    )
+                    newly_created_campaign = True
+            except Exception as e:
+                yield _sse({"status": "erro", "msg": f"{nome}: erro ao criar campanha: {e}", "cliente": nome})
+                continue
+
+            # Criar conjuntos e anúncios
+            created_adset_ids = []
+            client_error = False
+
+            for i in range(num_conj):
+                slice_start = i * criat_por
+                adset_copies = copies[slice_start: slice_start + criat_por]
+
+                yield _sse({
+                    "status": "publicando",
+                    "msg":    f"{nome} — Conjunto {i+1}/{num_conj}",
+                    "cliente": nome,
+                })
+
+                try:
+                    adset_orcamento = orcamento if not cbo else None
+                    adset_id = _meta_api.criar_conjunto(
+                        token_val, account_id, campaign_id, camp_tipo,
+                        publico, localizacao,
+                        orcamento=adset_orcamento,
+                        optimization_goal=opt_goal,
+                        pixel_id=pixel_id,
+                        nome=f"Conjunto {i+1} — {camp_nome}",
+                    )
+                    created_adset_ids.append(adset_id)
+                except Exception as e:
+                    for aid in created_adset_ids:
+                        try: _meta_api.deletar_objeto_meta(token_val, aid)
+                        except Exception: pass
+                    if newly_created_campaign:
+                        try: _meta_api.deletar_objeto_meta(token_val, campaign_id)
+                        except Exception: pass
+                    yield _sse({"status": "erro", "msg": f"{nome} — Conjunto {i+1} falhou: {e}", "cliente": nome})
+                    client_error = True
+                    break
+
+                for cp in adset_copies:
+                    tmp_uuid_val = cp.get("tmp_uuid", "")
+                    ext          = cp.get("ext", ".jpg")
+                    titulo       = cp.get("titulo", "")
+                    texto        = cp.get("texto", "")
+                    tmp_path     = os.path.join(_TMP_DIR, f"{tmp_uuid_val}{ext}")
+                    all_tmp_paths.add(tmp_path)
+
+                    try:
+                        with open(tmp_path, "rb") as fp:
+                            file_bytes = fp.read()
+                        filename = f"drive_batch_{tmp_uuid_val}{ext}"
+
+                        upload_result = _meta_api.upload_imagem(token_val, account_id, file_bytes, filename)
+                        creative_ref  = {"tipo": "imagem", "hash": upload_result["hash"]}
+
+                        ad_id = _meta_api.criar_anuncio(
+                            token_val, account_id, adset_id, page_id,
+                            creative_ref, titulo, texto, cta, link_url=link_url,
+                        )
+
+                        try:
+                            conn = _get_db(); cur = conn.cursor()
+                            cur.execute("""
+                                INSERT INTO ad_publish_log
+                                    (cliente_id, account_id, campaign_id, adset_id, ad_id,
+                                     status, audience_id, payload_json)
+                                VALUES (%s,%s,%s,%s,%s,'sucesso',NULL,%s)
+                            """, (cliente["id"], account_id, campaign_id, adset_id, ad_id,
+                                  json.dumps({"titulo": titulo, "texto": texto})))
+                            conn.commit()
+                        except Exception:
+                            pass
+                        finally:
+                            try: conn.close()
+                            except Exception: pass
+
+                        yield _sse({"status": "ok", "msg": f"Ad criado: {titulo[:30]}", "cliente": nome})
+
+                    except Exception as e:
+                        try:
+                            conn = _get_db(); cur = conn.cursor()
+                            cur.execute("""
+                                INSERT INTO ad_publish_log
+                                    (cliente_id, account_id, campaign_id, adset_id, ad_id,
+                                     status, audience_id, erro_msg, payload_json)
+                                VALUES (%s,%s,%s,%s,NULL,'erro',NULL,%s,%s)
+                            """, (cliente["id"], account_id, campaign_id, adset_id, str(e),
+                                  json.dumps({"titulo": titulo, "texto": texto})))
+                            conn.commit()
+                        except Exception:
+                            pass
+                        finally:
+                            try: conn.close()
+                            except Exception: pass
+                        yield _sse({"status": "erro", "msg": f"Ad '{titulo[:20]}' falhou: {e}", "cliente": nome})
+
+            if not client_error:
+                yield _sse({"status": "ok", "msg": f"{nome} concluído ✓", "cliente": nome})
+
+        for tmp_path in all_tmp_paths:
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+
+        yield _sse({"status": "concluido"})
+
+    return app.response_class(
+        _gerar(),
+        mimetype="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
 #  ABA SUBIR ANÚNCIOS — Builder de Lote
 # ══════════════════════════════════════════════════════════════════════════
 
