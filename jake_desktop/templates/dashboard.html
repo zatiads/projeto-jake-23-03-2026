@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/anuncios.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/gestor.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/criativos.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dr.css') }}">
   <style id="rotina-styles">
@@ -143,6 +144,10 @@
         <a class="nav-item" data-page="anuncios" href="#">
           <span class="nav-icon">▲</span>
           <span class="nav-label">Subir Anúncios</span>
+        </a>
+        <a class="nav-item" data-page="gestor" href="#">
+          <span class="nav-icon">🤖</span>
+          <span class="nav-label">Gestor IA</span>
         </a>
         <a class="nav-item" data-page="copys" href="#">
           <span class="nav-icon">✦</span>
@@ -999,6 +1004,83 @@
               <button class="anu-btn-publicar-confirm" id="anu-modal-confirmar">Confirmar e Criar</button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- GESTOR IA ───────────────────────────────────── -->
+      <section class="page" id="page-gestor">
+        <div class="gestor-layout">
+
+          <!-- Header da página -->
+          <div class="gestor-header">
+            <div class="gestor-title">Gestor IA</div>
+            <div id="gestor-status-bar" class="gestor-status-bar">
+              <span id="gs-saudaveis" class="gs-badge gs-ok">● 0 saudáveis</span>
+              <span id="gs-otimizadas" class="gs-badge gs-warn">⚡ 0 otimizadas</span>
+              <span id="gs-alertas" class="gs-badge gs-err">⚠ 0 alertas</span>
+              <span id="gs-ultima" class="gs-ultima"></span>
+              <button class="anu-btn-secondary" style="font-size:11px;margin-left:auto" onclick="gestorRodar()" id="gs-btn-rodar">▶ Rodar agora</button>
+            </div>
+          </div>
+
+          <!-- Sub-abas -->
+          <div class="gestor-tabs">
+            <button class="gestor-tab-btn active" data-tab="timeline" onclick="gestorSwitchTab('timeline')">Timeline</button>
+            <button class="gestor-tab-btn" data-tab="contas" onclick="gestorSwitchTab('contas')">Contas</button>
+            <button class="gestor-tab-btn" data-tab="relatorios" onclick="gestorSwitchTab('relatorios')">Relatórios</button>
+            <button class="gestor-tab-btn" data-tab="config" onclick="gestorSwitchTab('config')">Configuração</button>
+          </div>
+
+          <!-- Sub-aba: Timeline -->
+          <div id="gestor-tab-timeline" class="gestor-tab-content">
+            <div class="gestor-painel-wrap">
+
+              <!-- Painel esquerdo: Timeline -->
+              <div class="gestor-painel-left">
+                <div class="gestor-filtros">
+                  <span style="font-size:9px;color:rgba(176,190,197,.4)">FILTRAR:</span>
+                  <button class="gs-filtro active" onclick="gestorFiltrar('tudo')">Tudo</button>
+                  <button class="gs-filtro" onclick="gestorFiltrar('piloti')">Piloti</button>
+                  <button class="gs-filtro" onclick="gestorFiltrar('dentto')">Dentto</button>
+                  <button class="gs-filtro" onclick="gestorFiltrar('alertas')">Alertas</button>
+                </div>
+                <div id="gestor-timeline" class="gestor-timeline"></div>
+              </div>
+
+              <!-- Painel direito: Detalhe -->
+              <div class="gestor-painel-right">
+                <div id="gestor-detalhe" class="gestor-detalhe-vazio">
+                  <p style="color:rgba(176,190,197,.3);font-size:12px;text-align:center;margin-top:40px">Selecione um evento na timeline</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Sub-aba: Contas -->
+          <div id="gestor-tab-contas" class="gestor-tab-content" style="display:none">
+            <div id="gestor-contas-grid" class="gestor-contas-grid"></div>
+          </div>
+
+          <!-- Sub-aba: Relatórios -->
+          <div id="gestor-tab-relatorios" class="gestor-tab-content" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+              <span style="font-size:13px;font-weight:600">PDFs Gerados</span>
+              <button class="anu-btn-secondary" style="font-size:11px" onclick="gestorGerarRelatorio()">Gerar agora</button>
+            </div>
+            <div id="gestor-relatorios-lista"></div>
+          </div>
+
+          <!-- Sub-aba: Configuração -->
+          <div id="gestor-tab-config" class="gestor-tab-content" style="display:none">
+            <div style="max-width:480px;display:flex;flex-direction:column;gap:16px;">
+              <div style="background:rgba(176,190,197,.05);border-radius:8px;padding:16px;">
+                <div style="font-size:11px;color:rgba(176,190,197,.4);margin-bottom:8px;">ÚLTIMAS EXECUÇÕES</div>
+                <div id="gestor-log-execucoes" style="display:flex;flex-direction:column;gap:6px;"></div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
@@ -2786,6 +2868,7 @@
   <script src="{{ url_for('static', filename='js/lote.js') }}"></script>
   <script src="{{ url_for('static', filename='js/multi-cliente.js') }}"></script>
   <script src="{{ url_for('static', filename='js/drive-batch.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/gestor.js') }}"></script>
   <script src="{{ url_for('static', filename='js/criativos.js') }}"></script>
   <script src="{{ url_for('static', filename='js/financeiro.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance.js') }}"></script>

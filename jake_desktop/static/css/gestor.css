@@ -1,0 +1,248 @@
+/* ── Gestor IA ──────────────────────────────────────────────────────────── */
+
+.gestor-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+  gap: 12px;
+}
+
+.gestor-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gestor-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: rgba(176,190,197,.95);
+  letter-spacing: .04em;
+}
+
+.gestor-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gs-badge {
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 9px;
+  border: 1px solid;
+}
+.gs-ok   { background: rgba(76,175,80,.12);  border-color: rgba(76,175,80,.25);  color: #4caf50; }
+.gs-warn { background: rgba(255,183,77,.12); border-color: rgba(255,183,77,.25); color: #ffb74d; }
+.gs-err  { background: rgba(255,100,100,.12);border-color: rgba(255,100,100,.25);color: #ff6464; }
+.gs-ultima { font-size: 9px; color: rgba(176,190,197,.3); margin-left: 4px; }
+
+/* Sub-abas */
+.gestor-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid rgba(176,190,197,.08);
+  padding-bottom: 8px;
+}
+
+.gestor-tab-btn {
+  background: none;
+  border: none;
+  color: rgba(176,190,197,.4);
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.gestor-tab-btn:hover { color: rgba(176,190,197,.7); }
+.gestor-tab-btn.active {
+  background: rgba(0,180,216,.1);
+  color: #00b4d8;
+}
+
+.gestor-tab-content { flex: 1; overflow: hidden; }
+
+/* Dois painéis */
+.gestor-painel-wrap {
+  display: flex;
+  height: calc(100vh - 220px);
+  gap: 0;
+}
+
+.gestor-painel-left {
+  width: 320px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(176,190,197,.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.gestor-painel-right {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* Filtros */
+.gestor-filtros {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(176,190,197,.06);
+  flex-shrink: 0;
+}
+
+.gs-filtro {
+  background: none;
+  border: none;
+  color: rgba(176,190,197,.35);
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+.gs-filtro.active {
+  background: rgba(0,180,216,.15);
+  color: #00b4d8;
+}
+
+/* Timeline */
+.gestor-timeline {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gs-evento {
+  background: rgba(176,190,197,.04);
+  border: 1px solid rgba(176,190,197,.07);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.gs-evento:hover { border-color: rgba(176,190,197,.15); }
+.gs-evento.selected {
+  background: rgba(0,180,216,.08);
+  border-color: rgba(0,180,216,.2);
+  border-left: 3px solid #00b4d8;
+}
+
+.gs-evento-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+.gs-evento-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.gs-evento-tipo { font-size: 9px; font-weight: 600; }
+.gs-evento-hora { margin-left: auto; font-size: 8px; color: rgba(176,190,197,.3); }
+.gs-evento-conta { font-size: 10px; color: rgba(176,190,197,.9); font-weight: 500; }
+.gs-evento-resumo { font-size: 9px; color: rgba(176,190,197,.45); }
+
+.gs-data-header {
+  font-size: 8px;
+  color: rgba(176,190,197,.3);
+  letter-spacing: .06em;
+  margin: 8px 0 4px;
+}
+
+/* Painel detalhe */
+.gestor-detalhe-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.gs-detalhe-tipo { font-size: 9px; font-weight: 600; letter-spacing: .05em; }
+.gs-detalhe-conta { font-size: 14px; color: rgba(176,190,197,.95); font-weight: 600; margin-top: 2px; }
+.gs-detalhe-sub { font-size: 10px; color: rgba(176,190,197,.4); }
+
+.gs-analise-box {
+  background: rgba(0,180,216,.05);
+  border: 1px solid rgba(0,180,216,.12);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+.gs-analise-label { font-size: 9px; color: #00b4d8; letter-spacing: .05em; margin-bottom: 6px; }
+.gs-analise-texto { font-size: 10px; color: rgba(176,190,197,.75); line-height: 1.6; }
+
+.gs-acoes-lista { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+
+.gs-acao-row {
+  background: rgba(176,190,197,.04);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gs-acao-icone {
+  width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; flex-shrink: 0;
+}
+.gs-acao-icone.pausar { background: rgba(255,100,100,.12); color: #ff6464; }
+.gs-acao-icone.escalar { background: rgba(76,175,80,.12); color: #4caf50; }
+.gs-acao-titulo { font-size: 10px; color: rgba(176,190,197,.85); font-weight: 500; }
+.gs-acao-sub { font-size: 9px; color: rgba(176,190,197,.4); }
+.gs-acao-rev {
+  margin-left: auto;
+  font-size: 9px; color: rgba(176,190,197,.3);
+  background: rgba(176,190,197,.06);
+  border: none; border-radius: 4px; padding: 2px 8px; cursor: pointer;
+}
+.gs-acao-rev:hover { color: #ff6464; background: rgba(255,100,100,.08); }
+.gs-acao-rev:disabled { opacity: .4; cursor: default; }
+
+.gs-metricas-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+.gs-metrica-card {
+  background: rgba(176,190,197,.04);
+  border-radius: 6px;
+  padding: 8px;
+  text-align: center;
+}
+.gs-metrica-label { font-size: 8px; color: rgba(176,190,197,.4); }
+.gs-metrica-valor { font-size: 13px; color: rgba(176,190,197,.8); font-weight: 600; margin: 2px 0; }
+.gs-metrica-sub { font-size: 8px; color: rgba(176,190,197,.3); }
+
+/* Grid de contas */
+.gestor-contas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  padding: 4px;
+}
+.gs-conta-card {
+  background: rgba(176,190,197,.04);
+  border-radius: 6px;
+  border: 1px solid rgba(176,190,197,.07);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.gs-conta-card:hover { border-color: rgba(176,190,197,.15); }
+.gs-conta-nome { font-size: 11px; font-weight: 600; color: rgba(176,190,197,.85); }
+.gs-conta-agencia { font-size: 9px; color: rgba(176,190,197,.35); }
+.gs-conta-saude {
+  display: inline-block; margin-top: 6px;
+  font-size: 9px; padding: 1px 6px; border-radius: 10px;
+}
+.gs-conta-saude.saudavel { background: rgba(76,175,80,.1); color: #4caf50; }
+.gs-conta-saude.otimizada { background: rgba(255,183,77,.1); color: #ffb74d; }
+.gs-conta-saude.alerta { background: rgba(255,100,100,.1); color: #ff6464; }
