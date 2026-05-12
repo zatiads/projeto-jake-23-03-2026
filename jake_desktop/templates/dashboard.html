@@ -492,6 +492,7 @@
               <button class="anu-btn-secondary anu-tab-btn" data-tab="publicos" onclick="anuSwitchTab('publicos')" style="font-size:13px">Públicos Salvos</button>
               <button class="anu-btn-secondary anu-tab-btn" data-tab="lote" onclick="anuSwitchTab('lote')" style="font-size:13px">Lote ⚡</button>
               <button class="anu-btn-secondary anu-tab-btn" data-tab="multi" onclick="anuSwitchTab('multi')" style="font-size:13px">Multi-Cliente</button>
+              <button class="anu-btn-secondary anu-tab-btn" data-tab="drive" onclick="anuSwitchTab('drive')" style="font-size:13px">Drive 📂</button>
             </div>
             <div class="anu-header-actions">
               <button class="anu-btn-icon" id="anu-btn-refresh-clientes" title="Recarregar clientes">↺</button>
@@ -827,6 +828,162 @@
               </div>
 
             </div><!-- /anu-tab-multi -->
+
+            <div id="anu-tab-drive" style="display:none">
+
+              <!-- Stepper header -->
+              <div class="mc-stepper">
+                <div class="db-step active" data-step="1"><span class="mc-step-num">1</span> Drive</div>
+                <div class="db-step" data-step="2"><span class="mc-step-num">2</span> Conjuntos</div>
+                <div class="db-step" data-step="3"><span class="mc-step-num">3</span> Copies</div>
+                <div class="db-step" data-step="4"><span class="mc-step-num">4</span> Publicar</div>
+              </div>
+
+              <!-- Passo 1: Drive + Cliente -->
+              <div id="db-passo-1">
+                <div style="display:flex;flex-direction:column;gap:12px;max-width:520px;">
+                  <label class="anu-label">Link da pasta do Google Drive
+                    <div style="display:flex;gap:8px;margin-top:4px;">
+                      <input type="text" id="db-drive-url" class="anu-input" placeholder="https://drive.google.com/drive/folders/..." style="flex:1">
+                      <button class="anu-btn-secondary" onclick="dbCarregarDrive()" id="db-btn-carregar" style="white-space:nowrap">Carregar</button>
+                    </div>
+                    <div id="db-drive-status" style="font-size:11px;color:rgba(176,190,197,.4);margin-top:4px;"></div>
+                  </label>
+
+                  <div id="db-drive-preview" style="display:none">
+                    <div style="font-size:12px;color:rgba(176,190,197,.5);margin-bottom:6px" id="db-drive-count"></div>
+                    <div id="db-drive-thumbs" style="display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow-y:auto;margin-bottom:12px;"></div>
+                  </div>
+
+                  <div id="db-cliente-section" style="display:none">
+                    <label class="anu-label">Modo
+                      <div style="display:flex;gap:12px;margin-top:4px;">
+                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                          <input type="radio" name="db-mode" value="single" checked onchange="dbModoChange()"> Um cliente
+                        </label>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                          <input type="radio" name="db-mode" value="multi" onchange="dbModoChange()"> Vários clientes
+                        </label>
+                      </div>
+                    </label>
+
+                    <div id="db-single-cliente" style="margin-top:8px;">
+                      <label class="anu-label">Cliente
+                        <select id="db-cliente-select" class="anu-input" style="margin-top:4px;"></select>
+                      </label>
+                    </div>
+
+                    <div id="db-multi-clientes" style="display:none;margin-top:8px;">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:13px;font-weight:600">Selecione os clientes</span>
+                        <div style="display:flex;gap:6px;">
+                          <button class="anu-btn-secondary" style="font-size:11px" onclick="dbSelecionarAgencia('dentto')">Dentto</button>
+                          <button class="anu-btn-secondary" style="font-size:11px" onclick="dbSelecionarAgencia('piloti')">Piloti</button>
+                          <button class="anu-btn-secondary" style="font-size:11px" onclick="dbLimparClientes()">Limpar</button>
+                        </div>
+                      </div>
+                      <div id="db-lista-clientes" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;"></div>
+                    </div>
+                  </div>
+                </div>
+                <button class="anu-btn-primary" style="margin-top:16px" onclick="dbIrPasso(2)" id="db-btn-passo2" disabled>Próximo →</button>
+              </div>
+
+              <!-- Passo 2: Campanha + Conjuntos -->
+              <div id="db-passo-2" style="display:none">
+                <div style="display:flex;flex-direction:column;gap:12px;max-width:520px;">
+
+                  <label class="anu-label">Tipo de campanha
+                    <select id="db-camp-tipo" class="anu-input" style="margin-top:4px;" onchange="dbCampTipoChange()">
+                      <option value="MESSAGES">Mensagens (WhatsApp)</option>
+                      <option value="PURCHASE">Compra / Conversão</option>
+                      <option value="ENGAGEMENT">Engajamento</option>
+                    </select>
+                  </label>
+
+                  <div id="db-campanha-section">
+                    <label class="anu-label">Campanha
+                      <div style="display:flex;gap:12px;margin-top:4px;flex-wrap:wrap;">
+                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                          <input type="radio" name="db-camp-tipo-sel" value="nova" checked onchange="dbCampSelChange()"> Nova campanha
+                        </label>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;" id="db-existente-opt">
+                          <input type="radio" name="db-camp-tipo-sel" value="existente" onchange="dbCampSelChange()"> Campanha existente
+                        </label>
+                        <label id="db-salva-opt" style="display:none;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                          <input type="radio" name="db-camp-tipo-sel" value="salva" onchange="dbCampSelChange()"> Usar campanha salva de cada cliente
+                        </label>
+                      </div>
+                    </label>
+
+                    <div id="db-camp-nova" style="margin-top:8px;">
+                      <input type="text" id="db-camp-nome" class="anu-input" placeholder="Nome da campanha">
+                    </div>
+
+                    <div id="db-camp-existente" style="display:none;margin-top:8px;">
+                      <button class="anu-btn-secondary" onclick="dbBuscarCampanhas()" style="font-size:12px">Buscar campanhas ativas</button>
+                      <div id="db-campanhas-lista" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto;"></div>
+                    </div>
+                  </div>
+
+                  <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <label class="anu-label" style="flex:1;min-width:120px;">Nº de conjuntos
+                      <input type="number" id="db-num-conj" class="anu-input" placeholder="3" min="1" oninput="dbValidarConfig()" style="margin-top:4px;">
+                    </label>
+                    <label class="anu-label" style="flex:1;min-width:120px;">Criativos por conjunto
+                      <input type="number" id="db-criat-por" class="anu-input" placeholder="10" min="1" oninput="dbValidarConfig()" style="margin-top:4px;">
+                    </label>
+                    <label class="anu-label" style="flex:1;min-width:120px;">Orçamento por conjunto (R$)
+                      <input type="number" id="db-orcamento" class="anu-input" placeholder="10" min="1" step="0.01" style="margin-top:4px;">
+                    </label>
+                  </div>
+                  <div id="db-config-status" style="font-size:12px;color:rgba(176,190,197,.4);"></div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:16px;">
+                  <button class="anu-btn-secondary" onclick="dbIrPasso(1)">← Voltar</button>
+                  <button class="anu-btn-primary" onclick="dbIrPasso(3)" id="db-btn-passo3" disabled>Próximo →</button>
+                </div>
+              </div>
+
+              <!-- Passo 3: Gerar Copies -->
+              <div id="db-passo-3" style="display:none">
+                <div id="db-copies-idle">
+                  <p style="font-size:13px;color:rgba(176,190,197,.5);margin-bottom:12px;">O Jake vai analisar cada imagem e gerar título + texto automaticamente. Você pode editar antes de publicar.</p>
+                  <button class="anu-btn-primary" onclick="dbGerarCopies()" id="db-btn-gerar">Gerar Copies ✨</button>
+                </div>
+                <div id="db-copies-progresso" style="display:none;">
+                  <div style="font-size:13px;font-weight:600;margin-bottom:8px" id="db-copies-counter">Gerando 0/0...</div>
+                  <div style="width:100%;height:4px;background:rgba(176,190,197,.1);border-radius:2px;margin-bottom:16px;">
+                    <div id="db-copies-bar" style="height:100%;background:#00b4d8;border-radius:2px;width:0%;transition:width .3s;"></div>
+                  </div>
+                </div>
+                <div id="db-copies-grid" style="display:none;margin-top:12px;">
+                  <div id="db-copies-rows" style="display:flex;flex-direction:column;gap:12px;max-height:500px;overflow-y:auto;margin-bottom:16px;"></div>
+                  <div style="display:flex;gap:8px;">
+                    <button class="anu-btn-secondary" onclick="dbIrPasso(2)">← Voltar</button>
+                    <button class="anu-btn-primary" onclick="dbIrPasso(4)" id="db-btn-passo4">Revisar →</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Passo 4: Revisar + Publicar -->
+              <div id="db-passo-4" style="display:none">
+                <div id="db-resumo" style="background:rgba(176,190,197,.05);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;"></div>
+                <div id="db-breakdown" style="font-size:12px;color:rgba(176,190,197,.5);margin-bottom:16px;"></div>
+                <div id="db-pub-progresso" style="display:none;margin-bottom:16px;">
+                  <div style="font-size:13px;font-weight:600;margin-bottom:8px">Publicando...</div>
+                  <div id="db-pub-lista" style="display:flex;flex-direction:column;gap:4px;font-size:12px;max-height:300px;overflow-y:auto;"></div>
+                </div>
+                <div id="db-expired-msg" style="display:none;padding:12px;background:rgba(255,100,100,.1);border-radius:8px;margin-bottom:12px;font-size:13px;color:#ff6464;">
+                  Arquivos expiraram (30 min). <button class="anu-btn-secondary" style="font-size:11px;margin-left:8px;" onclick="dbIrPasso(3);dbGerarCopies()">Regerar copies</button>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <button class="anu-btn-secondary" onclick="dbIrPasso(3)" id="db-btn-voltar4">← Voltar</button>
+                  <button class="anu-btn-primary" onclick="dbPublicar()" id="db-btn-publicar">Publicar Tudo 🚀</button>
+                </div>
+              </div>
+
+            </div><!-- /anu-tab-drive -->
 
           </main>
         </div>
@@ -2628,6 +2785,7 @@
   <script src="{{ url_for('static', filename='js/anuncios.js') }}"></script>
   <script src="{{ url_for('static', filename='js/lote.js') }}"></script>
   <script src="{{ url_for('static', filename='js/multi-cliente.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/drive-batch.js') }}"></script>
   <script src="{{ url_for('static', filename='js/criativos.js') }}"></script>
   <script src="{{ url_for('static', filename='js/financeiro.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance.js') }}"></script>
