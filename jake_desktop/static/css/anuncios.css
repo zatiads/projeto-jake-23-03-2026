@@ -153,3 +153,22 @@
   background: rgba(100,181,246,.25);
   color: #64b5f6;
 }
+
+/* ── Drive Batch ──────────────────────────────────────── */
+.db-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(176, 190, 197, 0.3);
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+.db-step.active {
+  color: #00b4d8;
+  background: rgba(0, 180, 216, 0.1);
+}
+.db-step.active .mc-step-num {
+  background: #00b4d8;
+  color: #0a0e1a;
+}
