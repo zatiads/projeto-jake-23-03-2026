@@ -86,6 +86,20 @@ CREATE TABLE gestor_acoes (
 );
 ```
 
+### Tabela `gestor_relatorios`
+
+```sql
+CREATE TABLE gestor_relatorios (
+    id           SERIAL PRIMARY KEY,
+    gerado_em    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    agencia      TEXT NOT NULL,   -- 'piloti' | 'dentto'
+    periodo_ini  DATE NOT NULL,
+    periodo_fim  DATE NOT NULL,
+    arquivo_path TEXT NOT NULL,   -- caminho relativo em static/relatorios/gestor/
+    tamanho_kb   INTEGER
+);
+```
+
 ### Alteração em `ad_client_profiles`
 
 Adicionar coluna:
@@ -114,10 +128,12 @@ ADD COLUMN gestor_ativo BOOLEAN DEFAULT TRUE;
 ### `coletor.py`
 
 - Para cada conta em `ad_client_profiles WHERE gestor_ativo = TRUE`:
+  - Lê `token_key` da linha (ex: `META_TOKEN_PILOTI`) e resolve o token via `os.getenv(token_key)`; nunca usa token global único
   - Busca insights a nível de ad (últimos 30 dias): `spend`, `impressions`, `clicks`, `actions`, `frequency`, `cpm`, `ctr`
+  - **Agrega por conta** antes de passar ao analista — retorna métricas sumarizadas por conta (CPL médio, desvio padrão, top/bottom ads), não linhas brutas por ad. Isso garante que o payload caiba no contexto do Claude mesmo com 28 contas e muitos ads.
   - Busca saldo atual da conta (`spend_cap`, `amount_spent`)
   - Calcula CPL médio histórico (30d) e desvio padrão
-  - Retorna lista de dicts por conta — sem IA, só dados brutos
+  - Retorna lista de dicts por conta — sem IA, só dados agregados
 
 ### `analista.py`
 
@@ -157,19 +173,30 @@ ADD COLUMN gestor_ativo BOOLEAN DEFAULT TRUE;
 - Método `reverter(acao_id)`:
   - Lê `valor_antes` do banco
   - Restaura o estado original via Meta API
-  - Atualiza `revertido = TRUE`, `revertido_em = NOW()`
+  - Atualiza `revertido = TRUE`, `revertido_em = NOW()` na linha original — não cria nova linha
+
+**Helpers Meta API necessários** — adicionar em `meta/meta_api.py` (módulo compartilhado):
+```python
+atualizar_status_ad(token, ad_id, status)        # status: "ACTIVE" | "PAUSED"
+atualizar_status_campanha(token, campaign_id, status)
+atualizar_orcamento_conjunto(token, adset_id, daily_budget_cents)  # executor lê escala_pct de gestor_config_json da conta para calcular o novo valor
+get_ad(token, ad_id)                              # busca estado atual de um ad
+get_adset(token, adset_id)                        # busca estado atual de um adset
+```
+Estes helpers são usados tanto pelo executor quanto pelo rollback.
 
 ### `relator.py`
 
-- Executa toda sexta-feira (cron separado 08:00 ou chamado pelo orquestrador)
+- Executa toda sexta-feira, chamado pelo orquestrador ao final da varredura das 06:00
+- Recebe os dados já agregados do coletor da mesma execução — não refaz queries à Meta API
 - Para cada agência (Piloti, Dentto):
   - Busca ações da semana em `gestor_acoes`
-  - Busca métricas finais do coletor
+  - Usa métricas do coletor já coletadas na mesma execução
   - Chama Claude para gerar texto narrativo por conta
   - Renderiza HTML com os dados
   - Converte para PDF com `weasyprint`
   - Salva em `jake_desktop/static/relatorios/gestor/` com nome `piloti_YYYYMMDD.pdf`
-  - Registra na tabela `gestor_varreduras` (ou tabela separada `gestor_relatorios`)
+  - Registra na tabela `gestor_relatorios` (tabela dedicada, não em `gestor_varreduras`)
 
 **Estrutura do PDF:**
 ```
@@ -241,7 +268,7 @@ GET  /api/gestor/varreduras              → lista execuções + status
 GET  /api/gestor/acoes?filtros           → lista ações (filtro por data, conta, tipo)
 POST /api/gestor/reverter/<acao_id>      → rollback de uma ação
 POST /api/gestor/reverter-evento/<varredura_id>  → rollback de todas as ações de um evento
-POST /api/gestor/rodar                   → dispara varredura manual (SSE stream)
+POST /api/gestor/rodar                   → dispara varredura manual em background, requer @login_required (retorna 202 imediatamente; progresso consultável via GET /api/gestor/varreduras)
 GET  /api/gestor/relatorios              → lista PDFs
 GET  /api/gestor/relatorios/<id>/download → download PDF
 GET  /api/gestor/contas                  → lista contas com saúde atual
@@ -262,7 +289,7 @@ PATCH /api/gestor/contas/<id>            → atualiza gestor_config_json ou gest
 - Cada ação é atômica e logada com estado anterior
 - Rollback individual: botão por linha de ação no painel direito
 - Rollback total do evento: botão "↩ Reverter tudo" no header do painel direito
-- Reversão é logada como nova ação com `status = 'revertido'`
+- Reversão atualiza a linha original em `gestor_acoes`: `revertido = TRUE`, `revertido_em = NOW()` — não cria nova linha
 - Ações já revertidas não podem ser revertidas novamente (botão desabilitado)
 
 ---
