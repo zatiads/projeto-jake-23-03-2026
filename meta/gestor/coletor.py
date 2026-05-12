@@ -13,16 +13,6 @@ from datetime import date, timedelta
 from typing import List, Dict, Any
 
 GRAPH_URL = "https://graph.facebook.com/v21.0"
-LEADS_ACTION_TYPES = {
-    "onsite_conversion.messaging_conversation_started_7d",
-    "onsite_conversion.messaging_conversation_started_1d",
-    "messaging_conversation_started_7d",
-    "messaging_conversation_started_1d",
-    "purchase",
-    "offsite_conversion.fb_pixel_purchase",
-    "link_click",
-}
-
 
 def _get_db():
     db_url = os.environ.get("DATABASE_URL", "").strip()
@@ -125,7 +115,7 @@ def _agregar_conta(rows: list, objetivo: str) -> dict:
         "total_ads":        len(ads_com_dados),
         "dias_historico":   30,
         "top_ads":    ads_sorted[:3],
-        "bottom_ads": ads_sorted[-3:] if len(ads_sorted) > 3 else [],
+        "bottom_ads": ads_sorted[-3:] if len(ads_sorted) > 5 else [],
     }
 
 
@@ -155,7 +145,11 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
     perfis = []
     for conta in contas:
         token_key   = conta["token_key"]
-        token       = os.getenv(token_key, "").strip()
+        try:
+            from meta.meta_api import _resolve_token
+            token = _resolve_token(token_key)
+        except Exception:
+            token = os.getenv(token_key, "").strip()
         if not token:
             perfis.append({
                 "cliente_id": conta["id"],
