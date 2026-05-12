@@ -4124,6 +4124,28 @@ _DRIVE_MIME_EXT = {
 }
 
 
+def _drive_download(file_id: str, timeout: int = 30) -> bytes:
+    """Baixa conteúdo de um arquivo do Drive sem autenticação OAuth.
+
+    Usa a URL de export pública que funciona para arquivos com
+    permissão 'qualquer pessoa com o link' (sem precisar de API key).
+    """
+    resp = requests.get(
+        "https://drive.google.com/uc",
+        params={"export": "download", "id": file_id},
+        timeout=timeout,
+        allow_redirects=True,
+    )
+    resp.raise_for_status()
+    # Google redireciona para uma página HTML de confirmação para arquivos grandes
+    if "text/html" in resp.headers.get("Content-Type", ""):
+        raise Exception(
+            "Arquivo muito grande — o Drive exige confirmação. "
+            "Tente reduzir o tamanho das imagens (< 25 MB) ou tornar a pasta pública."
+        )
+    return resp.content
+
+
 @app.route("/api/anuncios/drive/listar", methods=["POST"])
 @login_required
 def drive_listar():
@@ -4180,18 +4202,9 @@ def drive_listar():
 @login_required
 def drive_thumb(file_id):
     """Proxy de thumbnail — baixa via API key e repassa ao browser com cache."""
-    api_key = os.getenv("GOOGLE_API_KEY", "")
-    if not api_key:
-        return "", 404
     try:
-        resp = requests.get(
-            f"https://www.googleapis.com/drive/v3/files/{file_id}",
-            params={"alt": "media", "key": api_key},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        ct = resp.headers.get("Content-Type", "image/jpeg")
-        return Response(resp.content, content_type=ct,
+        data = _drive_download(file_id, timeout=15)
+        return Response(data, content_type="image/jpeg",
                         headers={"Cache-Control": "public, max-age=7200"})
     except Exception:
         return "", 404
@@ -4400,7 +4413,6 @@ def drive_gerar_copies_stream(copies_token):
         if cliente_nome:
             system_prompt += f"\n\nCliente: {cliente_nome}"
 
-        api_key = os.getenv("GOOGLE_API_KEY", "")
         client  = _anthropic_client()
 
         for idx, f in enumerate(files):
@@ -4411,13 +4423,7 @@ def drive_gerar_copies_stream(copies_token):
 
             # 1. Baixar imagem do Drive
             try:
-                dl_resp = requests.get(
-                    f"https://www.googleapis.com/drive/v3/files/{file_id}",
-                    params={"alt": "media", "key": api_key},
-                    timeout=30,
-                )
-                dl_resp.raise_for_status()
-                file_bytes = dl_resp.content
+                file_bytes = _drive_download(file_id)
             except Exception as e:
                 yield _sse_ev("erro", {"index": idx, "file_id": file_id, "msg": f"Download falhou: {e}"})
                 continue
