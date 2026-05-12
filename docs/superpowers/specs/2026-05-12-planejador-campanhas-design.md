@@ -177,7 +177,7 @@ data: {"status": "erro",     "msg": "Descrição do erro"}
 **Lógica interna da Fase 2:**
 
 1. Busca cliente em `ad_client_profiles` pelo `cliente_id`
-2. Obtém token Meta via `os.getenv(cliente.token_key)` diretamente (não via `meta_api._resolve_token` — `VALID_TOKEN_KEYS` do meta_api não inclui todos os token keys válidos do app)
+2. Valida `cliente.token_key in _VALID_TOKEN_KEYS` (set definido em `app.py:43`) — retorna erro SSE se inválido. Obtém token via `os.getenv(cliente.token_key)` diretamente (não via `meta_api._resolve_token`, cujo `VALID_TOKEN_KEYS` interno é um subset menor e pode rejeitar keys válidas do app)
 3. **Download do Drive** — dois passos (igual ao `drive_listar` + download do Drive Batch):
    - Parseia o `drive_link` para extrair `folder_id`
    - Lista arquivos da pasta via `GET https://www.googleapis.com/drive/v3/files?q='{folder_id}'+in+parents&key={GOOGLE_API_KEY}`
@@ -196,7 +196,7 @@ data: {"status": "erro",     "msg": "Descrição do erro"}
    - Se `cbo=True` (MESSAGES): orçamento no nível de campanha
    - Se `cbo=False` (ENGAGEMENT, PURCHASE): orçamento no nível de conjunto de anúncios
 7. Chama `meta_api.criar_campanha(token, account_id, campanha_nome, objetivo, cbo, orcamento_diario)`
-8. Chama `meta_api.criar_conjunto(token, account_id, campaign_id, objetivo, publico, localizacao, orcamento_diario_centavos, opt_goal, pixel_id)` — nota: `orcamento_diario` em R$ deve ser convertido para centavos (× 100) conforme padrão da Meta API
+8. Chama `meta_api.criar_conjunto(token, account_id, campaign_id, objetivo, publico, localizacao, orcamento_diario, opt_goal, pixel_id)` — passar o valor em R$ float diretamente; a função `criar_conjunto` converte para centavos internamente (`int(orcamento * 100)`)
 9. Para cada criativo: chama `meta_api.criar_anuncio(token, account_id, adset_id, page_id, creative_ref, copy_titulo, copy_texto, cta, link_url)`
 10. Em caso de erro após criar campanha/conjunto: chama `meta_api.deletar_objeto_meta` para rollback (mesmo padrão do Drive Batch)
 11. Não loga em banco — sem nova tabela. O tracking existente de campanhas (`controle_relatorios_semanais`) não se aplica aqui.
@@ -418,7 +418,7 @@ Regras:
 - Preserve params já extraídos — só atualize se o usuário corrigir
 - Se cliente não identificado na lista, coloque cliente_id: null e pergunte
 - Se copies não fornecidas e pronto: true, gere copy_titulo e copy_texto baseados no cliente e objetivo
-- campanha_nome auto-gerado se null: "{cliente_nome} — {objetivo_label} {mês}/{ano}" onde objetivo_label é o label legível (ex: "Engajamento", não "ENGAGEMENT")
+- campanha_nome auto-gerado se null: "{cliente_nome} — {objetivo_label} {mês}/{ano}" onde objetivo_label é: MESSAGES→"Mensagens", ENGAGEMENT→"Engajamento", PURCHASE→"Conversões"
 - Seja conciso na resposta — máximo 2 frases
 ```
 
