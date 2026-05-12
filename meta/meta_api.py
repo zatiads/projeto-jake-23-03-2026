@@ -504,3 +504,74 @@ def criar_anuncio(token: str, account_id: str, adset_id: str, page_id: str,
 def deletar_objeto_meta(token: str, objeto_id: str) -> None:
     """Deleta campanha/conjunto/anúncio pelo ID (usado em rollback)."""
     requests.delete(f"{GRAPH_URL}/{objeto_id}", params={"access_token": token})
+
+
+# ── GESTOR IA — helpers de leitura e atualização ──────────────────────────
+
+def get_ad(token: str, ad_id: str) -> dict:
+    """Retorna estado atual de um ad (id, name, status, effective_status)."""
+    resp = requests.get(
+        f"{GRAPH_URL}/{ad_id}",
+        params={"fields": "id,name,status,effective_status", "access_token": token},
+        timeout=15,
+    )
+    data = resp.json()
+    if "error" in data:
+        raise Exception(data["error"].get("message", "Erro ao buscar ad"))
+    return data
+
+
+def get_adset(token: str, adset_id: str) -> dict:
+    """Retorna estado atual de um adset (id, name, status, daily_budget)."""
+    resp = requests.get(
+        f"{GRAPH_URL}/{adset_id}",
+        params={"fields": "id,name,status,daily_budget,lifetime_budget", "access_token": token},
+        timeout=15,
+    )
+    data = resp.json()
+    if "error" in data:
+        raise Exception(data["error"].get("message", "Erro ao buscar adset"))
+    return data
+
+
+def atualizar_status_ad(token: str, ad_id: str, status: str) -> None:
+    """Atualiza status de um ad. status: 'ACTIVE' | 'PAUSED'."""
+    resp = requests.post(
+        f"{GRAPH_URL}/{ad_id}",
+        params={"access_token": token},
+        data={"status": status},
+        timeout=15,
+    )
+    data = resp.json()
+    if "error" in data:
+        raise Exception(data["error"].get("message", f"Erro ao atualizar status do ad {ad_id}"))
+
+
+def atualizar_status_campanha(token: str, campaign_id: str, status: str) -> None:
+    """Atualiza status de uma campanha. status: 'ACTIVE' | 'PAUSED'."""
+    resp = requests.post(
+        f"{GRAPH_URL}/{campaign_id}",
+        params={"access_token": token},
+        data={"status": status},
+        timeout=15,
+    )
+    data = resp.json()
+    if "error" in data:
+        raise Exception(data["error"].get("message", f"Erro ao atualizar status da campanha {campaign_id}"))
+
+
+def atualizar_orcamento_conjunto(token: str, adset_id: str, daily_budget_cents: int) -> None:
+    """
+    Atualiza daily_budget de um adset.
+    daily_budget_cents: valor em centavos (ex: R$50 → 5000).
+    Executor calcula: novo = int(atual_cents * (1 + escala_pct/100)).
+    """
+    resp = requests.post(
+        f"{GRAPH_URL}/{adset_id}",
+        params={"access_token": token},
+        data={"daily_budget": str(daily_budget_cents)},
+        timeout=15,
+    )
+    data = resp.json()
+    if "error" in data:
+        raise Exception(data["error"].get("message", f"Erro ao atualizar orçamento do adset {adset_id}"))
