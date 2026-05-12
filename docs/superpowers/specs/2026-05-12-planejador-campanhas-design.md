@@ -31,7 +31,7 @@ jake_desktop/
 ```
 jake_desktop/
   templates/dashboard.html   # nav item + page section + link CSS + script tag
-  app.py                     # 3 endpoints novos: interpretar + transcrever + subir
+  app.py                     # 4 endpoints novos: interpretar + transcrever + subir (POST) + subir/stream/<token> (GET/SSE)
   static/js/app.js           # rota #planejador + callback planejadorInit()
 ```
 
@@ -130,11 +130,15 @@ Simples e isolado — não usa TTS nem GPT. O `/api/falar` faz coisas demais par
 
 ---
 
-### `POST /api/planejador/subir`
+### `POST /api/planejador/subir` + `GET /api/planejador/subir/stream/<token>`
 
-Endpoint de submissão. Recebe os params confirmados, baixa os criativos do Google Drive, cria a campanha no Meta Ads e retorna progresso via **SSE** (`text/event-stream`).
+Fluxo em **duas fases** (igual ao Drive Batch) para compatibilidade com `EventSource` do browser que não suporta POST.
 
-**Request:**
+**Fase 1 — POST `/api/planejador/subir`**
+
+Valida e salva o payload em memória, retorna token de sessão.
+
+Request:
 ```json
 {
   "cliente_id": 5,
@@ -148,29 +152,54 @@ Endpoint de submissão. Recebe os params confirmados, baixa os criativos do Goog
 }
 ```
 
-**SSE events emitidos:**
+Response:
+```json
+{"token": "uuid4-aqui"}
+```
+
+`publico_descricao` é campo de exibição (card + UX) — **não** é usado como targeting. O backend sempre usa `cliente.publico_json` como `publico` dict para `criar_conjunto`. Se `publico_json` for nulo, retorna 400 com mensagem pedindo ao usuário configurar o público no perfil do cliente.
+
+**Fase 2 — GET `/api/planejador/subir/stream/<token>`** (SSE)
+
+Executa a criação. O token expira em 30 minutos (mesmo padrão do Drive Batch).
+
+SSE events:
 ```
 data: {"status": "baixando", "msg": "Conectando ao Drive..."}
 data: {"status": "baixando", "msg": "3 criativos encontrados"}
-data: {"status": "criando", "msg": "Criando campanha no Meta Ads..."}
-data: {"status": "criando", "msg": "Criando conjunto de anúncios..."}
-data: {"status": "publicando", "msg": "Publicando anúncio 1/3..."}
-data: {"status": "concluido", "msg": "✅ Campanha criada!", "campaign_id": "120210XXXXXXXXX"}
-data: {"status": "erro", "msg": "Descrição do erro"}
+data: {"status": "criando",  "msg": "Criando campanha no Meta Ads..."}
+data: {"status": "criando",  "msg": "Criando conjunto de anúncios..."}
+data: {"status": "publicando","msg": "Publicando anúncio 1/3..."}
+data: {"status": "concluido","msg": "✅ Campanha criada!", "campaign_id": "120210XXXXXXXXX"}
+data: {"status": "erro",     "msg": "Descrição do erro"}
 ```
 
-**Lógica interna:**
+**Lógica interna da Fase 2:**
+
 1. Busca cliente em `ad_client_profiles` pelo `cliente_id`
-2. Resolve token via `_resolve_token(cliente.token_key)`
-3. Baixa arquivos do Drive link para `_TMP_DIR` (mesmo padrão do Drive Batch)
-4. Para cada criativo baixado: faz upload para o Meta como `AdCreative` com o copy fornecido
-5. Cria campanha → conjunto → ads via `meta_api.py` (mesmas helpers já existentes)
-6. Loga em `controle_relatorios_semanais` ou tabela existente de tracking
-7. Emite eventos SSE ao longo do processo
-
-**Não duplica lógica do Drive Batch** — usa as mesmas funções internas de `meta_api.py` (`criar_campanha`, `criar_conjunto`, `criar_ad`). O Drive Batch e o Planejador são fluxos diferentes de entrada para a mesma engine.
-
-**Fallback de público:** se `publico_descricao` fornecido mas não mapeado a targeting JSON, usa `cliente.publico_json` do banco. Se nem isso existir, retorna erro SSE pedindo ao usuário para configurar o público no perfil do cliente.
+2. Obtém token Meta via `os.getenv(cliente.token_key)` diretamente (não via `meta_api._resolve_token` — `VALID_TOKEN_KEYS` do meta_api não inclui todos os token keys válidos do app)
+3. **Download do Drive** — dois passos (igual ao `drive_listar` + download do Drive Batch):
+   - Parseia o `drive_link` para extrair `folder_id`
+   - Lista arquivos da pasta via `GET https://www.googleapis.com/drive/v3/files?q='{folder_id}'+in+parents&key={GOOGLE_API_KEY}`
+   - Baixa cada arquivo por `file_id` via `GET https://www.googleapis.com/drive/v3/files/{file_id}?alt=media&key={GOOGLE_API_KEY}`
+   - Salva em `_TMP_DIR` com `uuid4` como nome; coleta lista de `(tmp_path, ext)`
+4. Para cada criativo baixado: faz upload para o Meta como `AdImage`/`AdVideo`, obtém `hash` ou `video_id`
+5. Resolve parâmetros do cliente:
+   - `page_id = cliente.page_id` (obrigatório — retorna erro SSE se ausente)
+   - `publico = cliente.publico_json` (dict com `idade_min`, `idade_max`, `genders`)
+   - `localizacao = cliente.localizacao_json` (dict com `paises` e/ou `cidades`)
+   - `opt_goal = cliente.optimization_goal` (opcional)
+   - `pixel_id = cliente.pixel_id` (opcional — necessário para PURCHASE)
+   - `link_url = cliente.link_url` (usado para ENGAGEMENT e PURCHASE)
+   - `cta` = mapeado via `{"MESSAGES": "SEND_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}[objetivo]`
+6. **CBO logic:** `cbo = objetivo not in ("ENGAGEMENT", "PURCHASE")`
+   - Se `cbo=True` (MESSAGES): orçamento no nível de campanha
+   - Se `cbo=False` (ENGAGEMENT, PURCHASE): orçamento no nível de conjunto de anúncios
+7. Chama `meta_api.criar_campanha(token, account_id, campanha_nome, objetivo, cbo, orcamento_diario)`
+8. Chama `meta_api.criar_conjunto(token, account_id, campaign_id, objetivo, publico, localizacao, orcamento_diario_centavos, opt_goal, pixel_id)` — nota: `orcamento_diario` em R$ deve ser convertido para centavos (× 100) conforme padrão da Meta API
+9. Para cada criativo: chama `meta_api.criar_anuncio(token, account_id, adset_id, page_id, creative_ref, copy_titulo, copy_texto, cta, link_url)`
+10. Em caso de erro após criar campanha/conjunto: chama `meta_api.deletar_objeto_meta` para rollback (mesmo padrão do Drive Batch)
+11. Não loga em banco — sem nova tabela. O tracking existente de campanhas (`controle_relatorios_semanais`) não se aplica aqui.
 
 ---
 
@@ -229,11 +258,11 @@ qualquer      → 'chat'         quando usuário clica "Nova conversa" (planejad
    - Se pronto: true → renderiza card de confirmação, muda _estado para 'confirmando'
 3. Usuário clica "Confirmar e Subir" → planejadorConfirmar():
    - Muda _estado para 'subindo'
-   - POST /api/planejador/subir com _params
-   - Abre EventSource para SSE stream
+   - POST /api/planejador/subir com _params → recebe {token}
+   - Abre new EventSource('/api/planejador/subir/stream/' + token)
    - Cada evento SSE → renderiza bolha de progresso no chat
-   - status 'concluido' → muda _estado='concluido', renderiza mensagem de sucesso
-   - status 'erro' → muda _estado='chat', renderiza mensagem de erro
+   - status 'concluido' → fecha EventSource, muda _estado='concluido', renderiza mensagem de sucesso
+   - status 'erro' → fecha EventSource, muda _estado='chat', renderiza mensagem de erro
 ```
 
 ### Card de confirmação
