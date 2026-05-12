@@ -4197,6 +4197,66 @@ def drive_thumb(file_id):
         return "", 404
 
 
+@app.route("/api/anuncios/drive/publicos")
+@login_required
+def drive_publicos():
+    """Lista públicos salvos + custom audiences de um cliente para seleção no wizard."""
+    cliente_id = request.args.get("cliente_id")
+    if not cliente_id:
+        return jsonify({"error": "cliente_id obrigatório"}), 400
+
+    conn = None
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("SELECT account_id, token_key FROM ad_client_profiles WHERE id = %s", (cliente_id,))
+        row = cur.fetchone()
+    except Exception as e:
+        return jsonify({"error": f"Erro ao buscar cliente: {e}"}), 500
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    if not row:
+        return jsonify({"error": "Cliente não encontrado"}), 404
+
+    token = os.getenv(row["token_key"], "")
+    if not token:
+        return jsonify({"error": f"{row['token_key']} não configurado"}), 400
+
+    account_id = row["account_id"]
+    result = []
+
+    try:
+        for s in _meta_api.listar_publicos_salvos(token, account_id):
+            t   = s.get("targeting") or {}
+            geo = t.get("geo_locations") or {}
+            result.append({
+                "id":   s["id"],
+                "nome": s["name"],
+                "tipo": "salvo",
+                "data": {
+                    "idade_min": t.get("age_min", 18),
+                    "idade_max": t.get("age_max", 65),
+                    "genders":   t.get("genders", [1, 2]),
+                },
+            })
+    except Exception:
+        pass
+
+    try:
+        for c in _meta_api.listar_custom_audiences(token, account_id):
+            result.append({
+                "id":   c["id"],
+                "nome": f"{c['name']} ({c.get('subtype', '?')})",
+                "tipo": "custom",
+                "data": {"custom_audience_id": c["id"]},
+            })
+    except Exception:
+        pass
+
+    return jsonify({"publicos": result})
+
+
 @app.route("/api/anuncios/drive/campanhas")
 @login_required
 def drive_campanhas():
@@ -4634,16 +4694,22 @@ def drive_stream(db_token):
                 try:
                     # Resolver público para este conjunto
                     pub_cfg = publicos_conj[i] if i < len(publicos_conj) else {}
-                    if pub_cfg.get("tipo") == "custom":
+                    tipo_pub = pub_cfg.get("tipo", "padrao")
+                    if tipo_pub == "salvo":
+                        d = pub_cfg.get("data") or {}
                         publico_conj = {
-                            "idade_min": pub_cfg.get("idade_min", 18),
-                            "idade_max": pub_cfg.get("idade_max", 65),
-                            "genders":   pub_cfg.get("genders", [1, 2]),
+                            "idade_min": d.get("idade_min", 18),
+                            "idade_max": d.get("idade_max", 65),
+                            "genders":   d.get("genders", [1, 2]),
                         }
-                        if pub_cfg.get("custom_audience_id"):
-                            publico_conj["custom_audience_id"] = pub_cfg["custom_audience_id"]
+                    elif tipo_pub == "custom":
+                        d = pub_cfg.get("data") or {}
+                        publico_conj = {
+                            "idade_min": 18, "idade_max": 65, "genders": [1, 2],
+                            "custom_audience_id": d.get("custom_audience_id", pub_cfg.get("id", "")),
+                        }
                     else:
-                        publico_conj = publico  # público padrão do cliente
+                        publico_conj = publico  # padrão do cliente
 
                     adset_orcamento = orcamento if not cbo else None
                     adset_id = _meta_api.criar_conjunto(

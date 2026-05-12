@@ -8,7 +8,8 @@
   var _driveFiles  = [];   // [{id, name, thumbnailLink, ext, mimeType}]
   var _copies      = [];   // [{file_id, file_name, tmp_uuid, ext, titulo, texto}] (one per image)
   var _campanha    = {};   // {tipo, id, nome}
-  var _conjuntos   = {};   // {num, orcamento, criativos_por}
+  var _conjuntos          = {};   // {num, orcamento, criativos_por}
+  var _publicosDisponiveis = [];  // [{id, nome, tipo, data}] carregados da conta Meta
   var _campTipo    = 'MESSAGES';
   var _pubToken    = null;
   var _copiesLoaded = false;
@@ -216,62 +217,69 @@
   function _renderPublicosConj(num) {
     var container = document.getElementById('db-publicos-rows');
     if (!container) return;
-    // Preserve existing rows — só add/remove até chegar em num
-    var existing = container.querySelectorAll('.db-pub-row').length;
-    if (existing === num) return;
-    // Rebuild
+    container.innerHTML = '<div style="font-size:11px;color:rgba(176,190,197,.35);padding:4px 0;">Carregando públicos da conta...</div>';
+
+    var modo = document.querySelector('input[name="db-mode"]:checked');
+    var clienteId = (modo && modo.value === 'multi') ? _selecionados[0] : document.getElementById('db-cliente-select').value;
+    if (!clienteId) { container.innerHTML = ''; return; }
+
+    fetch('/api/anuncios/drive/publicos?cliente_id=' + clienteId)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _publicosDisponiveis = data.publicos || [];
+        _renderPublicosRows(num);
+      })
+      .catch(function () {
+        _publicosDisponiveis = [];
+        _renderPublicosRows(num);
+      });
+  }
+
+  function _renderPublicosRows(num) {
+    var container = document.getElementById('db-publicos-rows');
+    if (!container) return;
     container.innerHTML = '';
+
+    var opts = '<option value="padrao">— Padrão do cliente —</option>';
+    if (_publicosDisponiveis.length) {
+      var salvos  = _publicosDisponiveis.filter(function (p) { return p.tipo === 'salvo'; });
+      var customs = _publicosDisponiveis.filter(function (p) { return p.tipo === 'custom'; });
+      if (salvos.length) {
+        opts += '<optgroup label="Públicos salvos">';
+        salvos.forEach(function (p) { opts += '<option value="' + p.id + '">' + p.nome + '</option>'; });
+        opts += '</optgroup>';
+      }
+      if (customs.length) {
+        opts += '<optgroup label="Públicos personalizados (rmkt)">';
+        customs.forEach(function (p) { opts += '<option value="' + p.id + '">' + p.nome + '</option>'; });
+        opts += '</optgroup>';
+      }
+    } else {
+      opts += '<option disabled style="color:rgba(176,190,197,.3)">Nenhum público salvo encontrado</option>';
+    }
+
     for (var i = 1; i <= num; i++) {
       var div = document.createElement('div');
       div.className = 'db-pub-row';
-      div.style.cssText = 'padding:10px;background:rgba(176,190,197,.05);border:1px solid rgba(176,190,197,.08);border-radius:6px;margin-bottom:6px;';
+      div.style.cssText = 'display:flex;align-items:center;gap:12px;padding:8px 10px;background:rgba(176,190,197,.04);border:1px solid rgba(176,190,197,.08);border-radius:6px;margin-bottom:5px;';
       div.innerHTML =
-        '<div style="font-size:11px;font-weight:600;color:rgba(176,190,197,.6);margin-bottom:8px;">Conjunto ' + i + '</div>' +
-        '<div style="display:flex;gap:16px;flex-wrap:wrap;">' +
-          '<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">' +
-            '<input type="radio" name="db-pub-tipo-' + i + '" value="padrao" checked onchange="dbPublicoTipoChange(' + i + ')"> Padrão do cliente' +
-          '</label>' +
-          '<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">' +
-            '<input type="radio" name="db-pub-tipo-' + i + '" value="custom" onchange="dbPublicoTipoChange(' + i + ')"> Personalizar' +
-          '</label>' +
-        '</div>' +
-        '<div id="db-pub-custom-' + i + '" style="display:none;margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">' +
-          '<label style="font-size:11px;color:rgba(176,190,197,.5);">Idade mín<br><input type="number" id="db-pub-imin-' + i + '" class="anu-input" value="18" min="13" max="65" style="width:64px;margin-top:4px;"></label>' +
-          '<label style="font-size:11px;color:rgba(176,190,197,.5);">Idade máx<br><input type="number" id="db-pub-imax-' + i + '" class="anu-input" value="65" min="18" max="65" style="width:64px;margin-top:4px;"></label>' +
-          '<label style="font-size:11px;color:rgba(176,190,197,.5);">Gênero<br>' +
-            '<select id="db-pub-gen-' + i + '" class="anu-input" style="margin-top:4px;">' +
-              '<option value="all">Todos</option><option value="1">Masculino</option><option value="2">Feminino</option>' +
-            '</select>' +
-          '</label>' +
-          '<label style="font-size:11px;color:rgba(176,190,197,.5);flex:1;min-width:140px;">ID Público salvo (rmkt)<br>' +
-            '<input type="text" id="db-pub-caid-' + i + '" class="anu-input" placeholder="ex: 23848..." style="margin-top:4px;width:100%;">' +
-          '</label>' +
-        '</div>';
+        '<span style="font-size:11px;font-weight:600;color:rgba(176,190,197,.55);flex-shrink:0;min-width:72px;">Conjunto ' + i + '</span>' +
+        '<select id="db-pub-sel-' + i + '" class="anu-input" style="flex:1;">' + opts + '</select>';
       container.appendChild(div);
     }
   }
-
-  window.dbPublicoTipoChange = function (idx) {
-    var tipo = document.querySelector('input[name="db-pub-tipo-' + idx + '"]:checked');
-    var custom = document.getElementById('db-pub-custom-' + idx);
-    if (custom) custom.style.display = (tipo && tipo.value === 'custom') ? 'flex' : 'none';
-  };
 
   function _getPublicosConj() {
     var num = parseInt(document.getElementById('db-num-conj').value) || 0;
     var result = [];
     for (var i = 1; i <= num; i++) {
-      var tipo = document.querySelector('input[name="db-pub-tipo-' + i + '"]:checked');
-      if (!tipo || tipo.value === 'padrao') {
+      var sel = document.getElementById('db-pub-sel-' + i);
+      var val = sel ? sel.value : 'padrao';
+      if (!val || val === 'padrao') {
         result.push({tipo: 'padrao'});
       } else {
-        var imin = parseInt((document.getElementById('db-pub-imin-' + i) || {}).value) || 18;
-        var imax = parseInt((document.getElementById('db-pub-imax-' + i) || {}).value) || 65;
-        var gen  = ((document.getElementById('db-pub-gen-' + i) || {}).value) || 'all';
-        var caid = ((document.getElementById('db-pub-caid-' + i) || {}).value || '').trim();
-        var pub  = {tipo: 'custom', idade_min: imin, idade_max: imax, genders: gen === '1' ? [1] : gen === '2' ? [2] : [1, 2]};
-        if (caid) pub.custom_audience_id = caid;
-        result.push(pub);
+        var pub = _publicosDisponiveis.filter(function (p) { return p.id === val; })[0];
+        result.push(pub ? {tipo: pub.tipo, id: pub.id, data: pub.data} : {tipo: 'padrao'});
       }
     }
     return result;
