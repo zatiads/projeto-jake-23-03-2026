@@ -4947,6 +4947,143 @@ def anuncios_copy_lote():
 
 
 # ══════════════════════════════════════════════════════════════════════════
+#  ABA PLANEJADOR DE CAMPANHAS
+# ══════════════════════════════════════════════════════════════════════════
+
+_planejador_payloads = {}   # {token: payload} — two-phase SSE
+
+_PLANEJADOR_OBJETIVOS = {"MESSAGES", "ENGAGEMENT", "PURCHASE"}
+_PLANEJADOR_CTA       = {"MESSAGES": "SEND_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}
+_PLANEJADOR_LABEL     = {"MESSAGES": "Mensagens", "ENGAGEMENT": "Engajamento", "PURCHASE": "Conversões"}
+
+_PLANEJADOR_PROMPT = """\
+Você é o Jake, assistente de tráfego pago. Extraia parâmetros de campanha Meta Ads a partir da conversa.
+
+CLIENTES DISPONÍVEIS:
+{clientes_txt}
+
+PARÂMETROS JÁ EXTRAÍDOS:
+{params_txt}
+
+CONVERSA:
+{conversa_txt}
+
+Retorne APENAS JSON válido (sem markdown):
+{{
+  "resposta": "<mensagem amigável, direta, em português — máximo 2 frases>",
+  "params": {{
+    "cliente_id": <int ou null>,
+    "cliente_nome": "<string ou null>",
+    "campanha_nome": "<string ou null — auto-gerar se null e pronto=true>",
+    "objetivo": "<MESSAGES|ENGAGEMENT|PURCHASE ou null>",
+    "drive_link": "<URL do Google Drive ou null>",
+    "orcamento_diario": <float ou null>,
+    "publico_descricao": "<descrição livre do público ou null>",
+    "copy_titulo": "<string ou null>",
+    "copy_texto": "<string ou null>"
+  }},
+  "duvidas": ["<campo faltando>"],
+  "pronto": <true somente se cliente_id, objetivo, drive_link e orcamento_diario estão todos preenchidos>
+}}
+
+Regras:
+- Preserve params já extraídos — só atualize se o usuário corrigir explicitamente
+- Se cliente não identificado na lista, coloque cliente_id: null e pergunte
+- Se pronto=true e copy_titulo/copy_texto são null, gere copy baseado no cliente e objetivo
+- Seja conciso
+"""
+
+
+@app.route("/api/planejador/interpretar", methods=["POST"])
+@login_required
+def planejador_interpretar():
+    d        = request.get_json() or {}
+    messages = d.get("messages", [])
+    params   = d.get("params", {})
+
+    # Buscar clientes para contexto
+    conn = None
+    clientes = []
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("SELECT id, nome, agencia, campanha_tipo FROM ad_client_profiles ORDER BY nome")
+        clientes = cur.fetchall()
+    except Exception:
+        pass
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    clientes_txt = "\n".join(
+        f"- id={c['id']} | {c['nome']} ({c.get('agencia','')}) | tipo padrão: {c.get('campanha_tipo','')}"
+        for c in clientes
+    ) or "(nenhum cliente cadastrado)"
+
+    params_txt  = json.dumps(params, ensure_ascii=False)
+    conversa_txt = "\n".join(
+        f"{m['role'].upper()}: {m['content']}" for m in messages
+    )
+
+    prompt = _PLANEJADOR_PROMPT.format(
+        clientes_txt=clientes_txt,
+        params_txt=params_txt,
+        conversa_txt=conversa_txt,
+    )
+
+    try:
+        client = _anthropic_client()
+        if not client:
+            return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
+
+        resp = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=800,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = resp.content[0].text.strip()
+
+        # Extrair JSON — Claude pode envolver em markdown
+        if "```" in raw:
+            import re as _re
+            m = _re.search(r'```(?:json)?\s*([\s\S]*?)```', raw)
+            raw = m.group(1).strip() if m else raw
+        try:
+            result = json.loads(raw)
+        except Exception:
+            import re as _re
+            m = _re.search(r'\{[\s\S]*\}', raw)
+            if m:
+                result = json.loads(m.group(0))
+            else:
+                return jsonify({"error": "Não consegui interpretar. Pode reformular?"}), 200
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": f"Erro ao interpretar: {e}"}), 500
+
+
+@app.route("/api/planejador/transcrever", methods=["POST"])
+@login_required
+def planejador_transcrever():
+    audio_file = request.files.get("audio")
+    if not audio_file or not audio_file.filename:
+        return jsonify({"error": "Arquivo de áudio obrigatório"}), 400
+
+    try:
+        from openai import OpenAI as _OpenAI
+        oai = _OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+        audio_bytes = audio_file.read()
+        file_like      = io.BytesIO(audio_bytes)
+        file_like.name = audio_file.filename or "audio.webm"
+        transcript = oai.audio.transcriptions.create(
+            model="whisper-1", file=file_like, language="pt"
+        )
+        return jsonify({"text": transcript.text})
+    except Exception as e:
+        return jsonify({"error": f"Erro na transcrição: {e}"}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════
 #  FÁBRICA DE CRIATIVOS v2
 # ══════════════════════════════════════════════════════════════════════════
 import math as _math
