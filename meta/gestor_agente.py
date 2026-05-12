@@ -39,6 +39,7 @@ def main():
     inicio = time.time()
     _log("Iniciando varredura...")
 
+    db_conn = None
     db_conn = _get_db()
     cur = db_conn.cursor()
 
@@ -103,7 +104,8 @@ def main():
         db_conn.commit()
         sys.exit(1)
     finally:
-        db_conn.close()
+        if db_conn:
+            db_conn.close()
 
 
 if __name__ == "__main__":
