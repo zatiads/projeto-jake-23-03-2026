@@ -5,7 +5,10 @@ Recebe perfis agregados de todas as contas e retorna decisões via Claude.
 """
 import os
 import json
+import logging
 from typing import List, Dict, Any
+
+_log = logging.getLogger(__name__)
 
 try:
     from dotenv import load_dotenv
@@ -104,14 +107,24 @@ def analisar(perfis: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         messages=[{"role": "user", "content": user_msg}],
     )
 
-    raw = msg.content[0].text.strip()
-    # Limpar markdown se Claude retornar ```json
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json\n"):
-            raw = raw[5:]
+    raw = msg.content[0].text.strip() if msg.content else ""
+    # Limpar markdown via regex (robusto para ```json, ``` \njson, ```JSON)
+    import re as _re
+    match = _re.search(r"```(?:json)?\s*([\s\S]*?)```", raw, _re.IGNORECASE)
+    if match:
+        raw = match.group(1).strip()
 
-    decisoes_validas = json.loads(raw)
+    try:
+        decisoes_validas = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        # Fallback: retornar decisões vazias para todos os perfis válidos
+        _log.error("analista: falha ao parsear JSON do Claude. Raw: %s", raw[:500])
+        decisoes_validas = [
+            {"cliente_id": p["cliente_id"], "conta": p["nome"],
+             "analise": "Falha ao parsear resposta do Claude. Nenhuma ação aplicada.",
+             "acoes": [], "alertas": []}
+            for p in perfis_validos
+        ]
 
     # Merge: preservar ordem original dos perfis
     decisoes_por_id = {d["cliente_id"]: d for d in decisoes_validas}
