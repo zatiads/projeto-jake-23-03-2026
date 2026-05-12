@@ -31,12 +31,13 @@ jake_desktop/
 ```
 jake_desktop/
   templates/dashboard.html   # nav item + page section + link CSS + script tag
-  app.py                     # 2 endpoints novos: interpretar + transcrever
+  app.py                     # 3 endpoints novos: interpretar + transcrever + subir
+  static/js/app.js           # rota #planejador + callback planejadorInit()
 ```
 
 ### Sem dependências novas
 
-Usa `anthropic` SDK (`claude-sonnet-4-6`), OpenAI Whisper-1 e os endpoints Drive Batch já existentes — tudo já instalado.
+Usa `anthropic` SDK (`claude-sonnet-4-6`), OpenAI Whisper-1 — tudo já instalado.
 
 ---
 
@@ -100,14 +101,15 @@ Quando `pronto: true`, todos os campos obrigatórios estão preenchidos e o fron
 - `copy_titulo` + `copy_texto` → Claude gera automaticamente
 - `publico_descricao` → usa público padrão do cliente (`publico_json`)
 
-**Objetivos suportados:**
+**Objetivos suportados** (apenas os aceitos pelo backend Meta Ads):
 
 | Código | Label |
 |---|---|
 | `MESSAGES` | Mensagens/WhatsApp |
 | `ENGAGEMENT` | Engajamento / visitas ao perfil |
-| `REACH` | Alcance |
 | `PURCHASE` | Conversões / Vendas |
+
+**Tratamento de erro do Claude:** Se a resposta não for JSON válido (ex: markdown com ```json), o endpoint aplica regex para extrair o primeiro bloco JSON. Se ainda assim falhar, retorna `{"error": "Não consegui interpretar. Pode reformular?"}` com status 200 — o frontend renderiza como mensagem de erro no chat, sem travar a conversa.
 
 ---
 
@@ -115,7 +117,7 @@ Quando `pronto: true`, todos os campos obrigatórios estão preenchidos e o fron
 
 Recebe arquivo de áudio (multipart `audio`), chama Whisper-1, retorna texto transcrito.
 
-**Request:** multipart/form-data com campo `audio` (webm, mp4, ogg)
+**Request:** multipart/form-data com campo `audio` (webm, mp4, ogg, mp3)
 
 **Response:**
 ```json
@@ -124,18 +126,51 @@ Recebe arquivo de áudio (multipart `audio`), chama Whisper-1, retorna texto tra
 
 Simples e isolado — não usa TTS nem GPT. O `/api/falar` faz coisas demais para ser reaproveitado aqui.
 
+**Nota sobre Safari:** `MediaRecorder` em Safari grava em mp4/aac, não webm. O JS deve detectar o formato suportado via `MediaRecorder.isTypeSupported()` e enviar o arquivo no formato correto. O endpoint `/transcrever` aceita qualquer formato suportado pelo Whisper.
+
 ---
 
-### Endpoints existentes usados na confirmação
+### `POST /api/planejador/subir`
 
-O frontend chama diretamente após confirmação:
+Endpoint de submissão. Recebe os params confirmados, baixa os criativos do Google Drive, cria a campanha no Meta Ads e retorna progresso via **SSE** (`text/event-stream`).
 
+**Request:**
+```json
+{
+  "cliente_id": 5,
+  "campanha_nome": "Queen Poltronas — Engajamento Mai/26",
+  "objetivo": "ENGAGEMENT",
+  "drive_link": "https://drive.google.com/drive/folders/...",
+  "orcamento_diario": 80.0,
+  "publico_descricao": "Mulheres 25-45 interessadas em decoração",
+  "copy_titulo": "Renove seu lar",
+  "copy_texto": "Descubra as melhores poltronas..."
+}
 ```
-POST /api/anuncios/drive/preparar   → retorna {token, resumo}
-GET  /api/anuncios/drive/stream/<token>  → SSE com progresso
+
+**SSE events emitidos:**
+```
+data: {"status": "baixando", "msg": "Conectando ao Drive..."}
+data: {"status": "baixando", "msg": "3 criativos encontrados"}
+data: {"status": "criando", "msg": "Criando campanha no Meta Ads..."}
+data: {"status": "criando", "msg": "Criando conjunto de anúncios..."}
+data: {"status": "publicando", "msg": "Publicando anúncio 1/3..."}
+data: {"status": "concluido", "msg": "✅ Campanha criada!", "campaign_id": "120210XXXXXXXXX"}
+data: {"status": "erro", "msg": "Descrição do erro"}
 ```
 
-O payload enviado ao `/preparar` é montado pelo frontend com os `params` confirmados.
+**Lógica interna:**
+1. Busca cliente em `ad_client_profiles` pelo `cliente_id`
+2. Resolve token via `_resolve_token(cliente.token_key)`
+3. Baixa arquivos do Drive link para `_TMP_DIR` (mesmo padrão do Drive Batch)
+4. Para cada criativo baixado: faz upload para o Meta como `AdCreative` com o copy fornecido
+5. Cria campanha → conjunto → ads via `meta_api.py` (mesmas helpers já existentes)
+6. Loga em `controle_relatorios_semanais` ou tabela existente de tracking
+7. Emite eventos SSE ao longo do processo
+
+**Não duplica lógica do Drive Batch** — usa as mesmas funções internas de `meta_api.py` (`criar_campanha`, `criar_conjunto`, `criar_ad`). O Drive Batch e o Planejador são fluxos diferentes de entrada para a mesma engine.
+
+**Fallback de público:** se `publico_descricao` fornecido mas não mapeado a targeting JSON, usa `cliente.publico_json` do banco. Se nem isso existir, retorna erro SSE pedindo ao usuário para configurar o público no perfil do cliente.
 
 ---
 
@@ -154,32 +189,51 @@ var _gravando = false;  // controle do microfone
 
 ```
 planejadorInit()             — init ao entrar na aba, foca o input
-planejadorEnviar()           — envia mensagem de texto
-planejadorConfirmar()        — executa Drive Batch após confirmação
-planejadorCancelar()         — volta ao estado 'chat', descarta card
-planejadorNovaConversa()     — limpa estado e histórico
+planejadorEnviar()           — envia mensagem de texto (bloqueado durante 'subindo')
+planejadorConfirmar()        — dispara POST /api/planejador/subir + abre SSE
+planejadorCancelar()         — remove card, volta a _estado='chat'; preserva _messages e _params
+planejadorNovaConversa()     — zera _messages=[], _params={}, _estado='chat'; limpa o chat na UI
 planejadorToggleMic()        — inicia/para gravação de áudio
 ```
+
+### Transições de estado
+
+```
+'chat'        → 'confirmando'  quando Claude retorna pronto: true
+'confirmando' → 'chat'         quando usuário clica "Ajustar" (planejadorCancelar)
+'confirmando' → 'subindo'      quando usuário clica "Confirmar e Subir" (planejadorConfirmar)
+'subindo'     → 'concluido'    quando SSE emite status: 'concluido'
+'subindo'     → 'chat'         quando SSE emite status: 'erro' (mostra erro no chat, permite nova tentativa)
+qualquer      → 'chat'         quando usuário clica "Nova conversa" (planejadorNovaConversa)
+```
+
+**Comportamento da UI por estado:**
+- `chat`: input habilitado, mic habilitado
+- `confirmando`: input desabilitado (usuário deve clicar Confirmar ou Ajustar), card visível
+- `subindo`: input desabilitado, botões do card ocultos, progresso SSE renderizado no chat
+- `concluido`: input desabilitado, botão "Nova conversa" visível
 
 ### Fluxo de mensagem
 
 ```
-1. Usuário digita texto (ou grava áudio → transcreve → exibe no input)
+1. Usuário digita texto (ou grava áudio → transcreve → exibe no input → usuário pressiona Enter)
 2. planejadorEnviar():
+   - Se _estado !== 'chat' → ignora
    - Adiciona mensagem em _messages
    - Renderiza bolha do usuário
-   - Mostra "Jake está digitando..."
-   - POST /api/planejador/interpretar {messages, params}
-   - Atualiza _params com resposta
-   - Se pronto: false → renderiza bolha do Jake com a resposta
-   - Se pronto: true → renderiza card de confirmação (muda _estado para 'confirmando')
-3. Usuário clica "Confirmar e Subir":
-   - planejadorConfirmar()
-   - Monta payload Drive Batch a partir de _params
-   - POST /api/anuncios/drive/preparar
-   - Abre SSE /api/anuncios/drive/stream/<token>
-   - Renderiza mensagens de progresso no chat
-   - No evento 'concluido' → mensagem de sucesso + botão "Nova conversa"
+   - Mostra indicador "Jake está digitando..."
+   - POST /api/planejador/interpretar {messages, params: _params}
+   - Atualiza _params com params retornados
+   - Se error → renderiza bolha de erro do Jake, permanece em 'chat'
+   - Se pronto: false → renderiza bolha do Jake com resposta, permanece em 'chat'
+   - Se pronto: true → renderiza card de confirmação, muda _estado para 'confirmando'
+3. Usuário clica "Confirmar e Subir" → planejadorConfirmar():
+   - Muda _estado para 'subindo'
+   - POST /api/planejador/subir com _params
+   - Abre EventSource para SSE stream
+   - Cada evento SSE → renderiza bolha de progresso no chat
+   - status 'concluido' → muda _estado='concluido', renderiza mensagem de sucesso
+   - status 'erro' → muda _estado='chat', renderiza mensagem de erro
 ```
 
 ### Card de confirmação
@@ -264,11 +318,22 @@ Botão microfone na barra de input. Ao clicar:
 
 **Links CSS e script** adicionados junto aos outros.
 
-### `app.js`
+### `static/js/app.js`
 
-Adicionar `"planejador"` na lista de rotas válidas e callback:
+Em `showPage()`, dentro do bloco de callbacks (após o `if (id === "dr" ...)`), adicionar:
 ```javascript
-if (id === "planejador" && typeof planejadorInit === "function") planejadorInit();
+if (id === "gestor" && typeof window.gestorInit === "function") {
+  window.gestorInit();
+}
+// ↓ adicionar aqui:
+if (id === "planejador" && typeof window.planejadorInit === "function") {
+  window.planejadorInit();
+}
+```
+
+Na lista `valid` (linha com `var valid = [...]`), adicionar `"planejador"` após `"gestor"`:
+```javascript
+var valid = [..., "gestor", "planejador", ...];
 ```
 
 ---
@@ -309,7 +374,7 @@ Retorne APENAS JSON válido:
     "cliente_id": <int ou null>,
     "cliente_nome": "<string ou null>",
     "campanha_nome": "<string ou null>",
-    "objetivo": "<MESSAGES|ENGAGEMENT|REACH|PURCHASE ou null>",
+    "objetivo": "<MESSAGES|ENGAGEMENT|PURCHASE ou null>",
     "drive_link": "<string ou null>",
     "orcamento_diario": <float ou null>,
     "publico_descricao": "<string ou null>",
@@ -324,7 +389,7 @@ Regras:
 - Preserve params já extraídos — só atualize se o usuário corrigir
 - Se cliente não identificado na lista, coloque cliente_id: null e pergunte
 - Se copies não fornecidas e pronto: true, gere copy_titulo e copy_texto baseados no cliente e objetivo
-- campanha_nome auto-gerado se null: "{cliente_nome} — {objetivo} {mês}/{ano}"
+- campanha_nome auto-gerado se null: "{cliente_nome} — {objetivo_label} {mês}/{ano}" onde objetivo_label é o label legível (ex: "Engajamento", não "ENGAGEMENT")
 - Seja conciso na resposta — máximo 2 frases
 ```
 
