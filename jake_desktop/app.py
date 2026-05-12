@@ -4176,6 +4176,27 @@ def drive_listar():
     return jsonify({"files": files, "total": len(files)})
 
 
+@app.route("/api/anuncios/drive/thumb/<file_id>")
+@login_required
+def drive_thumb(file_id):
+    """Proxy de thumbnail — baixa via API key e repassa ao browser com cache."""
+    api_key = os.getenv("GOOGLE_API_KEY", "")
+    if not api_key:
+        return "", 404
+    try:
+        resp = requests.get(
+            f"https://www.googleapis.com/drive/v3/files/{file_id}",
+            params={"alt": "media", "key": api_key},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        ct = resp.headers.get("Content-Type", "image/jpeg")
+        return Response(resp.content, content_type=ct,
+                        headers={"Cache-Control": "public, max-age=7200"})
+    except Exception:
+        return "", 404
+
+
 @app.route("/api/anuncios/drive/campanhas")
 @login_required
 def drive_campanhas():
@@ -4364,17 +4385,27 @@ def drive_gerar_copies_stream(copies_token):
                 yield _sse_ev("erro", {"index": idx, "file_id": file_id, "msg": "ANTHROPIC_API_KEY não configurada"})
                 continue
             try:
+                import time as _time
                 b64 = base64.b64encode(file_bytes).decode("utf-8")
-                msg = client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=300,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": [
-                        {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": b64}},
-                        {"type": "text", "text": "Gere a copy para este criativo."},
-                    ]}]
-                )
-                raw = msg.content[0].text.strip()
+                raw = None
+                for _attempt in range(3):
+                    try:
+                        msg = client.messages.create(
+                            model="claude-sonnet-4-6",
+                            max_tokens=300,
+                            system=system_prompt,
+                            messages=[{"role": "user", "content": [
+                                {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": b64}},
+                                {"type": "text", "text": "Gere a copy para este criativo."},
+                            ]}]
+                        )
+                        raw = msg.content[0].text.strip()
+                        break
+                    except Exception as _e:
+                        if _attempt < 2 and ("529" in str(_e) or "overloaded" in str(_e).lower()):
+                            _time.sleep(2 ** _attempt)
+                        else:
+                            raise
                 if "```" in raw:
                     raw = raw.split("```")[1]
                     if raw.startswith("json\n"):
@@ -4488,15 +4519,18 @@ def drive_preparar():
         if not os.path.exists(tmp_path):
             return jsonify({"error": "Arquivos expirados — regere as copies antes de publicar", "expired": True}), 400
 
+    publicos_conj = d.get("publicos_conj") or []
+
     # Armazenar payload
     db_token = str(uuid.uuid4())
     _lote_payloads[db_token] = {
-        "clientes":     clientes,
-        "mode":         mode,
-        "campanha_cfg": campanha_cfg,
-        "conjuntos":    {"num": num_conj, "orcamento": orcamento, "criativos_por": criat_por},
-        "camp_tipo":    camp_tipo,
-        "copies":       copies,
+        "clientes":      clientes,
+        "mode":          mode,
+        "campanha_cfg":  campanha_cfg,
+        "conjuntos":     {"num": num_conj, "orcamento": orcamento, "criativos_por": criat_por},
+        "camp_tipo":     camp_tipo,
+        "copies":        copies,
+        "publicos_conj": publicos_conj,
     }
     def _cleanup_token():
         _lote_payloads.pop(db_token, None)
@@ -4528,14 +4562,15 @@ def drive_stream(db_token):
             yield _sse({"status": "erro", "msg": "Token inválido ou expirado"})
             return
 
-        clientes     = payload["clientes"]
-        campanha_cfg = payload["campanha_cfg"]
-        conjuntos    = payload["conjuntos"]
-        camp_tipo    = payload["camp_tipo"]
-        copies       = payload["copies"]
-        num_conj     = conjuntos["num"]
-        criat_por    = conjuntos["criativos_por"]
-        orcamento    = conjuntos["orcamento"]
+        clientes      = payload["clientes"]
+        campanha_cfg  = payload["campanha_cfg"]
+        conjuntos     = payload["conjuntos"]
+        camp_tipo     = payload["camp_tipo"]
+        copies        = payload["copies"]
+        publicos_conj = payload.get("publicos_conj") or []
+        num_conj      = conjuntos["num"]
+        criat_por     = conjuntos["criativos_por"]
+        orcamento     = conjuntos["orcamento"]
         camp_nome    = campanha_cfg.get("nome", "Campanha Drive Batch")
         cta          = _CAMP_CTA.get(camp_tipo, "SEND_MESSAGE")
         cbo          = (camp_tipo == "MESSAGES")
@@ -4597,10 +4632,23 @@ def drive_stream(db_token):
                 })
 
                 try:
+                    # Resolver público para este conjunto
+                    pub_cfg = publicos_conj[i] if i < len(publicos_conj) else {}
+                    if pub_cfg.get("tipo") == "custom":
+                        publico_conj = {
+                            "idade_min": pub_cfg.get("idade_min", 18),
+                            "idade_max": pub_cfg.get("idade_max", 65),
+                            "genders":   pub_cfg.get("genders", [1, 2]),
+                        }
+                        if pub_cfg.get("custom_audience_id"):
+                            publico_conj["custom_audience_id"] = pub_cfg["custom_audience_id"]
+                    else:
+                        publico_conj = publico  # público padrão do cliente
+
                     adset_orcamento = orcamento if not cbo else None
                     adset_id = _meta_api.criar_conjunto(
                         token_val, account_id, campaign_id, camp_tipo,
-                        publico, localizacao,
+                        publico_conj, localizacao,
                         orcamento=adset_orcamento,
                         optimization_goal=opt_goal,
                         pixel_id=pixel_id,
