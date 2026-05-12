@@ -4164,7 +4164,8 @@ def drive_listar():
         return jsonify({"error": f"Erro ao acessar Google Drive: {e}"}), 500
 
     files = [
-        {"id": f["id"], "name": f["name"], "thumbnailLink": f.get("thumbnailLink", ""),
+        {"id": f["id"], "name": f["name"],
+         "thumbnailLink": f"https://drive.google.com/thumbnail?id={f['id']}&sz=w100",
          "ext": _DRIVE_MIME_EXT.get(f["mimeType"], ".jpg"), "mimeType": f["mimeType"]}
         for f in data.get("files", [])
         if f.get("mimeType") in _DRIVE_MIME_EXT
@@ -4302,9 +4303,12 @@ def drive_gerar_copies_stream(copies_token):
     def _sse(data: dict) -> str:
         return "data: " + json.dumps(data, ensure_ascii=False) + "\n\n"
 
+    def _sse_ev(event: str, data: dict) -> str:
+        return f"event: {event}\ndata: " + json.dumps(data, ensure_ascii=False) + "\n\n"
+
     def _gerar():
         if not payload:
-            yield _sse({"event": "erro", "index": 0, "msg": "Token inválido ou expirado"})
+            yield _sse_ev("erro", {"index": 0, "msg": "Token inválido ou expirado"})
             return
 
         files         = payload["files"]
@@ -4334,7 +4338,7 @@ def drive_gerar_copies_stream(copies_token):
                 dl_resp.raise_for_status()
                 file_bytes = dl_resp.content
             except Exception as e:
-                yield _sse({"event": "erro", "index": idx, "file_id": file_id, "msg": f"Download falhou: {e}"})
+                yield _sse_ev("erro", {"index": idx, "file_id": file_id, "msg": f"Download falhou: {e}"})
                 continue
 
             # 2. Salvar em /tmp com TTL de 30 min
@@ -4344,7 +4348,7 @@ def drive_gerar_copies_stream(copies_token):
                 with open(tmp_path, "wb") as fp:
                     fp.write(file_bytes)
             except Exception as e:
-                yield _sse({"event": "erro", "index": idx, "file_id": file_id, "msg": f"Erro ao salvar tmp: {e}"})
+                yield _sse_ev("erro", {"index": idx, "file_id": file_id, "msg": f"Erro ao salvar tmp: {e}"})
                 continue
 
             def _cleanup_tmp(path=tmp_path):
@@ -4357,7 +4361,7 @@ def drive_gerar_copies_stream(copies_token):
 
             # 3. Gerar copy com Claude Vision
             if not client:
-                yield _sse({"event": "erro", "index": idx, "file_id": file_id, "msg": "ANTHROPIC_API_KEY não configurada"})
+                yield _sse_ev("erro", {"index": idx, "file_id": file_id, "msg": "ANTHROPIC_API_KEY não configurada"})
                 continue
             try:
                 b64 = base64.b64encode(file_bytes).decode("utf-8")
@@ -4379,12 +4383,11 @@ def drive_gerar_copies_stream(copies_token):
                 titulo = resultado.get("titulo", "")
                 texto  = resultado.get("texto", "")
             except Exception as e:
-                yield _sse({"event": "erro", "index": idx, "file_id": file_id,
-                            "tmp_uuid": tmp_uuid_val, "ext": ext, "msg": f"Erro IA: {e}"})
+                yield _sse_ev("erro", {"index": idx, "file_id": file_id,
+                                       "tmp_uuid": tmp_uuid_val, "ext": ext, "msg": f"Erro IA: {e}"})
                 continue
 
-            yield _sse({
-                "event":    "copy",
+            yield _sse_ev("copy", {
                 "index":    idx,
                 "file_id":  file_id,
                 "file_name": file_name,
@@ -4394,7 +4397,7 @@ def drive_gerar_copies_stream(copies_token):
                 "texto":    texto,
             })
 
-        yield _sse({"event": "concluido", "total": total})
+        yield _sse_ev("concluido", {"total": total})
 
     return app.response_class(
         _gerar(),
