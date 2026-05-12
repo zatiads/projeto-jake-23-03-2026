@@ -536,6 +536,8 @@ def get_adset(token: str, adset_id: str) -> dict:
 
 def atualizar_status_ad(token: str, ad_id: str, status: str) -> None:
     """Atualiza status de um ad. status: 'ACTIVE' | 'PAUSED'."""
+    if status not in ("ACTIVE", "PAUSED"):
+        raise ValueError(f"status inválido: {status!r}. Use 'ACTIVE' ou 'PAUSED'")
     resp = requests.post(
         f"{GRAPH_URL}/{ad_id}",
         params={"access_token": token},
@@ -549,6 +551,8 @@ def atualizar_status_ad(token: str, ad_id: str, status: str) -> None:
 
 def atualizar_status_campanha(token: str, campaign_id: str, status: str) -> None:
     """Atualiza status de uma campanha. status: 'ACTIVE' | 'PAUSED'."""
+    if status not in ("ACTIVE", "PAUSED"):
+        raise ValueError(f"status inválido: {status!r}. Use 'ACTIVE' ou 'PAUSED'")
     resp = requests.post(
         f"{GRAPH_URL}/{campaign_id}",
         params={"access_token": token},
