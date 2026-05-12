@@ -3893,6 +3893,7 @@ def gestor_acoes():
             where.append("ga.cliente_id = %s"); params.append(int(cliente_id))
         params.append(limit)
 
+        # where list contains only hardcoded literals — no user data in f-string (safe)
         cur.execute(f"""
             SELECT ga.id, ga.varredura_id, ga.cliente_id, ga.account_id,
                    ga.executado_em, ga.tipo, ga.entidade_id, ga.entidade_nome,
@@ -3931,7 +3932,7 @@ def gestor_reverter(acao_id):
         reverter(acao_id)
         return jsonify({"ok": True, "acao_id": acao_id})
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/gestor/reverter-evento/<int:varredura_id>", methods=["POST"])
@@ -3976,7 +3977,6 @@ def gestor_reverter_evento(varredura_id):
 @login_required
 def gestor_rodar():
     """Dispara varredura manual em background. Retorna 202 imediatamente."""
-    import threading
     import sys as _sys
     if "/root" not in _sys.path:
         _sys.path.insert(0, "/root")
@@ -4089,6 +4089,8 @@ def gestor_contas():
 def gestor_conta_patch(cliente_id):
     """Atualiza gestor_config_json ou gestor_ativo de uma conta."""
     d = request.get_json() or {}
+    if "gestor_ativo" not in d and "gestor_config_json" not in d:
+        return jsonify({"error": "Nenhum campo reconhecido para atualizar"}), 400
     conn = None
     try:
         conn = _gestor_db(); cur = conn.cursor()
@@ -4100,6 +4102,8 @@ def gestor_conta_patch(cliente_id):
             cur.execute("UPDATE ad_client_profiles SET gestor_config_json = %s WHERE id = %s",
                         (_json.dumps(d["gestor_config_json"]), cliente_id))
         conn.commit()
+        if cur.rowcount == 0:
+            return jsonify({"error": "Conta não encontrada"}), 404
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
