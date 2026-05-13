@@ -1,0 +1,9 @@
+[
+  {
+    "nome": "Exemplo",
+    "jid": "120363XXXXXXXXXX@g.us",
+    "msg": "Bom dia, time! Semana de resultados!",
+    "cron": "08:00",
+    "dias": ["mon"]
+  }
+]
