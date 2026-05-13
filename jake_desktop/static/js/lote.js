@@ -11,6 +11,8 @@
   var _publicos  = [];       // cache de públicos salvos
   var _cliente   = null;     // cliente ativo (objeto)
   var MAX_CONJ   = 10;
+  var _modoCamp    = 'nova';       // 'nova' | 'existente'
+  var _modoCriativo = 'upload';    // 'upload' | 'drive'
   var MAX_CRIAT  = 10;
 
   var _LS_KEY = 'jakeos_lote_v1';
@@ -49,6 +51,10 @@
         campTipo: _val('lote-camp-tipo'),
         orcamento: _val('lote-orcamento'),
         clienteId: _cliente ? _cliente.id : null,
+        modoCamp:         _modoCamp,
+        campExistenteId:  _val('lote-camp-select'),
+        modoCriativo:     _modoCriativo,
+        driveUrl:         _val('lote-drive-url'),
       }));
     } catch(e) {}
   }
@@ -64,6 +70,10 @@
       if (s.campNome) _set('lote-camp-nome', s.campNome);
       if (s.campTipo) _set('lote-camp-tipo', s.campTipo);
       if (s.orcamento) _set('lote-orcamento', s.orcamento);
+      if (s.modoCamp) { _modoCamp = s.modoCamp; loteCampToggle(s.modoCamp, true); }
+      if (s.campExistenteId) _set('lote-camp-select', s.campExistenteId);
+      if (s.modoCriativo) { _modoCriativo = s.modoCriativo; }
+      if (s.driveUrl) _set('lote-drive-url', s.driveUrl);
       // Se o cliente salvo é o mesmo ativo, tudo certo; senão avisa
       if (s.clienteId && _cliente && s.clienteId !== _cliente.id) {
         var aviso = _el('lote-restaurar-aviso');
@@ -83,6 +93,7 @@
   window.loteInit = function() {
     if (typeof window._anuClienteAtivo !== 'undefined') {
       _cliente = window._anuClienteAtivo;
+      if (_modoCamp === 'existente') _loteCarregarCampanhas();
     }
     _carregarPublicos();
     if (!_iniciado) {
@@ -535,7 +546,9 @@
       campanha_tipo:          _val('lote-camp-tipo'),
       orcamento_diario_total: parseFloat(_val('lote-orcamento')) || 0,
       lote_id:                loteId,
-      conjuntos:              conjuntosPayload
+      conjuntos:              conjuntosPayload,
+      modo_campanha:          _modoCamp,
+      campaign_id_existente:  _modoCamp === 'existente' ? (_val('lote-camp-select') || '') : '',
     };
 
     fetch('/api/anuncios/publicar-lote', {
@@ -635,6 +648,69 @@
 
     var btnPublicar = _el('lote-btn-publicar');
     if (btnPublicar) btnPublicar.onclick = _publicarLote;
+  }
+
+  // ── Toggle: Nova / Campanha Existente ─────────────
+  window.loteCampToggle = function(modo, silencioso) {
+    _modoCamp = modo;
+    var btnNova   = _el('lote-btn-camp-nova');
+    var btnExist  = _el('lote-btn-camp-exist');
+    var formNova  = _el('lote-camp-nova-form');
+    var formExist = _el('lote-camp-exist-form');
+    if (!btnNova) return;
+
+    if (modo === 'existente') {
+      if (!_cliente && !silencioso) {
+        // Sem cliente: reverter para 'nova'
+        _modoCamp = 'nova';
+        btnNova.classList.add('active');
+        btnExist.classList.remove('active');
+        if (formNova) formNova.style.display = '';
+        if (formExist) formExist.style.display = 'none';
+        return;
+      }
+      btnNova.classList.remove('active');
+      btnExist.classList.add('active');
+      if (formNova) formNova.style.display = 'none';
+      if (formExist) formExist.style.display = '';
+      if (!silencioso && _cliente) _loteCarregarCampanhas();
+    } else {
+      btnNova.classList.add('active');
+      btnExist.classList.remove('active');
+      if (formNova) formNova.style.display = '';
+      if (formExist) formExist.style.display = 'none';
+    }
+    if (!silencioso) _salvarLocal();
+  };
+
+  function _loteCarregarCampanhas() {
+    if (!_cliente) return;
+    var sel = _el('lote-camp-select');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Carregando...</option>';
+    sel.disabled = true;
+    fetch('/api/anuncios/campanhas/' + _cliente.account_id + '?token_key=' + _cliente.token_key)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) {
+          sel.innerHTML = '<option value="">Erro ao carregar campanhas</option>';
+          return;
+        }
+        var camps = data.campanhas || [];
+        if (!camps.length) {
+          sel.innerHTML = '<option value="">Nenhuma campanha encontrada</option>';
+        } else {
+          sel.innerHTML = camps.map(function(c) {
+            return '<option value="' + _esc(c.id) + '">' + _esc(c.name) + ' (' + _esc(c.objective || c.status || '') + ')</option>';
+          }).join('');
+          sel.disabled = false;
+        }
+        sel.removeEventListener('change', _salvarLocal);
+        sel.addEventListener('change', _salvarLocal);
+      })
+      .catch(function() {
+        sel.innerHTML = '<option value="">Erro de rede</option>';
+      });
   }
 
   // ── UUID v4 ────────────────────────────────────────
