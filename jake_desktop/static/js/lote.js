@@ -17,6 +17,14 @@
 
   var _LS_KEY = 'jakeos_lote_v1';
 
+  // ── Listener: sync _cliente quando dropdown muda fora da aba Lote ──
+  var _onClienteChange = function() {
+    if (typeof window._anuClienteAtivo !== 'undefined') {
+      _cliente = window._anuClienteAtivo;
+      if (_modoCamp === 'existente') _loteCarregarCampanhas();
+    }
+  };
+
   // ── Helpers ────────────────────────────────────────
   function _val(id)       { var el=document.getElementById(id); return el?el.value:''; }
   function _set(id, v)    { var el=document.getElementById(id); if(el) el.value=String(v||''); }
@@ -648,6 +656,13 @@
 
     var btnPublicar = _el('lote-btn-publicar');
     if (btnPublicar) btnPublicar.onclick = _publicarLote;
+
+    // Sync _cliente quando usuário troca o cliente enquanto já está na aba Lote
+    var selCliente = document.getElementById('anu-select-cliente');
+    if (selCliente) {
+      selCliente.removeEventListener('change', _onClienteChange);
+      selCliente.addEventListener('change', _onClienteChange);
+    }
   }
 
   // ── Toggle: Nova / Campanha Existente ─────────────
