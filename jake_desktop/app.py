@@ -17,7 +17,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from functools import wraps
 
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_from_directory
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_from_directory, Response
 
 import requests
 from dotenv import load_dotenv
@@ -4206,8 +4206,9 @@ def drive_thumb(file_id):
         data = _drive_download(file_id, timeout=15)
         return Response(data, content_type="image/jpeg",
                         headers={"Cache-Control": "public, max-age=7200"})
-    except Exception:
-        return "", 404
+    except Exception as e:
+        app.logger.error(f"drive_thumb error for {file_id}: {e}")
+        return str(e), 404
 
 
 @app.route("/api/anuncios/drive/publicos")
@@ -5204,6 +5205,253 @@ def planejador_transcrever():
         return jsonify({"text": transcript.text})
     except Exception as e:
         return jsonify({"error": f"Erro na transcrição: {e}"}), 500
+
+
+@app.route("/api/planejador/subir", methods=["POST"])
+@login_required
+def planejador_subir():
+    """Fase 1: valida payload, armazena em memória, retorna token."""
+    d = request.get_json() or {}
+    cliente_id     = d.get("cliente_id")
+    objetivo       = d.get("objetivo", "")
+    drive_link     = (d.get("drive_link") or "").strip()
+    orcamento      = d.get("orcamento_diario")
+    campanha_nome  = d.get("campanha_nome") or ""
+    copy_titulo    = d.get("copy_titulo") or ""
+    copy_texto     = d.get("copy_texto") or ""
+
+    if not cliente_id:
+        return jsonify({"error": "cliente_id obrigatório"}), 400
+    if objetivo not in _PLANEJADOR_OBJETIVOS:
+        return jsonify({"error": f"objetivo deve ser: {', '.join(_PLANEJADOR_OBJETIVOS)}"}), 400
+    if not drive_link:
+        return jsonify({"error": "drive_link obrigatório"}), 400
+    if not orcamento:
+        return jsonify({"error": "orcamento_diario obrigatório"}), 400
+
+    conn = None
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("SELECT * FROM ad_client_profiles WHERE id = %s", (cliente_id,))
+        cliente = cur.fetchone()
+    except Exception as e:
+        return jsonify({"error": f"Erro ao buscar cliente: {e}"}), 500
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    if not cliente:
+        return jsonify({"error": "Cliente não encontrado"}), 404
+    if not cliente.get("publico_json"):
+        return jsonify({"error": "Público não configurado neste cliente."}), 400
+    if not cliente.get("page_id"):
+        return jsonify({"error": "page_id não configurado neste cliente"}), 400
+    if not cliente.get("localizacao_json"):
+        return jsonify({"error": "Localização não configurada neste cliente"}), 400
+
+    import datetime as _dt
+    now = _dt.datetime.now()
+    if not campanha_nome:
+        campanha_nome = f"{cliente['nome']} — {_PLANEJADOR_LABEL.get(objetivo, objetivo)} {now.strftime('%b/%y')}"
+
+    token = str(uuid.uuid4())
+    _planejador_payloads[token] = {
+        "cliente":       dict(cliente),
+        "objetivo":      objetivo,
+        "drive_link":    drive_link,
+        "orcamento":     float(orcamento),
+        "campanha_nome": campanha_nome,
+        "copy_titulo":   copy_titulo,
+        "copy_texto":    copy_texto,
+    }
+
+    def _cleanup():
+        _planejador_payloads.pop(token, None)
+    threading.Timer(1800, _cleanup).start()
+
+    return jsonify({"token": token})
+
+
+@app.route("/api/planejador/subir/stream/<pl_token>")
+@login_required
+def planejador_subir_stream(pl_token):
+    """Fase 2: SSE — baixa Drive, faz upload no Meta, cria campanha."""
+    payload = _planejador_payloads.pop(pl_token, None)
+
+    def _sse_pl(data: dict) -> str:
+        return "data: " + json.dumps(data, ensure_ascii=False) + "\n\n"
+
+    def _gerar():
+        if not payload:
+            yield _sse_pl({"status": "erro", "msg": "Token inválido ou expirado"})
+            return
+
+        cliente     = payload["cliente"]
+        objetivo    = payload["objetivo"]
+        drive_link  = payload["drive_link"]
+        orcamento   = payload["orcamento"]
+        camp_nome   = payload["campanha_nome"]
+        copy_titulo = payload["copy_titulo"]
+        copy_texto  = payload["copy_texto"]
+
+        account_id  = cliente["account_id"]
+        token_key   = cliente["token_key"]
+        page_id     = cliente["page_id"]
+        publico     = cliente["publico_json"]
+        localizacao = cliente["localizacao_json"]
+        opt_goal    = cliente.get("optimization_goal")
+        pixel_id    = cliente.get("pixel_id")
+        link_url    = cliente.get("link_url") or ""
+        cta         = _PLANEJADOR_CTA[objetivo]
+        cbo         = objetivo not in ("ENGAGEMENT", "PURCHASE")
+
+        if token_key not in _VALID_TOKEN_KEYS:
+            yield _sse_pl({"status": "erro", "msg": f"token_key inválido: {token_key}"})
+            return
+        meta_token = os.getenv(token_key, "")
+        if not meta_token:
+            yield _sse_pl({"status": "erro", "msg": f"{token_key} não configurado"})
+            return
+
+        api_key = os.getenv("GOOGLE_API_KEY", "")
+        if not api_key:
+            yield _sse_pl({"status": "erro", "msg": "GOOGLE_API_KEY não configurada"})
+            return
+
+        # ── Passo 1: parsear folder_id ─────────────────────────────────────
+        folder_id = None
+        if "/folders/" in drive_link:
+            folder_id = drive_link.split("/folders/")[1].split("?")[0].split("/")[0]
+        elif "id=" in drive_link:
+            from urllib.parse import urlparse, parse_qs
+            folder_id = parse_qs(urlparse(drive_link).query).get("id", [None])[0]
+        if not folder_id:
+            yield _sse_pl({"status": "erro", "msg": "Não consegui extrair o ID da pasta. Use drive.google.com/drive/folders/..."})
+            return
+
+        yield _sse_pl({"status": "baixando", "msg": "Conectando ao Drive..."})
+
+        # ── Passo 2: listar arquivos ───────────────────────────────────────
+        try:
+            resp = requests.get(
+                "https://www.googleapis.com/drive/v3/files",
+                params={"q": f"'{folder_id}' in parents",
+                        "fields": "files(id,name,mimeType)",
+                        "key": api_key, "pageSize": 100},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            files = [f for f in resp.json().get("files", [])
+                     if f.get("mimeType") in _DRIVE_MIME_EXT]
+        except Exception as e:
+            yield _sse_pl({"status": "erro", "msg": f"Erro ao listar Drive: {e}"})
+            return
+
+        if not files:
+            yield _sse_pl({"status": "erro", "msg": "Nenhuma imagem encontrada na pasta"})
+            return
+
+        yield _sse_pl({"status": "baixando", "msg": f"{len(files)} criativo(s) encontrado(s)"})
+
+        # ── Passo 3: baixar e fazer upload para Meta ───────────────────────
+        creative_refs = []
+        tmp_paths     = []
+        for idx, f in enumerate(files):
+            file_id = f["id"]
+            ext     = _DRIVE_MIME_EXT.get(f.get("mimeType", ""), ".jpg")
+            try:
+                file_bytes = _drive_download(file_id, timeout=30)
+            except Exception as e:
+                yield _sse_pl({"status": "erro", "msg": f"Download criativo {idx+1} falhou: {e}"})
+                return
+
+            tmp_path = os.path.join(_TMP_DIR, f"{uuid.uuid4()}{ext}")
+            with open(tmp_path, "wb") as fp:
+                fp.write(file_bytes)
+            tmp_paths.append(tmp_path)
+
+            yield _sse_pl({"status": "baixando", "msg": f"Fazendo upload criativo {idx+1}/{len(files)}..."})
+            try:
+                up = _meta_api.upload_imagem(meta_token, account_id, file_bytes, f"plan_{uuid.uuid4()}{ext}")
+                creative_refs.append({"tipo": "imagem", "hash": up["hash"]})
+            except Exception as e:
+                yield _sse_pl({"status": "erro", "msg": f"Upload criativo {idx+1} falhou: {e}"})
+                return
+
+        # ── Passo 4: criar campanha ────────────────────────────────────────
+        yield _sse_pl({"status": "criando", "msg": f"Criando campanha \"{camp_nome}\"..."})
+        campaign_id = None
+        newly_created_campaign = False
+        try:
+            camp_orcamento = orcamento if cbo else 0
+            campaign_id = _meta_api.criar_campanha(
+                meta_token, account_id, objetivo, camp_nome, camp_orcamento, cbo=cbo
+            )
+            newly_created_campaign = True
+        except Exception as e:
+            yield _sse_pl({"status": "erro", "msg": f"Erro ao criar campanha: {e}"})
+            return
+
+        # ── Passo 5: criar conjunto ────────────────────────────────────────
+        yield _sse_pl({"status": "criando", "msg": "Criando conjunto de anúncios..."})
+        adset_id = None
+        try:
+            adset_orcamento = orcamento if not cbo else None
+            adset_id = _meta_api.criar_conjunto(
+                meta_token, account_id, campaign_id, objetivo,
+                publico, localizacao,
+                orcamento=adset_orcamento,
+                optimization_goal=opt_goal,
+                pixel_id=pixel_id,
+                nome=f"Conjunto — {camp_nome}",
+            )
+        except Exception as e:
+            if newly_created_campaign:
+                try: _meta_api.deletar_objeto_meta(meta_token, campaign_id)
+                except Exception: pass
+            yield _sse_pl({"status": "erro", "msg": f"Erro ao criar conjunto: {e}"})
+            return
+
+        # ── Passo 6: criar anúncios ────────────────────────────────────────
+        ad_ids = []
+        for idx, cr in enumerate(creative_refs):
+            yield _sse_pl({"status": "publicando", "msg": f"Publicando anúncio {idx+1}/{len(creative_refs)}..."})
+            try:
+                ad_id = _meta_api.criar_anuncio(
+                    meta_token, account_id, adset_id, page_id,
+                    cr, copy_titulo, copy_texto, cta, link_url=link_url,
+                )
+                ad_ids.append(ad_id)
+                try:
+                    conn2 = _get_db(); cur2 = conn2.cursor()
+                    cur2.execute("""
+                        INSERT INTO ad_publish_log
+                            (cliente_id, account_id, campaign_id, adset_id, ad_id, status, audience_id, payload_json)
+                        VALUES (%s,%s,%s,%s,%s,'sucesso',NULL,%s)
+                    """, (cliente["id"], account_id, campaign_id, adset_id, ad_id,
+                          json.dumps({"titulo": copy_titulo, "texto": copy_texto})))
+                    conn2.commit()
+                except Exception:
+                    pass
+                finally:
+                    try: conn2.close()
+                    except Exception: pass
+            except Exception as e:
+                yield _sse_pl({"status": "erro", "msg": f"Anúncio {idx+1} falhou: {e}"})
+                return
+
+        for p in tmp_paths:
+            try: os.remove(p)
+            except Exception: pass
+
+        yield _sse_pl({"status": "concluido", "msg": "✅ Campanha criada com sucesso!", "campaign_id": campaign_id})
+
+    from flask import stream_with_context
+    return Response(
+        stream_with_context(_gerar()),
+        content_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════

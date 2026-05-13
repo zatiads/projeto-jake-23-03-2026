@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/anuncios.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/gestor.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/planejador.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/criativos.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dr.css') }}">
   <style id="rotina-styles">
@@ -148,6 +149,10 @@
         <a class="nav-item" data-page="gestor" href="#">
           <span class="nav-icon">🤖</span>
           <span class="nav-label">Gestor IA</span>
+        </a>
+        <a class="nav-item" data-page="planejador" href="#">
+          <span class="nav-icon">💬</span>
+          <span class="nav-label">Planejador</span>
         </a>
         <a class="nav-item" data-page="copys" href="#">
           <span class="nav-icon">✦</span>
@@ -1086,6 +1091,28 @@
                 <div id="gestor-log-execucoes" style="display:flex;flex-direction:column;gap:6px;"></div>
               </div>
             </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- PLANEJADOR DE CAMPANHAS ──────────────────────── -->
+      <section class="page" id="page-planejador">
+        <div class="plan-layout">
+
+          <div class="plan-header">
+            <div class="plan-title">Planejador de Campanhas</div>
+            <button onclick="planejadorNovaConversa()" class="anu-btn-secondary" style="font-size:11px">+ Nova conversa</button>
+          </div>
+
+          <div id="plan-chat" class="plan-chat"></div>
+
+          <div class="plan-input-bar">
+            <button id="plan-mic-btn" class="plan-mic-btn" onclick="planejadorToggleMic()">🎤</button>
+            <input id="plan-input" class="plan-input" type="text"
+                   placeholder="Ex: sobe campanha para Queen Poltronas, engajamento, link do drive..."
+                   onkeydown="if(event.key==='Enter')planejadorEnviar()">
+            <button class="plan-send-btn" onclick="planejadorEnviar()">→</button>
           </div>
 
         </div>
@@ -2876,6 +2903,7 @@
   <script src="{{ url_for('static', filename='js/multi-cliente.js') }}"></script>
   <script src="{{ url_for('static', filename='js/drive-batch.js') }}"></script>
   <script src="{{ url_for('static', filename='js/gestor.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/planejador.js') }}"></script>
   <script src="{{ url_for('static', filename='js/criativos.js') }}"></script>
   <script src="{{ url_for('static', filename='js/financeiro.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance.js') }}"></script>

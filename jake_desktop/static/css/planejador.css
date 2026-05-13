@@ -1,0 +1,194 @@
+/* ── Planejador de Campanhas ────────────────────────────────────────────── */
+
+.plan-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+  gap: 0;
+}
+
+.plan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(176,190,197,.08);
+  flex-shrink: 0;
+}
+
+.plan-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: rgba(176,190,197,.95);
+  letter-spacing: .04em;
+}
+
+.plan-chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plan-msg-user {
+  align-self: flex-end;
+  max-width: 70%;
+  background: rgba(0,180,216,.12);
+  border: 1px solid rgba(0,180,216,.2);
+  border-radius: 12px 12px 2px 12px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: rgba(176,190,197,.9);
+  line-height: 1.5;
+}
+
+.plan-msg-jake {
+  align-self: flex-start;
+  max-width: 75%;
+  background: rgba(176,190,197,.06);
+  border: 1px solid rgba(176,190,197,.1);
+  border-radius: 12px 12px 12px 2px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: rgba(176,190,197,.85);
+  line-height: 1.5;
+}
+
+.plan-msg-erro {
+  align-self: flex-start;
+  max-width: 75%;
+  background: rgba(255,100,100,.08);
+  border: 1px solid rgba(255,100,100,.15);
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: #ff8080;
+}
+
+.plan-typing {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+}
+
+.plan-typing span {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(176,190,197,.3);
+  animation: plan-bounce .8s infinite;
+}
+.plan-typing span:nth-child(2) { animation-delay: .15s; }
+.plan-typing span:nth-child(3) { animation-delay: .3s; }
+
+@keyframes plan-bounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40%           { transform: translateY(-5px); background: rgba(0,180,216,.6); }
+}
+
+.plan-msg-card {
+  align-self: flex-start;
+  width: 90%;
+  max-width: 420px;
+  background: rgba(0,180,216,.05);
+  border: 1px solid rgba(0,180,216,.18);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.plan-card-title {
+  font-size: 10px;
+  color: #00b4d8;
+  letter-spacing: .07em;
+  margin-bottom: 12px;
+}
+
+.plan-card-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.plan-card-row {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+}
+.plan-card-label { color: rgba(176,190,197,.4); width: 76px; flex-shrink: 0; }
+.plan-card-value { color: rgba(176,190,197,.85); word-break: break-word; }
+
+.plan-card-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.plan-msg-progress {
+  align-self: flex-start;
+  font-size: 11px;
+  color: rgba(176,190,197,.5);
+  padding: 2px 4px;
+}
+
+.plan-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(176,190,197,.08);
+  flex-shrink: 0;
+}
+
+.plan-mic-btn {
+  background: rgba(176,190,197,.08);
+  border: 1px solid rgba(176,190,197,.15);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.plan-mic-btn:hover { background: rgba(176,190,197,.14); }
+.plan-mic-btn.gravando {
+  background: rgba(255,100,100,.15);
+  border-color: rgba(255,100,100,.3);
+  animation: plan-pulse 1s infinite;
+}
+@keyframes plan-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .6; }
+}
+
+.plan-input {
+  flex: 1;
+  background: rgba(176,190,197,.06);
+  border: 1px solid rgba(176,190,197,.12);
+  border-radius: 6px;
+  color: rgba(176,190,197,.9);
+  font-size: 12px;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+.plan-input:focus { border-color: rgba(0,180,216,.35); }
+.plan-input:disabled { opacity: .5; cursor: not-allowed; }
+.plan-input::placeholder { color: rgba(176,190,197,.25); }
+
+.plan-send-btn {
+  background: rgba(0,180,216,.12);
+  border: 1px solid rgba(0,180,216,.2);
+  border-radius: 6px;
+  color: #00b4d8;
+  font-size: 14px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.plan-send-btn:hover { background: rgba(0,180,216,.2); }
+.plan-send-btn:disabled { opacity: .4; cursor: not-allowed; }

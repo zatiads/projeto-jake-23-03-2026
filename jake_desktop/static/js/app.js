@@ -20,6 +20,9 @@
     if (id === "gestor" && typeof window.gestorInit === "function") {
       window.gestorInit();
     }
+    if (id === "planejador" && typeof window.planejadorInit === "function") {
+      window.planejadorInit();
+    }
   }
 
   document.querySelectorAll(".nav-item").forEach(function (item) {
@@ -31,7 +34,7 @@
 
   // Carrega a página correta se houver hash na URL
   var hash = location.hash.replace("#", "");
-  var valid = ["painel","architect","performance","anuncios","gestor","copys","criativos","relatorios","carrossel","prompts","financeiro","agenda","rotina","social-brief","nutricao","dr"];
+  var valid = ["painel","architect","performance","anuncios","gestor","planejador","copys","criativos","relatorios","carrossel","prompts","financeiro","agenda","rotina","social-brief","nutricao","dr"];
   if (hash && valid.indexOf(hash) !== -1) showPage(hash);
   else showPage("painel");
 
