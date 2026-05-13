@@ -56,16 +56,18 @@ def carregar_historico(chat_id: int, limite: int = 40) -> list:
     """Retorna lista [{role, content}] do DB para namespace 'whatsapp'."""
     try:
         conn = _db()
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT role, content FROM conversa "
-            "WHERE chat_id=%s AND namespace='whatsapp' "
-            "ORDER BY criado_em DESC LIMIT %s",
-            (chat_id, limite),
-        )
-        rows = cur.fetchall()
-        conn.close()
-        return [{"role": r["role"], "content": r["content"]} for r in reversed(rows)]
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT role, content FROM conversa "
+                "WHERE chat_id=%s AND namespace='whatsapp' "
+                "ORDER BY criado_em DESC LIMIT %s",
+                (chat_id, limite),
+            )
+            rows = cur.fetchall()
+            return [{"role": r["role"], "content": r["content"]} for r in reversed(rows)]
+        finally:
+            conn.close()
     except Exception as e:
         logger.error(f"carregar_historico error: {e}")
         return []
@@ -74,13 +76,18 @@ def salvar_mensagem(chat_id: int, role: str, content: str):
     """Persiste mensagem no DB com namespace 'whatsapp'."""
     try:
         conn = _db()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO conversa (chat_id, role, content, namespace) VALUES (%s,%s,%s,'whatsapp')",
-            (chat_id, role, content),
-        )
-        conn.commit()
-        conn.close()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO conversa (chat_id, role, content, namespace) VALUES (%s,%s,%s,'whatsapp')",
+                (chat_id, role, content),
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
     except Exception as e:
         logger.error(f"salvar_mensagem error: {e}")
 
@@ -123,35 +130,37 @@ def resumo_gestor() -> str:
     hoje = date.today()
     try:
         conn = _db()
-        cur = conn.cursor()
+        try:
+            cur = conn.cursor()
 
-        # Varreduras do dia
-        cur.execute(
-            """
-            SELECT contas_total, contas_ok, contas_acao, contas_erro, status
-            FROM gestor_varreduras
-            WHERE executado_em::date = %s
-            ORDER BY executado_em DESC
-            LIMIT 5
-            """,
-            (hoje,),
-        )
-        varreduras = cur.fetchall()
+            # Varreduras do dia
+            cur.execute(
+                """
+                SELECT contas_total, contas_ok, contas_acao, contas_erro, status
+                FROM gestor_varreduras
+                WHERE executado_em::date = %s
+                ORDER BY executado_em DESC
+                LIMIT 5
+                """,
+                (hoje,),
+            )
+            varreduras = cur.fetchall()
 
-        # Ações do dia
-        cur.execute(
-            """
-            SELECT ga.tipo, ga.entidade_nome, acp.nome as cliente_nome, ga.status
-            FROM gestor_acoes ga
-            JOIN ad_client_profiles acp ON acp.id = ga.cliente_id
-            WHERE ga.executado_em::date = %s
-            ORDER BY ga.executado_em DESC
-            LIMIT 20
-            """,
-            (hoje,),
-        )
-        acoes = cur.fetchall()
-        conn.close()
+            # Ações do dia
+            cur.execute(
+                """
+                SELECT ga.tipo, ga.entidade_nome, acp.nome as cliente_nome, ga.status
+                FROM gestor_acoes ga
+                JOIN ad_client_profiles acp ON acp.id = ga.cliente_id
+                WHERE ga.executado_em::date = %s
+                ORDER BY ga.executado_em DESC
+                LIMIT 20
+                """,
+                (hoje,),
+            )
+            acoes = cur.fetchall()
+        finally:
+            conn.close()
     except Exception as e:
         logger.error(f"resumo_gestor DB error: {e}")
         return "Erro ao consultar o banco de dados."
@@ -189,18 +198,20 @@ def financeiro_context() -> str:
     hoje = date.today()
     try:
         conn = _db()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT descricao, valor, tipo, categoria, data::text
-            FROM fin_transacoes
-            WHERE EXTRACT(YEAR FROM data) = %s AND EXTRACT(MONTH FROM data) = %s
-            ORDER BY data DESC
-            """,
-            (hoje.year, hoje.month),
-        )
-        rows = cur.fetchall()
-        conn.close()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT descricao, valor, tipo, categoria, data::text
+                FROM fin_transacoes
+                WHERE EXTRACT(YEAR FROM data) = %s AND EXTRACT(MONTH FROM data) = %s
+                ORDER BY data DESC
+                """,
+                (hoje.year, hoje.month),
+            )
+            rows = cur.fetchall()
+        finally:
+            conn.close()
     except Exception as e:
         logger.error(f"financeiro_context DB error: {e}")
         return "(erro ao consultar transações)"
