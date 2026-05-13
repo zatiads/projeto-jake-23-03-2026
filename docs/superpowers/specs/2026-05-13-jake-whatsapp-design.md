@@ -38,19 +38,14 @@ WhatsApp ↔ Evolution API (Docker :8081)
 | `WA_INSTANCE` | Nome da instância Evolution, ex: `jake` |
 | `WA_AUTHORIZED_JID` | JID do Bruno, ex: `5511999999999@s.whatsapp.net` |
 | `WA_GRUPOS_JSON` | JSON array com grupos e configurações de envio agendado |
+| `EVOLUTION_WEBHOOK_SECRET` | Secret opcional para validar origem do webhook (header `x-webhook-secret`) |
 
-Formato de `WA_GRUPOS_JSON`:
+Formato de `WA_GRUPOS_JSON` (JSON em uma linha no `.env`):
 ```json
-[
-  {
-    "nome": "Vielife",
-    "jid": "120363XXXXXXXXXX@g.us",
-    "msg": "Bom dia, time! 🚀 Semana de resultados!",
-    "cron": "08:00",
-    "dias": ["mon"]
-  }
-]
+[{"nome":"Vielife","jid":"120363XXXXXXXXXX@g.us","msg":"Bom dia, time! 🚀","cron":"08:00","dias":["mon"]}]
 ```
+
+Alternativa mais legível: arquivo `config/wa_grupos.json` — bot tenta carregar o arquivo primeiro, cai pro env var se não existir.
 
 ---
 
@@ -61,7 +56,7 @@ Formato de `WA_GRUPOS_JSON`:
 1. Bruno envia mensagem no WhatsApp
 2. Evolution API dispara `POST /webhook` para `bot/jake_whatsapp.py`
 3. Bot verifica se `sender == WA_AUTHORIZED_JID` — ignora silenciosamente se não for
-4. Carrega histórico do DB Neon (tabela `conversa`, namespace `whatsapp`, últimas 40 msgs)
+4. Carrega histórico do DB Neon (tabela `conversa`, namespace `whatsapp`, últimas 40 msgs). `chat_id` é derivado do JID do Bruno: strip de `@s.whatsapp.net` → bigint (ex: `5511999999999`)
 5. Chama Claude `claude-sonnet-4-6` com `PROMPT_ANALISTA` (mesmo prompt do Telegram)
 6. Salva mensagens (user + assistant) no DB
 7. Envia resposta via `POST {EVOLUTION_BASE_URL}/message/sendText/{WA_INSTANCE}`
@@ -69,7 +64,7 @@ Formato de `WA_GRUPOS_JSON`:
 ### Resumo Gestor IA — 17h diário
 
 1. APScheduler dispara às 17h (America/Sao_Paulo)
-2. Consulta DB Neon: tabela `gestor_timeline` — registros do dia atual
+2. Consulta DB Neon: tabela `gestor_varreduras` (varreduras do dia atual) + `gestor_acoes` (ações executadas) — ambas já existem no Jake OS
 3. Formata resumo curto com emojis (máx. ~5 linhas)
 4. Envia via `sendText` para `WA_AUTHORIZED_JID`
 
@@ -115,7 +110,7 @@ Se não houver atividade: `📊 Sem atividades registradas hoje.`
 | Evolution API offline ao responder | Loga erro, não trava o servidor |
 | Resumo gestor sem dados | Envia `📊 Sem atividades registradas hoje.` |
 | Grupo não encontrado | Responde ao Bruno que o grupo não está configurado |
-| Sessão WhatsApp desconectada | Bot verifica status na inicialização e loga alerta com instrução de reconexão via QR |
+| Sessão WhatsApp desconectada | Bot verifica status na inicialização via `GET /instance/connectionState/{WA_INSTANCE}` e loga alerta. Reconexão via QR code no dashboard Evolution API: `http://localhost:8081` |
 
 ---
 
@@ -134,6 +129,7 @@ Criar:
   docker-compose.evolution.yml          # Evolution API Docker
   bot/jake_whatsapp.py                  # Flask :5051 + APScheduler
   bot/whatsapp_handlers.py              # Handlers isolados
+  config/wa_grupos.json                 # Config de grupos (alternativa ao .env)
   scripts/subir_jake_whatsapp.sh        # Script startup
   /etc/systemd/system/jake-whatsapp.service  # Systemd
 
