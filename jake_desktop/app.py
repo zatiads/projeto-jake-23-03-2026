@@ -3297,6 +3297,91 @@ def anuncios_listar_campanhas(account_id):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/anuncios/lote/drive-download", methods=["POST"])
+@login_required
+def anuncios_lote_drive_download():
+    """Baixa arquivo de link público do Drive, faz upload para Meta e retorna creative_ref."""
+    import re as _re
+    from urllib.parse import urlparse, parse_qs
+    d = request.get_json() or {}
+    url        = (d.get("url") or "").strip()
+    account_id = (d.get("account_id") or "").strip()
+    token_key  = (d.get("token_key") or "META_ACCESS_TOKEN").strip()
+
+    if not url:
+        return jsonify({"error": "URL obrigatória"}), 400
+    if not account_id:
+        return jsonify({"error": "account_id obrigatório"}), 400
+    if token_key not in _VALID_TOKEN_KEYS:
+        return jsonify({"error": "token_key inválido"}), 400
+    token = os.getenv(token_key, "")
+    if not token:
+        return jsonify({"error": f"{token_key} não configurado"}), 500
+
+    # Extrair file_id do link do Drive
+    file_id = None
+    m = _re.search(r'/file/d/([a-zA-Z0-9_-]+)', url)
+    if m:
+        file_id = m.group(1)
+    elif "id=" in url:
+        file_id = parse_qs(urlparse(url).query).get("id", [None])[0]
+    if not file_id:
+        return jsonify({"error": "URL inválida. Use um link no formato drive.google.com/file/d/ID/view"}), 400
+
+    # Baixar arquivo diretamente do Drive (stream para detectar Content-Type antes de ler body)
+    download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+    try:
+        resp = requests.get(download_url, stream=True, allow_redirects=True, timeout=30)
+        resp.raise_for_status()
+    except Exception as e:
+        return jsonify({"error": f"Erro ao baixar arquivo: {e}"}), 400
+
+    # Detectar arquivo não público (Drive retorna HTML com página de confirmação)
+    content_type = resp.headers.get("Content-Type", "")
+    if "text/html" in content_type:
+        return jsonify({"error": "Arquivo não público ou requer confirmação. Compartilhe com 'qualquer pessoa com o link'"}), 400
+
+    # Detectar tipo suportado via Content-Type
+    _MIME_EXT = {
+        "image/jpeg": ".jpg",
+        "image/png":  ".png",
+        "image/gif":  ".gif",
+        "video/mp4":  ".mp4",
+    }
+    mime_base = content_type.split(";")[0].strip()
+    ext = _MIME_EXT.get(mime_base)
+    if not ext:
+        return jsonify({"error": f"Tipo de arquivo não suportado: {mime_base}. Use JPG, PNG, GIF ou MP4."}), 400
+
+    content = resp.content
+
+    # Salvar em /tmp e fazer upload para Meta
+    tmp_id   = str(uuid.uuid4())
+    tmp_path = os.path.join(_TMP_DIR, f"{tmp_id}{ext}")
+    try:
+        with open(tmp_path, "wb") as f:
+            f.write(content)
+    except Exception as e:
+        return jsonify({"error": f"Erro ao salvar arquivo: {e}"}), 500
+
+    try:
+        if mime_base == "video/mp4":
+            video_id = _meta_api.upload_video(token, account_id, content, f"lote_drive{ext}")
+            creative_ref = {"tipo": "video", "video_id": video_id}
+        else:
+            resultado = _meta_api.upload_imagem(token, account_id, content, f"lote_drive{ext}")
+            creative_ref = {"tipo": "imagem", "hash": resultado["hash"]}
+    except Exception as e:
+        return jsonify({"error": f"Erro ao enviar para Meta: {e}"}), 500
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
+    return jsonify({"creative_ref": creative_ref, "mime": mime_base, "file_id": file_id, "ok": True})
+
+
 @app.route("/api/anuncios/upload-criativo", methods=["POST"])
 @login_required
 def anuncios_upload_criativo():
