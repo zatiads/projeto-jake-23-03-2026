@@ -4881,6 +4881,9 @@ def anuncios_publicar_lote_stream(lote_token):
 
         cbo = camp_tipo not in ("ENGAGEMENT", "PURCHASE")
         if modo_camp == "existente" and campaign_id_existente:
+            # Validar campaign_id — deve ser numérico
+            if not campaign_id_existente.isdigit():
+                yield _sse({"tipo": "erro_fatal", "erro": "campaign_id_existente inválido"}); return
             # Validar que a campanha pertence à conta do cliente
             try:
                 r_check = requests.get(
@@ -4890,11 +4893,14 @@ def anuncios_publicar_lote_stream(lote_token):
                 )
                 r_check.raise_for_status()
                 resp_data = r_check.json()
-                expected_account = account_id.replace("act_", "")
-                if str(resp_data.get("account_id", "")) != expected_account:
-                    yield _sse({"tipo": "erro_fatal", "erro": "Campanha não pertence à conta do cliente"}); return
-            except Exception as e:
+            except requests.exceptions.RequestException as e:
                 yield _sse({"tipo": "erro_fatal", "erro": f"Erro ao validar campanha: {e}"}); return
+            # Verificar erro da API Meta (retorna 200 com campo error)
+            if "error" in resp_data:
+                yield _sse({"tipo": "erro_fatal", "erro": f"Meta API: {resp_data['error'].get('message', str(resp_data['error']))}"}); return
+            expected_account = account_id.replace("act_", "")
+            if str(resp_data.get("account_id", "")) != expected_account:
+                yield _sse({"tipo": "erro_fatal", "erro": "Campanha não pertence à conta do cliente"}); return
             campaign_id = campaign_id_existente
             yield _sse({"tipo": "campanha_ok", "campaign_id": campaign_id, "existente": True})
         else:
