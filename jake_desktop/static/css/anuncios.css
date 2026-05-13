@@ -172,3 +172,29 @@
   background: #00b4d8;
   color: #0a0e1a;
 }
+
+/* ── Fix visual: select dark theme ─────────────────── */
+#page-anuncios select {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(176,190,197,0.12);
+  color: rgba(176,190,197,0.9);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+#page-anuncios select:focus {
+  outline: none;
+  border-color: rgba(100,181,246,0.4);
+}
+#page-anuncios option {
+  background: #1a1a2e;
+  color: rgba(176,190,197,0.9);
+}
+#page-anuncios select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
