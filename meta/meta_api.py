@@ -225,7 +225,7 @@ import json as _json_meta
 
 # Mapeamento interno → Meta API objective strings
 _OBJETIVO_MAP = {
-    "MESSAGES":   "OUTCOME_MESSAGES",
+    "MESSAGES":   "MESSAGES",
     "ENGAGEMENT": "OUTCOME_ENGAGEMENT",
     "PURCHASE":   "OUTCOME_SALES",
 }
@@ -341,7 +341,7 @@ def criar_campanha(token: str, account_id: str, campanha_tipo: str,
     cbo=True: orçamento ao nível da campanha (MESSAGES). PURCHASE usa orçamento no adset.
     Retorna campaign_id.
     """
-    objetivo = _OBJETIVO_MAP.get(campanha_tipo, "OUTCOME_MESSAGES")
+    objetivo = _OBJETIVO_MAP.get(campanha_tipo, "MESSAGES")
     url = f"{GRAPH_URL}/{account_id}/campaigns"
     payload = {
         "name": nome,

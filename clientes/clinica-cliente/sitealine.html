@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Clínica Aline Filgueiras</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+
+    /* ============================================
+       VARIÁVEIS — edite aqui para mudar as cores
+    ============================================ */
+    :root {
+      --cor-primaria: #c9a97a;        /* dourado/rose gold */
+      --cor-primaria-escura: #a8875a;
+      --cor-texto: #3a3a3a;
+      --cor-texto-claro: #7a7a7a;
+      --cor-fundo: #fdfaf7;
+      --cor-fundo-secao: #f9f3ee;
+      --cor-branco: #ffffff;
+      --cor-rosa-claro: #f5ede4;
+      --fonte-titulo: 'Cormorant Garamond', serif;
+      --fonte-corpo: 'Jost', sans-serif;
+    }
+
+    /* ============================================
+       RESET & BASE
+    ============================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--fonte-corpo);
+      color: var(--cor-texto);
+      background: var(--cor-fundo);
+      font-size: 16px;
+      line-height: 1.7;
+    }
+    img { max-width: 100%; display: block; }
+    a { text-decoration: none; color: inherit; }
+    ul { list-style: none; }
+
+    /* ============================================
+       UTILITÁRIOS
+    ============================================ */
+    .container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+    .section-tag {
+      font-family: var(--fonte-corpo);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--cor-primaria);
+      display: block;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-family: var(--fonte-titulo);
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 300;
+      line-height: 1.2;
+      color: var(--cor-texto);
+    }
+    .section-title em {
+      font-style: italic;
+      color: var(--cor-primaria);
+    }
+    .btn {
+      display: inline-block;
+      padding: 14px 36px;
+      font-family: var(--fonte-corpo);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      border: 1.5px solid var(--cor-primaria);
+      color: var(--cor-primaria);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .btn:hover {
+      background: var(--cor-primaria);
+      color: var(--cor-branco);
+    }
+    .btn-filled {
+      background: var(--cor-primaria);
+      color: var(--cor-branco);
+    }
+    .btn-filled:hover {
+      background: var(--cor-primaria-escura);
+      border-color: var(--cor-primaria-escura);
+    }
+    .divider {
+      width: 50px;
+      height: 1.5px;
+      background: var(--cor-primaria);
+      margin: 20px 0;
+    }
+
+    /* ============================================
+       HEADER / NAVEGAÇÃO
+    ============================================ */
+    .header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 1000;
+      background: rgba(253, 250, 247, 0.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(201,169,122,0.2);
+      transition: box-shadow 0.3s;
+    }
+    .header.scrolled { box-shadow: 0 2px 20px rgba(0,0,0,0.06); }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 80px;
+    }
+    .logo {
+      font-family: var(--fonte-titulo);
+      font-size: 1.6rem;
+      font-weight: 300;
+      letter-spacing: 1px;
+      color: var(--cor-texto);
+    }
+    .logo span { color: var(--cor-primaria); }
+    /* Substitua o texto do logo por uma tag <img> com seu logo real */
+
+    .nav { display: flex; align-items: center; gap: 36px; }
+    .nav a {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--cor-texto);
+      position: relative;
+      transition: color 0.2s;
+    }
+    .nav a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px; left: 0;
+      width: 0; height: 1px;
+      background: var(--cor-primaria);
+      transition: width 0.3s;
+    }
+    .nav a:hover { color: var(--cor-primaria); }
+    .nav a:hover::after { width: 100%; }
+
+    /* Dropdown procedimentos */
+    .nav-dropdown { position: relative; }
+    .nav-dropdown > a::after { display: none; }
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 20px);
+      left: -20px;
+      background: var(--cor-branco);
+      border: 1px solid rgba(201,169,122,0.2);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.08);
+      min-width: 260px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-8px);
+      transition: all 0.25s ease;
+      z-index: 999;
+    }
+    .nav-dropdown:hover .dropdown-menu {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .dropdown-col { padding: 24px; }
+    .dropdown-col h4 {
+      font-family: var(--fonte-corpo);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--cor-primaria);
+      margin-bottom: 12px;
+    }
+    .dropdown-col a {
+      display: block;
+      font-size: 13px;
+      letter-spacing: 0;
+      text-transform: none;
+      font-weight: 300;
+      padding: 5px 0;
+      color: var(--cor-texto);
+      border-bottom: none;
+      transition: color 0.2s, padding-left 0.2s;
+    }
+    .dropdown-col a:hover { color: var(--cor-primaria); padding-left: 6px; }
+    .dropdown-col a::after { display: none !important; }
+
+    .nav-cta {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 10px 22px;
+      background: var(--cor-primaria);
+      color: var(--cor-branco) !important;
+      transition: background 0.3s !important;
+    }
+    .nav-cta:hover { background: var(--cor-primaria-escura) !important; color: var(--cor-branco) !important; }
+    .nav-cta::after { display: none !important; }
+
+    /* Menu Mobile */
+    .menu-toggle {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      cursor: pointer;
+      padding: 4px;
+    }
+    .menu-toggle span {
+      display: block;
+      width: 24px;
+      height: 1.5px;
+      background: var(--cor-texto);
+      transition: all 0.3s;
+    }
+
+    /* ============================================
+       HERO BANNER
+    ============================================ */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, #fdf8f3 0%, #f9f0e6 50%, #f5e8d8 100%);
+      padding-top: 80px;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -100px; right: -100px;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(201,169,122,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 60px;
+      min-height: calc(100vh - 80px);
+    }
+    .hero-content { padding: 80px 0; }
+    .hero-eyebrow {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--cor-primaria);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .hero-eyebrow::before {
+      content: '';
+      width: 40px;
+      height: 1px;
+      background: var(--cor-primaria);
+    }
+    .hero-title {
+      font-family: var(--fonte-titulo);
+      font-size: clamp(3rem, 6vw, 5.5rem);
+      font-weight: 300;
+      line-height: 1.1;
+      margin-bottom: 24px;
+      color: var(--cor-texto);
+    }
+    .hero-title em {
+      font-style: italic;
+      color: var(--cor-primaria);
+      display: block;
+    }
+    .hero-subtitle {
+      font-size: 15px;
+      font-weight: 300;
+      color: var(--cor-texto-claro);
+      max-width: 420px;
+      margin-bottom: 40px;
+      line-height: 1.8;
+    }
+    .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+    .hero-image {
+      position: relative;
+      height: 100%;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .hero-image-frame {
+      position: relative;
+      width: 100%;
+      max-width: 500px;
+    }
+    .hero-img-placeholder {
+      width: 100%;
+      aspect-ratio: 3/4;
+      background: linear-gradient(160deg, #e8d5c0 0%, #d4b896 100%);
+      border-radius: 2px 60px 2px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255,255,255,0.7);
+      font-family: var(--fonte-titulo);
+      font-size: 1rem;
+      letter-spacing: 2px;
+      text-align: center;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+    /* Quando tiver a foto real, substitua .hero-img-placeholder por <img> */
+    .hero-img-placeholder svg { width: 48px; opacity: 0.5; }
+    .hero-badge {
+      position: absolute;
+      bottom: 40px;
+      left: -20px;
+      background: var(--cor-branco);
+      border: 1px solid rgba(201,169,122,0.3);
+      padding: 16px 24px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    }
+    .hero-badge-num {
+      font-family: var(--fonte-titulo);
+      font-size: 2.2rem;
+      font-weight: 300;
+      color: var(--cor-primaria);
+      line-height: 1;
+    }
+    .hero-badge-txt {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--cor-texto-claro);
+      margin-top: 4px;
+    }
+    .hero-deco {
+      position: absolute;
+      top: 30px; right: -10px;
+      width: 120px; height: 120px;
+      border: 1px solid rgba(201,169,122,0.25);
+      border-radius: 50%;
+    }
+
+    /* ============================================
+       PROCEDIMENTOS
+    ============================================ */
+    .procedimentos {
+      padding: 100px 0;
+      background: var(--cor-fundo);
+    }
+    .procedimentos-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 60px;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+    .procedimentos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 24px;
+    }
+    .proc-card {
+      background: var(--cor-branco);
+      border: 1px solid rgba(201,169,122,0.15);
+      overflow: hidden;
+      transition: transform 0.3s, box-shadow 0.3s;
+      cursor: pointer;
+    }
+    .proc-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 16px 50px rgba(0,0,0,0.08);
+    }
+    .proc-card-img {
+      aspect-ratio: 4/3;
+      background: linear-gradient(145deg, var(--cor-rosa-claro), #e8d5c0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+    .proc-card-img img { width: 100%; height: 100%; object-fit: cover; }
+    .proc-card-img-placeholder {
+      font-family: var(--fonte-titulo);
+      font-style: italic;
+      font-size: 0.85rem;
+      color: rgba(120,90,60,0.4);
+      letter-spacing: 1px;
+    }
+    .proc-card-body { padding: 24px 20px; }
+    .proc-card-body h3 {
+      font-family: var(--fonte-titulo);
+      font-size: 1.2rem;
+      font-weight: 400;
+      line-height: 1.3;
+      margin-bottom: 8px;
+    }
+    .proc-card-body p {
+      font-size: 13px;
+      font-weight: 300;
+      color: var(--cor-texto-claro);
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+    .proc-card-link {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--cor-primaria);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: gap 0.2s;
+    }
+    .proc-card-link:hover { gap: 14px; }
+    .proc-card-link::after { content: '→'; }
+
+    /* Tabs de procedimentos */
+    .proc-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 40px;
+      flex-wrap: wrap;
+    }
+    .proc-tab {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 10px 24px;
+      border: 1px solid rgba(201,169,122,0.3);
+      color: var(--cor-texto-claro);
+      cursor: pointer;
+      transition: all 0.2s;
+      background: transparent;
+      font-family: var(--fonte-corpo);
+    }
+    .proc-tab.active, .proc-tab:hover {
+      background: var(--cor-primaria);
+      color: var(--cor-branco);
+      border-color: var(--cor-primaria);
+    }
+    .proc-panel { display: none; }
+    .proc-panel.active { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 24px; }
+
+    /* ============================================
+       SOBRE A CLÍNICA
+    ============================================ */
+    .sobre {
+      padding: 100px 0;
+      background: var(--cor-fundo-secao);
+    }
+    .sobre-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+    .sobre-image { position: relative; }
+    .sobre-img-frame {
+      width: 100%;
+      aspect-ratio: 3/4;
+      background: linear-gradient(160deg, #e0cbb5 0%, #c9a97a 100%);
+      border-radius: 60px 2px 60px 2px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255,255,255,0.5);
+      font-family: var(--fonte-titulo);
+      font-style: italic;
+    }
+    .sobre-deco {
+      position: absolute;
+      bottom: -20px; right: -20px;
+      width: 200px; height: 200px;
+      border: 1px solid rgba(201,169,122,0.3);
+      border-radius: 50%;
+      z-index: -1;
+    }
+    .sobre-deco-2 {
+      position: absolute;
+      top: -15px; left: -15px;
+      width: 80px; height: 80px;
+      background: var(--cor-rosa-claro);
+      border-radius: 50%;
+      z-index: -1;
+    }
+    .sobre-content { padding: 20px 0; }
+    .sobre-content p {
+      font-size: 15px;
+      font-weight: 300;
+      color: var(--cor-texto-claro);
+      line-height: 1.9;
+      margin-bottom: 20px;
+    }
+    .sobre-content strong { color: var(--cor-texto); font-weight: 500; }
+
+    /* Pilares */
+    .pilares {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 36px 0;
+    }
+    .pilar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px;
+      background: var(--cor-branco);
+      border: 1px solid rgba(201,169,122,0.15);
+    }
+    .pilar-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--cor-rosa-claro);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 18px;
+    }
+    .pilar-text {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      color: var(--cor-texto);
+    }
+
+    /* ============================================
+       DEPOIMENTOS / FAMOSOS
+    ============================================ */
+    .depoimentos {
+      padding: 100px 0;
+      background: var(--cor-fundo);
+      overflow: hidden;
+    }
+    .depoimentos-header { text-align: center; margin-bottom: 60px; }
+    .depoimentos-header .divider { margin: 20px auto; }
+    .depoimentos-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .dep-card {
+      background: var(--cor-branco);
+      border: 1px solid rgba(201,169,122,0.2);
+      border-radius: 2px;
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transition: box-shadow 0.3s, transform 0.3s;
+    }
+    .dep-card:hover {
+      box-shadow: 0 8px 32px rgba(201,169,122,0.15);
+      transform: translateY(-4px);
+    }
+    .dep-card-top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .dep-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--cor-primaria), #b8946a);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--fonte-titulo);
+      font-size: 18px;
+      color: white;
+      flex-shrink: 0;
+    }
+    .dep-info { flex: 1; }
+    .dep-nome {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--cor-texto);
+      letter-spacing: 0.3px;
+    }
+    .dep-estrelas {
+      display: flex;
+      gap: 2px;
+      margin-top: 3px;
+    }
+    .dep-estrelas span {
+      color: #FBBC04;
+      font-size: 13px;
+    }
+    .dep-google-icon {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+      opacity: 0.7;
+    }
+    .dep-texto {
+      font-size: 13.5px;
+      color: var(--cor-texto-claro);
+      font-weight: 300;
+      line-height: 1.75;
+      font-style: italic;
+    }
+    .dep-img-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--fonte-titulo);
+      font-style: italic;
+      color: rgba(120,80,40,0.35);
+      font-size: 0.9rem;
+    }
+
+    /* ============================================
+       INSTAGRAM / FEED
+    ============================================ */
+    .instagram {
+      padding: 100px 0;
+      background: var(--cor-fundo-secao);
+      text-align: center;
+    }
+    .instagram-handle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .instagram-handle svg { width: 28px; }
+    .instagram-handle a {
+      font-family: var(--fonte-titulo);
+      font-size: 1.8rem;
+      font-weight: 300;
+      color: var(--cor-texto);
+      transition: color 0.2s;
+    }
+    .instagram-handle a:hover { color: var(--cor-primaria); }
+    .instagram-sub {
+      font-size: 12px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--cor-texto-claro);
+      margin-bottom: 48px;
+    }
+    .instagram-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+    .insta-post {
+      aspect-ratio: 1;
+      background: linear-gradient(145deg, var(--cor-rosa-claro), #e0cbb5);
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+    }
+    .insta-post img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; }
+    .insta-post:hover img { transform: scale(1.06); }
+    .insta-post-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(201,169,122,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .insta-post:hover .insta-post-overlay { opacity: 1; }
+    .insta-post-overlay svg { width: 32px; fill: white; }
+    .insta-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: rgba(120,80,40,0.3);
+      font-family: var(--fonte-corpo);
+    }
+
+    /* ============================================
+       LOCALIZAÇÃO
+    ============================================ */
+    .localizacao {
+      padding: 100px 0;
+      background: var(--cor-fundo);
+    }
+    .localizacao-inner {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 60px;
+      align-items: center;
+    }
+    .localizacao-info { }
+    .localizacao-info p {
+      font-size: 15px;
+      font-weight: 300;
+      color: var(--cor-texto-claro);
+      margin-bottom: 12px;
+    }
+    .localizacao-info strong { color: var(--cor-texto); }
+    .contact-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 0;
+      border-bottom: 1px solid rgba(201,169,122,0.15);
+    }
+    .contact-item:first-of-type { border-top: 1px solid rgba(201,169,122,0.15); margin-top: 32px; }
+    .contact-icon {
+      width: 44px; height: 44px;
+      background: var(--cor-rosa-claro);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 18px;
+    }
+    .contact-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--cor-texto-claro); }
+    .contact-value { font-size: 14px; font-weight: 400; color: var(--cor-texto); margin-top: 2px; }
+    .mapa-placeholder {
+      width: 100%;
+      aspect-ratio: 4/3;
+      background: #ede4d8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--fonte-titulo);
+      font-style: italic;
+      color: rgba(120,80,40,0.4);
+      font-size: 1rem;
+      letter-spacing: 1px;
+    }
+    /* Para inserir Google Maps real, substitua .mapa-placeholder por <iframe> */
+
+    /* ============================================
+       NEWSLETTER
+    ============================================ */
+    .newsletter {
+      padding: 80px 0;
+      background: linear-gradient(135deg, #3a2e25 0%, #5a4535 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .newsletter::before {
+      content: '';
+      position: absolute;
+      top: -80px; right: -80px;
+      width: 350px; height: 350px;
+      border-radius: 50%;
+      background: rgba(201,169,122,0.1);
+      pointer-events: none;
+    }
+    .newsletter-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+    .newsletter-text .section-tag { color: var(--cor-primaria); }
+    .newsletter-text .section-title { color: var(--cor-branco); }
+    .newsletter-text p {
+      color: rgba(255,255,255,0.6);
+      font-size: 14px;
+      font-weight: 300;
+      margin-top: 12px;
+      max-width: 400px;
+    }
+    .newsletter-form {
+      display: flex;
+      gap: 0;
+      max-width: 420px;
+      width: 100%;
+    }
+    .newsletter-form input {
+      flex: 1;
+      padding: 16px 20px;
+      border: 1.5px solid rgba(201,169,122,0.4);
+      background: rgba(255,255,255,0.05);
+      color: var(--cor-branco);
+      font-family: var(--fonte-corpo);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .newsletter-form input::placeholder { color: rgba(255,255,255,0.4); }
+    .newsletter-form input:focus { border-color: var(--cor-primaria); }
+    .newsletter-form button {
+      padding: 16px 28px;
+      background: var(--cor-primaria);
+      color: var(--cor-branco);
+      border: none;
+      font-family: var(--fonte-corpo);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .newsletter-form button:hover { background: var(--cor-primaria-escura); }
+
+    /* ============================================
+       FOOTER
+    ============================================ */
+    .footer {
+      background: #2a2018;
+      color: rgba(255,255,255,0.7);
+      padding: 60px 0 30px;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr 1fr;
+      gap: 40px;
+      padding-bottom: 50px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      margin-bottom: 30px;
+    }
+    .footer-brand .logo { color: var(--cor-branco); font-size: 1.4rem; margin-bottom: 16px; display: block; }
+    .footer-brand p { font-size: 13px; font-weight: 300; line-height: 1.8; max-width: 260px; }
+    .footer-social { display: flex; gap: 12px; margin-top: 24px; }
+    .footer-social a {
+      width: 38px; height: 38px;
+      border: 1px solid rgba(201,169,122,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: var(--cor-primaria);
+      transition: all 0.2s;
+    }
+    .footer-social a:hover { background: var(--cor-primaria); color: var(--cor-branco); }
+    .footer-col h4 {
+      font-family: var(--fonte-corpo);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--cor-primaria);
+      margin-bottom: 20px;
+    }
+    .footer-col ul li { margin-bottom: 10px; }
+    .footer-col ul li a {
+      font-size: 13px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.6);
+      transition: color 0.2s;
+    }
+    .footer-col ul li a:hover { color: var(--cor-primaria); }
+    .footer-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .footer-bottom p { font-size: 12px; font-weight: 300; color: rgba(255,255,255,0.4); }
+    .footer-bottom a { color: rgba(255,255,255,0.4); }
+    .footer-bottom a:hover { color: var(--cor-primaria); }
+
+    /* ============================================
+       WHATSAPP FLUTUANTE
+    ============================================ */
+    .whatsapp-float {
+      position: fixed;
+      bottom: 30px; right: 30px;
+      width: 56px; height: 56px;
+      background: #25d366;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(37,211,102,0.4);
+      z-index: 9999;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+    .whatsapp-float:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(37,211,102,0.5); }
+    .whatsapp-float svg { width: 28px; fill: white; }
+
+    /* ============================================
+       RESPONSIVO
+    ============================================ */
+    @media (max-width: 900px) {
+      .nav { display: none; }
+      .menu-toggle { display: flex; }
+      .hero-inner { grid-template-columns: 1fr; }
+      .hero-image { display: none; }
+      .sobre-inner { grid-template-columns: 1fr; }
+      .sobre-image { display: none; }
+      .localizacao-inner { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .instagram-grid { grid-template-columns: repeat(2, 1fr); }
+      .pilares { grid-template-columns: 1fr; }
+      .newsletter-inner { flex-direction: column; }
+      .newsletter-form { max-width: 100%; }
+    }
+    @media (max-width: 900px) {
+      .depoimentos-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .footer-grid { grid-template-columns: 1fr; }
+      .depoimentos-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ============================================
+       ANIMAÇÕES DE ENTRADA
+    ============================================ */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .fade-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ============================================
+       MOBILE NAV
+    ============================================ */
+    .mobile-nav {
+      position: fixed;
+      inset: 0;
+      background: var(--cor-fundo);
+      z-index: 9998;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+    }
+    .mobile-nav.open { opacity: 1; visibility: visible; }
+    .mobile-nav a {
+      font-family: var(--fonte-titulo);
+      font-size: 2rem;
+      font-weight: 300;
+      color: var(--cor-texto);
+      transition: color 0.2s;
+    }
+    .mobile-nav a:hover { color: var(--cor-primaria); }
+    .mobile-nav-close {
+      position: absolute;
+      top: 28px; right: 24px;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--cor-texto);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ========== HEADER ========== -->
+  <header class="header" id="header">
+    <div class="container">
+      <div class="header-inner">
+        <a href="#" class="logo"><img src="img/logo.png" alt="Clínica Aline Filgueiras" style="height:50px;width:auto;display:block;"></a>
+
+        <nav class="nav">
+          <a href="#inicio">Início</a>
+          <a href="#sobre">A Clínica</a>
+          <div class="nav-dropdown">
+            <a href="#procedimentos">Procedimentos ▾</a>
+            <div class="dropdown-menu">
+              <div class="dropdown-col">
+                <h4>Rosto</h4>
+                <a href="#">Toxina Botulínica</a>
+                <a href="#">Preenchimento Labial</a>
+                <a href="#">Bioestimuladores</a>
+                <a href="#">Rinomodelação</a>
+                <a href="#">Fios de Sustentação</a>
+              </div>
+              <div class="dropdown-col">
+                <h4>Corpo</h4>
+                <a href="#">Body Sculpting</a>
+                <a href="#">Drenagem Linfática</a>
+                <a href="#">Intradermoterapia</a>
+                <h4 style="margin-top:16px">Tecnologias</h4>
+                <a href="#">Ultraformer</a>
+                <a href="#">Laser</a>
+              </div>
+            </div>
+          </div>
+          <a href="#contato">Contato</a>
+          <a href="https://wa.me/5513982161340?text=Ol%C3%A1%2C%20vim%20pelo%20site%20e%20quero%20agendar%20uma%20consulta%20em%20PG" class="nav-cta" target="_blank">Agendar Consulta</a>
+        </nav>
+
+        <div class="menu-toggle" id="menuToggle">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Nav -->
+  <div class="mobile-nav" id="mobileNav">
+    <span class="mobile-nav-close" id="mobileNavClose">✕</span>
+    <a href="#inicio" class="mobile-link">Início</a>
+    <a href="#sobre" class="mobile-link">A Clínica</a>
+    <a href="#procedimentos" class="mobile-link">Procedimentos</a>
+    <a href="#contato" class="mobile-link">Contato</a>
+    <a href="https://wa.me/5513982161340?text=Ol%C3%A1%2C%20vim%20pelo%20site%20e%20quero%20agendar%20uma%20consulta%20em%20PG" class="mobile-link" style="color:var(--cor-primaria)">Agendar Consulta</a>
+  </div>
+
+  <!-- ========== HERO ========== -->
+  <section class="hero" id="inicio">
+    <div class="container">
+      <div class="hero-inner">
+        <div class="hero-content">
+          <span class="hero-eyebrow">Clínica de Estética Avançada</span>
+          <h1 class="hero-title">
+            Promovemos autoconfiança
+            <em>e saúde</em>
+          </h1>
+          <p class="hero-subtitle">
+            Através da estética avançada, realçamos sua beleza natural com técnicas seguras e resultados que respeitam a sua individualidade.
+          </p>
+          <p style="font-size:14px;color:var(--cor-primaria);letter-spacing:2px;text-transform:uppercase;margin-bottom:24px;font-weight:500">📍 Praia Grande – SP &nbsp;|&nbsp; Belo Horizonte – MG</p>
+          <div class="hero-actions">
+            <a href="#contato" class="btn btn-filled">Agendar Avaliação</a>
+            <a href="#procedimentos" class="btn">Ver Procedimentos</a>
+          </div>
+        </div>
+        <div class="hero-image">
+          <div class="hero-image-frame">
+            <div class="hero-deco"></div>
+            <!-- Coloque a foto da Dra. na pasta img/ com o nome foto-dra.jpg -->
+            <img src="img/foto-dra.png" alt="Dra. Aline Filgueiras" style="width:100%;aspect-ratio:3/4;object-fit:cover;object-position:center top;border-radius:2px 60px 2px 60px;display:block;">
+            <div class="hero-badge">
+              <div class="hero-badge-num">+500</div>
+              <div class="hero-badge-txt">Pacientes Satisfeitas</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== PROCEDIMENTOS ========== -->
+  <section class="procedimentos" id="procedimentos">
+    <div class="container">
+      <div class="procedimentos-header fade-up">
+        <div>
+          <span class="section-tag">O que oferecemos</span>
+          <h2 class="section-title">Nossos <em>Procedimentos</em></h2>
+          <p style="font-size:13px;color:var(--cor-primaria);letter-spacing:2px;text-transform:uppercase;margin-top:8px;font-weight:500">📍 Praia Grande – SP &nbsp;|&nbsp; Belo Horizonte – MG</p>
+        </div>
+        <a href="#" class="btn">Ver Todos</a>
+      </div>
+
+      <div class="procedimentos-grid">
+        <div class="proc-card fade-up">
+          <div class="proc-card-img">
+            <img src="img/botox1.jpeg" alt="Gerenciamento de envelhecimento">
+          </div>
+          <div class="proc-card-body">
+            <h3>Gerenciamento de envelhecimento</h3>
+            <p>Promove rejuvenescimento facial com resultados naturais e duradouros.</p>
+            <a href="https://wa.me/5513982161340?text=Ol%C3%A1%2C%20vim%20pelo%20site%20e%20quero%20agendar%20uma%20consulta%20em%20BH" class="proc-card-link" target="_blank">Saiba mais</a>
+          </div>
+        </div>
+        <div class="proc-card fade-up">
+          <div class="proc-card-img">
+            <img src="img/fullface.jpg" alt="Correção de assimetrias e incômodos">
+          </div>
+          <div class="proc-card-body">
+            <h3>Correção de assimetrias e incômodos</h3>
+            <p>Equilíbrio e harmonia para realçar sua beleza natural com segurança.</p>
+            <a href="https://wa.me/5513982161340?text=Ol%C3%A1%2C%20vim%20pelo%20site%20e%20quero%20agendar%20uma%20consulta%20em%20BH" class="proc-card-link" target="_blank">Saiba mais</a>
+          </div>
+        </div>
+        <div class="proc-card fade-up">
+          <div class="proc-card-img">
+            <img src="img/botox2.jpeg" alt="Gerenciamento de pele">
+          </div>
+          <div class="proc-card-body">
+            <h3>Gerenciamento de pele</h3>
+            <p>Suaviza linhas de expressão e renova a aparência com naturalidade.</p>
+            <a href="https://wa.me/5513982161340?text=Ol%C3%A1%2C%20vim%20pelo%20site%20e%20quero%20agendar%20uma%20consulta%20em%20BH" class="proc-card-link" target="_blank">Saiba mais</a>
+          </div>
+        </div>
+        <div class="proc-card fade-up">
+          <div class="proc-card-img">
+            <img src="img/fullface2.png" alt="Harmonização Facial">
+          </div>
+          <div class="proc-card-body">
+            <h3>Harmonização Facial</h3>
+            <p>Tratamento personalizado para valorizar os traços únicos de cada paciente.</p>
+            <a href="https://wa.me/5513982161340?text=Ol%C3%A1%2C%20vim%20pelo%20site%20e%20quero%20agendar%20uma%20consulta%20em%20BH" class="proc-card-link" target="_blank">Saiba mais</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== SOBRE ========== -->
+  <section class="sobre" id="sobre">
+    <div class="container">
+      <div class="sobre-inner">
+        <div class="sobre-image fade-up">
+          <!-- SUBSTITUA por <img src="img/dra-foto.jpg" alt="Dra. Nome"> -->
+          <div class="sobre-img-frame">Foto da Dra.</div>
+          <div class="sobre-deco"></div>
+          <div class="sobre-deco-2"></div>
+        </div>
+        <div class="sobre-content fade-up">
+          <span class="section-tag">Quem somos</span>
+          <h2 class="section-title">Sobre a <em>Clínica</em></h2>
+          <div class="divider"></div>
+          <p>
+            A <strong>Clínica Aline Filgueiras</strong> é uma referência em estética no Brasil.
+          </p>
+          <p>
+            Com um compromisso inabalável com a naturalidade, saúde e bem-estar,
+            a clínica reúne os melhores profissionais e tecnologias para entregar
+            resultados que respeitam a individualidade de cada paciente.
+          </p>
+
+          <div class="pilares">
+            <div class="pilar"><div class="pilar-icon">🛡️</div><div class="pilar-text">Estética com segurança</div></div>
+            <div class="pilar"><div class="pilar-icon">✨</div><div class="pilar-text">Foco em naturalidade</div></div>
+            <div class="pilar"><div class="pilar-icon">💛</div><div class="pilar-text">Acolhimento e respeito</div></div>
+            <div class="pilar"><div class="pilar-icon">📚</div><div class="pilar-text">Conhecimento constante</div></div>
+          </div>
+
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <a href="https://wa.me/5513982161340?text=Ol%C3%A1%2C%20vim%20pelo%20site%20e%20quero%20agendar%20uma%20consulta%20em%20PG" class="btn btn-filled" target="_blank">Agendar em Praia Grande</a>
+            <a href="https://wa.me/5513982161340?text=Ol%C3%A1%2C%20vim%20pelo%20site%20e%20quero%20agendar%20uma%20consulta%20em%20BH" class="btn" target="_blank">Agendar em Belo Horizonte</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== DEPOIMENTOS / CLIENTES ========== -->
+  <section class="depoimentos">
+    <div class="container">
+      <div class="depoimentos-header fade-up">
+        <span class="section-tag">Nossas Pacientes</span>
+        <h2 class="section-title">Resultados que <em>Falam</em></h2>
+        <div class="divider"></div>
+        <p style="color:var(--cor-texto-claro);font-weight:300;font-size:15px;max-width:500px;margin:0 auto">
+          Pacientes reais, resultados reais. Veja as transformações que realizamos.
+        </p>
+      </div>
+      <div class="depoimentos-grid">
+
+        <!-- Avaliação 1 -->
+        <div class="dep-card fade-up">
+          <div class="dep-card-top">
+            <div class="dep-avatar">J</div>
+            <div class="dep-info">
+              <div class="dep-nome">Juliana Aguiar</div>
+              <div class="dep-estrelas">
+                <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+              </div>
+            </div>
+            <svg class="dep-google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+          </div>
+          <p class="dep-texto">"Profissionais super qualificados desde o atendimento da recepção até profissionais do procedimento estético, super recomendo. Gostei muito do meu resultado."</p>
+        </div>
+
+        <!-- Avaliação 2 -->
+        <div class="dep-card fade-up">
+          <div class="dep-card-top">
+            <div class="dep-avatar">J</div>
+            <div class="dep-info">
+              <div class="dep-nome">Janis Rodrigues</div>
+              <div class="dep-estrelas">
+                <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+              </div>
+            </div>
+            <svg class="dep-google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+          </div>
+          <p class="dep-texto">"Ambiente agradável e arquitetura ímpar. Atendimento exemplar de todos colaboradores e o resultado incrível, deixando a paciente segura do procedimento e mais bela!"</p>
+        </div>
+
+        <!-- Avaliação 3 -->
+        <div class="dep-card fade-up">
+          <div class="dep-card-top">
+            <div class="dep-avatar">D</div>
+            <div class="dep-info">
+              <div class="dep-nome">Débora Alves</div>
+              <div class="dep-estrelas">
+                <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+              </div>
+            </div>
+            <svg class="dep-google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+          </div>
+          <p class="dep-texto">"Nesse lugar você encontra excelência em tudo, ambiente, detalhes, pessoas, tratamento, e principalmente a presença de Deus! É um lugar incrível."</p>
+        </div>
+
+        <!-- Avaliação 4 -->
+        <div class="dep-card fade-up">
+          <div class="dep-card-top">
+            <div class="dep-avatar">G</div>
+            <div class="dep-info">
+              <div class="dep-nome">Glaucia Flores</div>
+              <div class="dep-estrelas">
+                <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+              </div>
+            </div>
+            <svg class="dep-google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+          </div>
+          <p class="dep-texto">"Lugar incrível, fui super bem atendida por todas as profissionais que tive contato! Tenho certeza que o tratamento e acompanhamento que farei aqui será muito eficaz pra minha saúde e qualidade de vida! 🙏🏻🤩"</p>
+        </div>
+
+        <!-- Avaliação 5 -->
+        <div class="dep-card fade-up">
+          <div class="dep-card-top">
+            <div class="dep-avatar">L</div>
+            <div class="dep-info">
+              <div class="dep-nome">Luana Carvalho</div>
+              <div class="dep-estrelas">
+                <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+              </div>
+            </div>
+            <svg class="dep-google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+          </div>
+          <p class="dep-texto">"Fiz full face com a Dra. Aline e amei o resultado. Muito atenciosa, explicou tudo com calma e me deixou super segura. Recomendo demais! 💖"</p>
+        </div>
+
+        <!-- Avaliação 6 -->
+        <div class="dep-card fade-up">
+          <div class="dep-card-top">
+            <div class="dep-avatar">P</div>
+            <div class="dep-info">
+              <div class="dep-nome">Patrícia La France</div>
+              <div class="dep-estrelas">
+                <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+              </div>
+            </div>
+            <svg class="dep-google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+          </div>
+          <p class="dep-texto">"Quero deixar registrado meu carinho e minha admiração pelo trabalho da Dra. Aline. Seu atendimento é marcado por atenção, sensibilidade e um cuidado genuíno com cada detalhe. É nítido o profissionalismo aliado à humanidade, algo raro e extremamente valioso. Gratidão por acolher, orientar e cuidar com tanta dedicação."</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== LOCALIZAÇÃO ========== -->
+  <section class="localizacao" id="contato">
+    <div class="container">
+      <div class="fade-up" style="text-align:center;margin-bottom:60px">
+        <span class="section-tag">Onde estamos</span>
+        <h2 class="section-title">Nossas <em>Unidades</em></h2>
+        <div class="divider" style="margin:20px auto"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start">
+
+        <!-- Unidade Praia Grande -->
+        <div class="fade-up" style="background:var(--cor-branco);border:1px solid rgba(201,169,122,0.2);padding:40px">
+          <div style="font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--cor-primaria);margin-bottom:16px">Praia Grande – SP</div>
+          <div class="contact-item" style="border-top:1px solid rgba(201,169,122,0.15)">
+            <div class="contact-icon">📍</div>
+            <div>
+              <div class="contact-label">Endereço</div>
+              <div class="contact-value">R. Fumio Miyazi, 371 – Boqueirão<br>Praia Grande – SP, 11701-160</div>
+            </div>
+          </div>
+          <div style="margin-top:28px">
+            <a href="https://wa.me/5513982161340?text=Ol%C3%A1%2C%20vim%20pelo%20site%20e%20quero%20agendar%20uma%20consulta%20em%20PG" class="btn btn-filled" target="_blank">Agendar Consulta</a>
+          </div>
+        </div>
+
+        <!-- Unidade Belo Horizonte -->
+        <div class="fade-up" style="background:var(--cor-branco);border:1px solid rgba(201,169,122,0.2);padding:40px">
+          <div style="font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--cor-primaria);margin-bottom:16px">Belo Horizonte – MG</div>
+          <div class="contact-item" style="border-top:1px solid rgba(201,169,122,0.15)">
+            <div class="contact-icon">📍</div>
+            <div>
+              <div class="contact-label">Endereço</div>
+              <div class="contact-value">Av. Raja Gabáglia, 2000, Torre 2<br>Sala 241 a 244 – Estoril<br>Belo Horizonte – MG, 30494-170</div>
+            </div>
+          </div>
+          <div style="margin-top:28px">
+            <a href="https://wa.me/5513982161340?text=Ol%C3%A1%2C%20vim%20pelo%20site%20e%20quero%20agendar%20uma%20consulta%20em%20BH" class="btn btn-filled" target="_blank">Agendar Consulta</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== FOOTER ========== -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="#"><img src="img/logo.png" alt="Clínica Aline Filgueiras" style="height:45px;width:auto;display:block;margin-bottom:8px;"></a>
+          <p>Sua clínica de referência em estética e harmonização facial, com foco em naturalidade, segurança e bem-estar.</p>
+          <div class="footer-social">
+            <a href="#" target="_blank" title="Instagram">
+              <svg viewBox="0 0 24 24" width="16" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07..."/></svg>
+              IG
+            </a>
+            <a href="#" target="_blank" title="WhatsApp">WA</a>
+            <a href="#" target="_blank" title="Facebook">FB</a>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h4>Links</h4>
+          <ul>
+            <li><a href="#">Início</a></li>
+            <li><a href="#">A Clínica</a></li>
+            <li><a href="#">Procedimentos</a></li>
+            <li><a href="#">Contato</a></li>
+            <li><a href="#">Política de Privacidade</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Procedimentos</h4>
+          <ul>
+            <li><a href="#procedimentos">Toxina Botulínica</a></li>
+            <li><a href="#procedimentos">Harmonização Facial</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Nossas Unidades</h4>
+          <ul>
+            <li><a href="#contato">📍 Praia Grande – SP</a></li>
+            <li><a href="#contato">📍 Belo Horizonte – MG</a></li>
+            <li><a href="https://www.instagram.com/clinicaalinefilgueiras/" target="_blank">📸 @clinicaalinefilgueiras</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2025 Clínica Nome — Todos os direitos reservados.</p>
+        <p><a href="#">Política de Privacidade</a> · <a href="#">Termos de Uso</a></p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- WhatsApp Flutuante -->
+  <a href="https://wa.me/5513982161340?text=Ol%C3%A1%2C%20vim%20pelo%20site%20e%20quero%20agendar%20uma%20consulta%20em%20PG" class="whatsapp-float" target="_blank" title="Fale pelo WhatsApp">
+    <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  </a>
+
+  <!-- ========== SCRIPTS ========== -->
+  <script>
+    // Header scroll
+    const header = document.getElementById('header');
+    window.addEventListener('scroll', () => {
+      header.classList.toggle('scrolled', window.scrollY > 60);
+    });
+
+    // Mobile menu
+    document.getElementById('menuToggle').addEventListener('click', () => {
+      document.getElementById('mobileNav').classList.add('open');
+    });
+    document.getElementById('mobileNavClose').addEventListener('click', () => {
+      document.getElementById('mobileNav').classList.remove('open');
+    });
+    document.querySelectorAll('.mobile-link').forEach(link => {
+      link.addEventListener('click', () => document.getElementById('mobileNav').classList.remove('open'));
+    });
+
+    // Tabs de procedimentos
+    function showTab(tab, btn) {
+      document.querySelectorAll('.proc-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.proc-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    // Animações de scroll (fade-up)
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry, i) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => entry.target.classList.add('visible'), i * 80);
+        }
+      });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+  </script>
+
+</body>
+</html>

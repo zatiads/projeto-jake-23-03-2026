@@ -198,3 +198,16 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* ── Restaurar header select (sobrescreve regra global acima) ─── */
+#page-anuncios .anu-header-cliente select {
+  background: rgba(0,229,255,0.06);
+  border: 1px solid rgba(0,229,255,0.2);
+  color: #e0e0e0;
+  width: auto;
+  appearance: auto;
+  -webkit-appearance: auto;
+}
+#page-anuncios .anu-header-cliente select:focus {
+  border-color: rgba(0,229,255,0.5);
+}

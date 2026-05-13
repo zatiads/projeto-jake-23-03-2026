@@ -8,16 +8,14 @@
   /* ── Clientes reais (ordem alfabética) ──────────── */
   var AGENCIES = {
     piloti: [
-      { id: "act_712297048202295",  name: "61 eventos"       },
-      { id: "act_2162454744176337", name: "Amanda"           },
-      { id: "act_1006820257491698", name: "Calixta"          },
+      { id: "act_3790140084580806",  name: "Infinita Hiperbárica" },
+      { id: "act_465321557197081",  name: "MR Runners"       },
+      { id: "act_1076847820195449", name: "Saucker"          },
       { id: "act_1095710212746155", name: "Daniele Taveira"  },
-      { id: "act_5684689948235819", name: "HiperClin"        },
       { id: "act_1006436427517079", name: "IOB"              },
       { id: "act_126503999415274",  name: "Isac Academia"    },
       { id: "act_812220691454430",  name: "Maíra Castaldi"   },
-      { id: "act_1693935704869895", name: "Marcus"           },
-      { id: "act_507545471090485",  name: "Odonto Uberaba"   },
+{ id: "act_507545471090485",  name: "Odonto Uberaba"   },
       { id: "act_323137203122197",  name: "Queen Poltronas"  },
       { id: "act_840594572249284",  name: "RD Contabilidade" },
       { id: "act_7838846752907408", name: "Realize Sorrisos" },
@@ -184,20 +182,50 @@
       ].join("\n");
     },
 
-    /* ── Calixta ─────────────────────────────────── */
-    "act_1006820257491698": function (m, ai) {
+    /* ── Infinita Hiperbárica ────────────────────── */
+    "act_3790140084580806": function (m, ai) {
       var s = parseFloat(m.spend || 0);
-      return [
+      var lines = [
         "Boa tarde pessoal!",
-        "Segue relatório das nossas campanhas últimos 7 dias:",
+        "Segue relatório das nossas campanhas nos últimos 7 dias:",
         "",
-        "Calixta",
+        "Infinita Hiperbárica",
         "",
         "Meta",
         "👥Alcance: " + fmtN(m.reach),
         "▶️Cliques: " + fmtN(m.clicks),
-        "🎯Leads: " + (m.messaging || 0),
-        "💰Custo por lead: " + custo(s, m.messaging),
+        "🎯Visitas ao perfil: " + (m.profile_visits || 0),
+        "💰Custo por visita: " + custo(s, m.profile_visits)
+      ];
+      if (m.messaging > 0) {
+        lines.push("");
+        lines.push("🎯Mensagens: " + m.messaging);
+        lines.push("💰Custo por mensagem: " + custo(s, m.messaging));
+      }
+      lines.push("");
+      lines.push("*" + (ai || "Análise não disponível."));
+      lines.push("");
+      lines.push("Boa semana a todos!🙏");
+      return lines.join("\n");
+    },
+
+    /* ── MR Runners ──────────────────────────────── */
+    "act_465321557197081": function (m, ai) {
+      var s = parseFloat(m.spend || 0);
+      return [
+        "Boa tarde pessoal!",
+        "Segue relatório das nossas campanhas nos últimos 7 dias:",
+        "",
+        "MR Runners",
+        "",
+        "Meta",
+        "👥Alcance: " + fmtN(m.reach),
+        "▶️Cliques: " + fmtN(m.clicks),
+        "🎯Mensagens: " + (m.messaging || 0),
+        "💰Custo por mensagem: " + custo(s, m.messaging),
+        "",
+        "🎯Visitas ao perfil: " + (m.profile_visits || 0),
+        "💰Custo por visita: " + custo(s, m.profile_visits),
         "",
         "*" + (ai || "Análise não disponível."),
         "",
@@ -205,26 +233,20 @@
       ].join("\n");
     },
 
-    /* ── HiperClin ───────────────────────────────── */
-    "act_5684689948235819": function (m, ai) {
+    /* ── Saucker ─────────────────────────────────── */
+    "act_1076847820195449": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       return [
-        "Boa tarde pessoal!!",
-        "Segue relatório das nossas campanhas:",
+        "Boa tarde pessoal!",
+        "Segue relatório das nossas campanhas nos últimos 7 dias:",
         "",
-        "HiperClin",
+        "Saucker",
         "",
         "Meta",
         "👥Alcance: " + fmtN(m.reach),
         "▶️Cliques: " + fmtN(m.clicks),
-        "🎯Leads: " + (m.messaging || 0),
-        "💰Custo por lead: " + custo(s, m.messaging),
-        "",
-        "Google",
-        "👥Alcance: " + fmtN(G.alc),
-        "▶️Cliques: " + fmtN(G.cli),
-        "▶️Taxa de cliques: " + G.ctr,
-        "💰Custo por clique: " + G.cpc,
+        "🎯Mensagens: " + (m.messaging || 0),
+        "💰Custo por mensagem: " + custo(s, m.messaging),
         "",
         "*" + (ai || "Análise não disponível."),
         "",
@@ -283,33 +305,6 @@
         "*" + (ai || "Análise não disponível."),
         "",
         "Boa semana a todos!🙏"
-      ].join("\n");
-    },
-
-    /* ── 61 eventos ──────────────────────────────── */
-    "act_712297048202295": function (m, ai) {
-      var s = parseFloat(m.spend || 0);
-      return [
-        "Boa tarde pessoal!",
-        "Segue relatório das nossas campanhas nos últimos 7 dias:",
-        "",
-        "61 Eventos",
-        "",
-        "Meta",
-        "👥Alcance: " + fmtN(m.reach),
-        "▶️Cliques: " + fmtN(m.clicks),
-        "🎯 Visitas ao perfil: " + (m.profile_visits || 0),
-        "💰Custo por visita ao perfi: " + custo(s, m.profile_visits),
-        "",
-        "Google",
-        "",
-        "👥Impressões: " + fmtN(G.imp),
-        "▶️Cliques: " + fmtN(G.cli),
-        "🎯Conversão (Clique botão WhatsApp): " + fmtN(G.conv),
-        "",
-        "*" + (ai || "Análise não disponível."),
-        "",
-        "Boa semana a todos🙏"
       ].join("\n");
     },
 
