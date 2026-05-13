@@ -3353,17 +3353,19 @@ def anuncios_lote_drive_download():
     if not ext:
         return jsonify({"error": f"Tipo de arquivo não suportado: {mime_base}. Use JPG, PNG, GIF ou MP4."}), 400
 
-    content = resp.content
+    # Verificar tamanho antes de carregar (limite: 100 MB)
+    _MAX_BYTES = 100 * 1024 * 1024
+    content_length = resp.headers.get("Content-Length")
+    if content_length and int(content_length) > _MAX_BYTES:
+        return jsonify({"error": "Arquivo muito grande. Limite: 100 MB"}), 400
 
-    # Salvar em /tmp e fazer upload para Meta
-    tmp_id   = str(uuid.uuid4())
-    tmp_path = os.path.join(_TMP_DIR, f"{tmp_id}{ext}")
-    try:
-        with open(tmp_path, "wb") as f:
-            f.write(content)
-    except Exception as e:
-        return jsonify({"error": f"Erro ao salvar arquivo: {e}"}), 500
+    content = b""
+    for chunk in resp.iter_content(chunk_size=65536):
+        content += chunk
+        if len(content) > _MAX_BYTES:
+            return jsonify({"error": "Arquivo muito grande. Limite: 100 MB"}), 400
 
+    # Fazer upload direto para Meta (sem salvar em disco)
     try:
         if mime_base == "video/mp4":
             video_id = _meta_api.upload_video(token, account_id, content, f"lote_drive{ext}")
@@ -3373,11 +3375,6 @@ def anuncios_lote_drive_download():
             creative_ref = {"tipo": "imagem", "hash": resultado["hash"]}
     except Exception as e:
         return jsonify({"error": f"Erro ao enviar para Meta: {e}"}), 500
-    finally:
-        try:
-            os.remove(tmp_path)
-        except Exception:
-            pass
 
     return jsonify({"creative_ref": creative_ref, "mime": mime_base, "file_id": file_id, "ok": True})
 
