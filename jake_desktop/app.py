@@ -4848,9 +4848,11 @@ def anuncios_publicar_lote_stream(lote_token):
             return
 
         cliente_id      = payload["cliente_id"]
-        camp_nome       = payload.get("campanha_nome", "Campanha Jake OS")
-        camp_tipo       = payload.get("campanha_tipo", "MESSAGES")
-        orcamento_total = float(payload.get("orcamento_diario_total", 0))
+        camp_nome            = payload.get("campanha_nome", "Campanha Jake OS")
+        camp_tipo            = payload.get("campanha_tipo", "MESSAGES")
+        orcamento_total      = float(payload.get("orcamento_diario_total", 0))
+        modo_camp            = payload.get("modo_campanha", "nova")
+        campaign_id_existente = payload.get("campaign_id_existente", "").strip()
         conjuntos       = payload["conjuntos"]
         lote_id         = payload.get("lote_id", lote_token)
         n_conjuntos     = len(conjuntos)
@@ -4878,13 +4880,31 @@ def anuncios_publicar_lote_stream(lote_token):
         pixel_id   = cliente.get("pixel_id") or None
 
         cbo = camp_tipo not in ("ENGAGEMENT", "PURCHASE")
-        try:
-            campaign_id = _meta_api.criar_campanha(
-                token, account_id, camp_tipo, camp_nome, orcamento_total, cbo=cbo
-            )
-            yield _sse({"tipo": "campanha_ok", "campaign_id": campaign_id})
-        except Exception as e:
-            yield _sse({"tipo": "erro_fatal", "erro": str(e)}); return
+        if modo_camp == "existente" and campaign_id_existente:
+            # Validar que a campanha pertence à conta do cliente
+            try:
+                r_check = requests.get(
+                    f"https://graph.facebook.com/v21.0/{campaign_id_existente}",
+                    params={"fields": "account_id", "access_token": token},
+                    timeout=10,
+                )
+                r_check.raise_for_status()
+                resp_data = r_check.json()
+                expected_account = account_id.replace("act_", "")
+                if str(resp_data.get("account_id", "")) != expected_account:
+                    yield _sse({"tipo": "erro_fatal", "erro": "Campanha não pertence à conta do cliente"}); return
+            except Exception as e:
+                yield _sse({"tipo": "erro_fatal", "erro": f"Erro ao validar campanha: {e}"}); return
+            campaign_id = campaign_id_existente
+            yield _sse({"tipo": "campanha_ok", "campaign_id": campaign_id, "existente": True})
+        else:
+            try:
+                campaign_id = _meta_api.criar_campanha(
+                    token, account_id, camp_tipo, camp_nome, orcamento_total, cbo=cbo
+                )
+                yield _sse({"tipo": "campanha_ok", "campaign_id": campaign_id})
+            except Exception as e:
+                yield _sse({"tipo": "erro_fatal", "erro": str(e)}); return
 
         total = sum(len(c.get("criativos", [])) for c in conjuntos)
         sucesso = 0; falha = 0
