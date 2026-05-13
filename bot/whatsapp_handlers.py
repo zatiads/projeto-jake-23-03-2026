@@ -33,11 +33,13 @@ def _db():
 def send_text(jid: str, text: str) -> bool:
     """Envia mensagem de texto para um JID via Evolution API. Retorna True se OK."""
     url = f"{_evo_base()}/message/sendText/{_wa_instance()}"
+    # v1.x usa número sem @s.whatsapp.net e payload com textMessage
+    number = jid.split("@")[0] if "@" in jid else jid
     try:
         resp = requests.post(
             url,
             headers={"apikey": _evo_key(), "Content-Type": "application/json"},
-            json={"number": jid, "text": text},
+            json={"number": number, "textMessage": {"text": text}},
             timeout=10,
         )
         resp.raise_for_status()

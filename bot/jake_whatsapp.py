@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 AUTHORIZED_JID     = os.environ.get("WA_AUTHORIZED_JID", "").strip()
+AUTHORIZED_NUMBER  = os.environ.get("WA_AUTHORIZED_NUMBER", "").strip()
 WEBHOOK_SECRET     = os.environ.get("EVOLUTION_WEBHOOK_SECRET", "").strip()
 ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 SP_TZ              = pytz.timezone("America/Sao_Paulo")
@@ -141,7 +142,8 @@ def processar_mensagem(sender_jid: str, texto: str):
                 if ok else
                 f"Falha ao enviar para {grupo_encontrado['nome']}. Evolution API offline?"
             )
-            send_text(sender_jid, resposta)
+            destino = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
+            send_text(destino, resposta)
             salvar_mensagem(chat_id, "user", texto)
             salvar_mensagem(chat_id, "assistant", resposta)
             return
@@ -165,9 +167,11 @@ def processar_mensagem(sender_jid: str, texto: str):
         else:
             resposta = "Patrao, esse grupo nao ta configurado ainda. Adiciona no config/wa_grupos.json."
 
+    # Enviar primeiro, salvar depois (DB não pode bloquear a resposta)
+    destino = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
+    send_text(destino, resposta)
     salvar_mensagem(chat_id, "user", texto)
     salvar_mensagem(chat_id, "assistant", resposta)
-    send_text(sender_jid, resposta)
 
 # ── Flask app ─────────────────────────────────────────────────────────────────
 app = Flask(__name__)
@@ -182,11 +186,14 @@ def webhook():
 
     data = request.get_json(silent=True) or {}
 
-    # Apenas processar MESSAGES_UPSERT
-    if data.get("event") != "MESSAGES_UPSERT":
+    # Apenas processar messages.upsert (v1.x) ou MESSAGES_UPSERT (v2.x)
+    event = data.get("event", "")
+    if event not in ("messages.upsert", "MESSAGES_UPSERT"):
         return jsonify({"ok": True})
 
-    msg_data = data.get("data", {})
+    # v1.x: data pode ser lista ou dict
+    raw_data = data.get("data", {})
+    msg_data = raw_data[0] if isinstance(raw_data, list) else raw_data
     key = msg_data.get("key", {})
 
     # Ignorar mensagens enviadas pelo proprio bot
@@ -195,8 +202,12 @@ def webhook():
 
     sender_jid = key.get("remoteJid", "")
 
+    # Debug: logar JID recebido
+    logger.info(f"Webhook recebido: sender_jid={sender_jid!r} authorized={AUTHORIZED_JID!r} fromMe={key.get('fromMe')}")
+
     # Apenas responder ao usuario autorizado
     if sender_jid != AUTHORIZED_JID:
+        logger.info(f"JID nao autorizado, ignorando: {sender_jid!r}")
         return jsonify({"ok": True})
 
     message = msg_data.get("message", {})
@@ -211,7 +222,12 @@ def webhook():
 
     # Processar em background para nao bloquear o webhook
     import threading
-    threading.Thread(target=processar_mensagem, args=(sender_jid, texto), daemon=True).start()
+    def _run():
+        try:
+            processar_mensagem(sender_jid, texto)
+        except Exception as e:
+            logger.error(f"Erro em processar_mensagem: {e}", exc_info=True)
+    threading.Thread(target=_run, daemon=True).start()
 
     return jsonify({"ok": True})
 
@@ -228,7 +244,8 @@ def _enviar_resumo_gestor():
         return
     logger.info("Enviando resumo diario do Gestor IA...")
     resumo = resumo_gestor()
-    send_text(AUTHORIZED_JID, resumo)
+    destino = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else AUTHORIZED_JID
+    send_text(destino, resumo)
 
 def _enviar_mensagem_grupo(grupo: dict):
     """Cron agendado: envia mensagem para um grupo configurado."""
