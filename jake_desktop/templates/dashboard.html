@@ -693,9 +693,23 @@
             <div id="anu-tab-lote" style="display:none">
               <!-- Topo: configurações da campanha -->
               <div class="lote-topo">
-                <label class="anu-label">Nome da campanha
-                  <input type="text" id="lote-camp-nome" class="anu-input" placeholder="Campanha Maio 2026">
-                </label>
+                <!-- Toggle: Nova / Campanha Existente -->
+                <div style="display:flex;gap:6px;margin-bottom:10px;">
+                  <button id="lote-btn-camp-nova" class="anu-btn-secondary active" style="font-size:12px" onclick="loteCampToggle('nova')">Nova campanha</button>
+                  <button id="lote-btn-camp-exist" class="anu-btn-secondary" style="font-size:12px" onclick="loteCampToggle('existente')">Campanha existente</button>
+                </div>
+                <div id="lote-camp-nova-form">
+                  <label class="anu-label">Nome da campanha
+                    <input type="text" id="lote-camp-nome" class="anu-input" placeholder="Campanha Maio 2026">
+                  </label>
+                </div>
+                <div id="lote-camp-exist-form" style="display:none">
+                  <label class="anu-label">Selecionar campanha existente
+                    <select id="lote-camp-select" disabled>
+                      <option value="">Selecione o cliente primeiro</option>
+                    </select>
+                  </label>
+                </div>
                 <label class="anu-label">Tipo de campanha
                   <select id="lote-camp-tipo" class="anu-select">
                     <option value="MESSAGES">Mensagem (WhatsApp)</option>
@@ -721,6 +735,17 @@
                 </div>
                 <!-- Col 2: Criativos -->
                 <div class="lote-col">
+                  <!-- Toggle: Upload / Drive -->
+                  <div id="lote-drive-toggle" style="display:none;gap:4px;padding:4px 6px;">
+                    <button id="lote-btn-criativo-upload" class="anu-btn-secondary active" style="font-size:11px" onclick="loteCriativoToggle('upload')">Upload</button>
+                    <button id="lote-btn-criativo-drive" class="anu-btn-secondary" style="font-size:11px" onclick="loteCriativoToggle('drive')">Link Drive</button>
+                  </div>
+                  <div id="lote-drive-form" style="display:none;padding:6px 0;gap:6px;flex-direction:column;">
+                    <input type="text" id="lote-drive-url" class="anu-input" placeholder="https://drive.google.com/file/d/..." style="font-size:12px">
+                    <button class="anu-btn-secondary" style="font-size:12px" onclick="loteDriveDownload()">⬇ Baixar e usar</button>
+                    <div id="lote-drive-status" style="font-size:11px;color:rgba(176,190,197,.4)"></div>
+                    <div id="lote-drive-preview" style="margin-top:4px;"></div>
+                  </div>
                   <div class="lote-col-header">
                     <span id="lote-criativos-header">Criativos</span>
                     <button class="anu-btn-icon" id="lote-btn-add-criativo" title="Adicionar criativo" style="display:none">+</button>
