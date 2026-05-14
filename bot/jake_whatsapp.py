@@ -100,8 +100,13 @@ def interpretar_comando(texto: str) -> dict:
         raw = chamar_claude(PROMPT_GESTOR, texto)
         # Limpar possível markdown
         raw = raw.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
+        if "```" in raw:
+            # Remove markdown code fences — extract content between first ``` pair
+            parts = raw.split("```")
+            if len(parts) >= 3:
+                raw = parts[1]
+            elif len(parts) == 2:
+                raw = parts[1]
             if raw.startswith("json"):
                 raw = raw[4:]
         return _json.loads(raw.strip())
