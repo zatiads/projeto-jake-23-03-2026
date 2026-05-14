@@ -3313,10 +3313,15 @@ def anuncios_campanha_status(campaign_id):
     if not token:
         return jsonify({"error": f"{token_key} não configurado"}), 500
 
+    import re as _re_camp
+    if not _re_camp.fullmatch(r'\d{10,20}', campaign_id):
+        return jsonify({"error": "campaign_id inválido"}), 400
+
     try:
         resp = requests.post(
             f"https://graph.facebook.com/v21.0/{campaign_id}",
-            data={"status": status, "access_token": token},
+            params={"access_token": token},
+            data={"status": status},
             timeout=15,
         )
         data = resp.json()
