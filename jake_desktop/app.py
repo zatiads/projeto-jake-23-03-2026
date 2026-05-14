@@ -3011,7 +3011,8 @@ def anuncios_listar_clientes():
         cur.execute("""
             SELECT id, nome, agencia, account_id, token_key, page_id, business_id, link_url, whatsapp,
                    segmento, campanha_tipo, localizacao_json, publico_json,
-                   orcamento_diario, campanha_id_existente, optimization_goal, pixel_id
+                   orcamento_diario, campanha_id_existente, optimization_goal, pixel_id,
+                   publico_salvo_id, publico_salvo_nome
             FROM ad_client_profiles ORDER BY agencia, nome
         """)
         rows = cur.fetchall()
@@ -3041,8 +3042,8 @@ def anuncios_criar_cliente():
             INSERT INTO ad_client_profiles
                 (nome, agencia, account_id, token_key, page_id, business_id, link_url, whatsapp, segmento,
                  campanha_tipo, localizacao_json, publico_json, orcamento_diario,
-                 campanha_id_existente, optimization_goal, pixel_id)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+                 campanha_id_existente, optimization_goal, pixel_id, publico_salvo_id, publico_salvo_nome)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
         """, (
             d["nome"], d["agencia"], d["account_id"], d["token_key"],
             d.get("page_id"), d.get("business_id"), d.get("link_url"), d.get("whatsapp"), d.get("segmento"),
@@ -3050,7 +3051,8 @@ def anuncios_criar_cliente():
             json.dumps(d["localizacao_json"]),
             json.dumps(d.get("publico_json") or {}),
             d.get("orcamento_diario"), d.get("campanha_id_existente"),
-            d.get("optimization_goal", "LINK_CLICKS"), d.get("pixel_id")
+            d.get("optimization_goal", "LINK_CLICKS"), d.get("pixel_id"),
+            d.get("publico_salvo_id"), d.get("publico_salvo_nome")
         ))
         novo_id = cur.fetchone()["id"]
         conn.commit()
@@ -3073,7 +3075,8 @@ def anuncios_atualizar_cliente(cid):
         "token_key": "token_key", "page_id": "page_id", "business_id": "business_id",
         "link_url": "link_url", "whatsapp": "whatsapp", "segmento": "segmento", "campanha_tipo": "campanha_tipo",
         "orcamento_diario": "orcamento_diario", "campanha_id_existente": "campanha_id_existente",
-        "optimization_goal": "optimization_goal", "pixel_id": "pixel_id"
+        "optimization_goal": "optimization_goal", "pixel_id": "pixel_id",
+        "publico_salvo_id": "publico_salvo_id", "publico_salvo_nome": "publico_salvo_nome"
     }
     for k, col in mapa.items():
         if k in d:

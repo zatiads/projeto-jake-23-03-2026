@@ -132,7 +132,7 @@ def _buscar_clientes_db() -> list:
         import psycopg2.extras
         conn = psycopg2.connect(os.environ["DATABASE_URL"])
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT id, nome, agencia, account_id, token_key FROM ad_client_profiles ORDER BY nome")
+        cur.execute("SELECT id, nome, agencia, account_id, token_key, orcamento_diario, publico_salvo_id, publico_salvo_nome FROM ad_client_profiles ORDER BY nome")
         rows = [dict(r) for r in cur.fetchall()]
         conn.close()
         return rows
@@ -265,7 +265,9 @@ def _eh_gestor_cmd(texto: str) -> bool:
 def _formatar_resumo_subida(clientes: list, orcamento: float, campanha_tipo: str, campanha_nome: str) -> str:
     linhas = [f"Vou subir *{campanha_nome}* para:"]
     for c in clientes:
-        linhas.append(f"  • {c['nome']} ({c['account_id']})")
+        pub_nome = c.get("publico_salvo_nome") or "—"
+        linhas.append(f"  • {c['nome']}")
+        linhas.append(f"    Público: {pub_nome}")
     linhas.append(f"Orçamento: R${orcamento:.0f}/dia cada | Tipo: {campanha_tipo}")
     linhas.append("Confirma? (sim/não)")
     return "\n".join(linhas)
@@ -303,6 +305,13 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
             send_text(destino, "Qual o orçamento diário por cliente? (ex: R$30)")
             _set_sessao(sender_jid, "aguardando_orcamento", {"cmd": cmd, "clientes": clientes})
             return
+        # Bloquear se algum cliente não tem público salvo configurado
+        sem_publico = [c["nome"] for c in clientes if not c.get("publico_salvo_id")]
+        if sem_publico:
+            nomes = ", ".join(sem_publico)
+            send_text(destino, f"Não posso subir — cliente(s) sem Público Salvo configurado: {nomes}\nCadastra o ID do público no Jake OS (aba Anúncios → editar cliente) antes de tentar de novo.")
+            return
+
         campanha_tipo = cmd.get("campanha_tipo") or "MESSAGES"
         import datetime
         campanha_nome = cmd.get("campanha_nome") or f"WA {datetime.date.today().strftime('%d/%m')}"

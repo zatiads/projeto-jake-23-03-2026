@@ -110,8 +110,10 @@
     ['anu-pf-nome','anu-pf-account-id','anu-pf-page-id','anu-pf-whatsapp','anu-pf-segmento','anu-pf-orcamento'].forEach(function(fid){
       var el=document.getElementById(fid); if(el) el.value='';
     });
-    var elLoc=document.getElementById('anu-pf-localizacao'); if(elLoc) elLoc.value='';
-    var elPub=document.getElementById('anu-pf-publico');     if(elPub) elPub.value='';
+    var elLoc=document.getElementById('anu-pf-localizacao');         if(elLoc) elLoc.value='';
+    var elPub=document.getElementById('anu-pf-publico');             if(elPub) elPub.value='';
+    var elPsId=document.getElementById('anu-pf-publico-salvo-id');   if(elPsId) elPsId.value='';
+    var elPsNome=document.getElementById('anu-pf-publico-salvo-nome'); if(elPsNome) elPsNome.value='';
 
     if (id) {
       var c = _clientes.find(function(x){ return x.id===id; });
@@ -151,6 +153,10 @@
     if (elLoc) elLoc.value = c.localizacao_json ? JSON.stringify(c.localizacao_json,null,2):'';
     var elPub=document.getElementById('anu-pf-publico');
     if (elPub) elPub.value = c.publico_json ? JSON.stringify(c.publico_json,null,2):'';
+    var elPsId=document.getElementById('anu-pf-publico-salvo-id');
+    if (elPsId) elPsId.value = c.publico_salvo_id||'';
+    var elPsNome=document.getElementById('anu-pf-publico-salvo-nome');
+    if (elPsNome) elPsNome.value = c.publico_salvo_nome||'';
   }
 
   function bindPerfilFormEvents() {
@@ -216,7 +222,9 @@
       optimization_goal:_val('anu-pf-optimization-goal')||'LINK_CLICKS',
       pixel_id:_val('anu-pf-pixel-id')||null,
       orcamento_diario:parseFloat(_val('anu-pf-orcamento'))||null,
-      localizacao_json:loc, publico_json:pub
+      localizacao_json:loc, publico_json:pub,
+      publico_salvo_id:_val('anu-pf-publico-salvo-id').trim()||null,
+      publico_salvo_nome:_val('anu-pf-publico-salvo-nome').trim()||null
     };
     var url=_modoPerfilId?'/api/anuncios/clientes/'+_modoPerfilId:'/api/anuncios/clientes';
     var method=_modoPerfilId?'PUT':'POST';
