@@ -1048,8 +1048,32 @@ def _enviar_mensagem_grupo(grupo: dict):
     logger.info(f"Enviando mensagem agendada para grupo {grupo['nome']}")
     send_text(grupo["jid"], grupo["msg"])
 
+def _limpar_tmp_midia():
+    """Remove arquivos wa_media_* do /tmp com mais de 1 hora."""
+    import glob as _glob_tmp
+    agora = _time.time()
+    removidos = 0
+    for f in _glob_tmp.glob("/tmp/wa_media_*"):
+        try:
+            if agora - os.path.getmtime(f) > 3600:
+                os.remove(f)
+                removidos += 1
+        except Exception:
+            pass
+    if removidos:
+        logger.info(f"_limpar_tmp_midia: {removidos} arquivo(s) removido(s)")
+
+
 def _configurar_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone=SP_TZ)
+
+    # Limpeza de arquivos temporários de mídia a cada hora
+    scheduler.add_job(
+        _limpar_tmp_midia,
+        "interval", hours=1,
+        id="limpar_tmp_midia",
+        replace_existing=True,
+    )
 
     # Resumo Gestor as 17h todos os dias
     scheduler.add_job(
