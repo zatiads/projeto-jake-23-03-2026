@@ -3102,6 +3102,39 @@ def anuncios_atualizar_cliente(cid):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/anuncios/clientes/<int:cid>/publicos-salvos", methods=["GET"])
+@login_required
+def anuncios_clientes_publicos_salvos(cid):
+    """Lista públicos salvos da conta Meta do cliente."""
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute("SELECT account_id, token_key FROM ad_client_profiles WHERE id=%s", (cid,))
+        row = cur.fetchone()
+        conn.close()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    if not row:
+        return jsonify({"error": "Cliente não encontrado"}), 404
+    account_id = row["account_id"]
+    token_key  = row["token_key"]
+    token      = os.getenv(token_key, "")
+    if not token:
+        return jsonify({"error": f"Token {token_key} não configurado"}), 500
+    try:
+        resp = requests.get(
+            f"{_meta_api.GRAPH_URL}/{account_id}/saved_audiences",
+            params={"fields": "id,name", "access_token": token, "limit": 100},
+            timeout=10,
+        )
+        data = resp.json()
+        if "error" in data:
+            return jsonify({"error": data["error"].get("message", "Erro Meta API")}), 400
+        publicos = [{"id": p["id"], "nome": p["name"]} for p in data.get("data", [])]
+        return jsonify({"publicos": publicos})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/anuncios/clientes/<int:cid>", methods=["DELETE"])
 @login_required
 def anuncios_deletar_cliente(cid):
@@ -3728,9 +3761,10 @@ def anuncios_publicar():
     token      = os.getenv(token_key, "")
     account_id = cliente["account_id"]
     camp_tipo  = cliente.get("campanha_tipo", "MESSAGES")
-    audience_id = d.get("audience_id")
-    publico    = cliente.get("publico_json") or {}
-    if audience_id:
+    audience_id      = d.get("audience_id")
+    saved_audience_id = d.get("saved_audience_id") or cliente.get("publico_salvo_id") or None
+    publico          = cliente.get("publico_json") or {}
+    if audience_id and not saved_audience_id:
         try:
             conn2 = _get_db(); cur2 = conn2.cursor()
             cur2.execute("SELECT targeting_json, tipo FROM ad_audiences WHERE id=%s", (audience_id,))
@@ -3758,7 +3792,8 @@ def anuncios_publicar():
                 token, account_id, campaign_id, camp_tipo, publico, localizacao,
                 orcamento=(orcamento if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None),
                 optimization_goal=cliente.get("optimization_goal") or None,
-                pixel_id=cliente.get("pixel_id") or None
+                pixel_id=cliente.get("pixel_id") or None,
+                saved_audience_id=saved_audience_id,
             )
         except Exception as e2:
             if not campanha_exist_id:
@@ -3992,6 +4027,11 @@ def anuncios_multi_cliente_stream(mc_token):
             link_url   = cliente.get("link_url") or ""
             opt_goal   = cliente.get("optimization_goal") or None
             pixel_id   = cliente.get("pixel_id") or None
+            saved_aud_id = (
+                payload.get("publicos_salvos_por_cliente", {}).get(str(cliente["id"]))
+                or payload.get("publico_salvo_id")
+                or cliente.get("publico_salvo_id")
+            )
 
             yield _sse({"status": "publicando", "cliente": nome, "idx": idx + 1, "total": total})
 
@@ -4020,7 +4060,8 @@ def anuncios_multi_cliente_stream(mc_token):
                     adset_id = _meta_api.criar_conjunto(
                         token_val, account_id, campaign_id, camp_tipo, publico, localizacao,
                         orcamento=(orcamento if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None),
-                        optimization_goal=opt_goal, pixel_id=pixel_id
+                        optimization_goal=opt_goal, pixel_id=pixel_id,
+                        saved_audience_id=saved_aud_id or None,
                     )
                 except Exception as e2:
                     _meta_api.deletar_objeto_meta(token_val, campaign_id)

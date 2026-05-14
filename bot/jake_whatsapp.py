@@ -255,6 +255,8 @@ _KEYWORDS_GESTOR = [
     "sobe", "subir", "upload", "anuncio", "anúncio",
     "pausa", "pausar", "ativa", "ativar", "drive.google",
     "campanha", "campanhas",
+    "escolher público", "escolher publico", "mudar público", "mudar publico",
+    "outro público", "outro publico", "listar públicos", "listar publicos",
 ]
 
 def _eh_gestor_cmd(texto: str) -> bool:
@@ -361,9 +363,15 @@ def _processar_gestor_cmd(sender_jid: str, texto: str):
     cmd = interpretar_comando(texto)
     intencao = cmd.get("intencao", "desconhecida")
 
-    _PALAVRAS_SUBIR = ["sobe", "subir", "upload", "anuncio", "anúncio", "criativo"]
+    _PALAVRAS_SUBIR   = ["sobe", "subir", "upload", "anuncio", "anúncio", "criativo"]
+    _PALAVRAS_PUBLICO = ["escolher público", "escolher publico", "mudar público", "mudar publico",
+                         "outro público", "outro publico", "listar públicos", "listar publicos"]
     if intencao == "desconhecida":
         txt = texto.lower()
+        if any(p in txt for p in _PALAVRAS_PUBLICO):
+            _set_sessao(sender_jid, "aguardando_cliente_publico", {"cmd": {"intencao": "escolher_publico"}})
+            send_text(destino, "Pra qual cliente você quer escolher o público?")
+            return
         if any(p in txt for p in _PALAVRAS_SUBIR):
             # Parece querer subir anúncio mas faltam detalhes — inicia conversa guiada
             _set_sessao(sender_jid, "aguardando_cliente", {"cmd": {"intencao": "subir_anuncio", "drive_link": None, "orcamento": None, "campanha_tipo": "MESSAGES"}})
@@ -402,6 +410,30 @@ def _processar_gestor_cmd(sender_jid: str, texto: str):
     _montar_confirmacao_final(sender_jid, destino, cmd, clientes)
 
 
+def _listar_publicos_para_cliente(sender_jid: str, destino: str, cliente: dict, cmd: dict):
+    """Busca públicos salvos de um cliente via Jake OS e pede escolha."""
+    try:
+        from bot.gestor_whatsapp import get_gestor
+        gestor = get_gestor()
+        publicos = gestor.listar_publicos_salvos(cliente["id"])
+    except Exception as e:
+        send_text(destino, f"Erro ao buscar públicos: {e}")
+        return
+    if not publicos:
+        send_text(destino, f"Nenhum público salvo encontrado em *{cliente['nome']}*. Cria um no Gerenciador de Anúncios primeiro.")
+        return
+    linhas = [f"Públicos salvos de *{cliente['nome']}*:"]
+    for i, p in enumerate(publicos, 1):
+        linhas.append(f"  {i}. {p['nome']}")
+    linhas.append("Qual número?")
+    _set_sessao(sender_jid, "aguardando_escolha_publico", {
+        "publicos": publicos,
+        "cliente": cliente,
+        "cmd": cmd,
+    })
+    send_text(destino, "\n".join(linhas))
+
+
 def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
     """Processa resposta do Bruno em uma sessão de confirmação ativa."""
     destino   = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
@@ -410,6 +442,61 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
     resposta  = texto.lower().strip()
     negativo  = any(r in resposta for r in ["não", "nao", "n", "cancela", "cancel"])
     positivo  = any(r in resposta for r in ["sim", "s", "yes", "ok", "confirma"])
+
+    # ── Escolha de público salvo ──────────────────────────────────────────────
+    if estado == "aguardando_cliente_publico":
+        nome = texto.strip()
+        resolucao = resolver_clientes([nome])
+        if resolucao["nao_encontrados"]:
+            send_text(destino, f"Não encontrei '{nome}'. Verifica o nome.")
+            return
+        if resolucao["ambiguos"]:
+            amb = resolucao["ambiguos"][0]
+            cand = amb["candidato"]
+            _set_sessao(sender_jid, "aguardando_confirmacao_cliente_publico", {
+                "cmd": payload["cmd"], "candidato": cand,
+            })
+            send_text(destino, f"Encontrei *{cand['nome']}*, é esse? (sim/não)")
+            return
+        cliente = resolucao["confirmados"][0]
+        _listar_publicos_para_cliente(sender_jid, destino, cliente, payload["cmd"])
+        return
+
+    if estado == "aguardando_confirmacao_cliente_publico":
+        if negativo:
+            _limpar_sessao(sender_jid)
+            send_text(destino, "Cancelado, Patrão.")
+            return
+        if positivo:
+            _listar_publicos_para_cliente(sender_jid, destino, payload["candidato"], payload["cmd"])
+        else:
+            send_text(destino, "Responde sim ou não, Patrão.")
+        return
+
+    if estado == "aguardando_escolha_publico":
+        import re as _re_pub
+        m = _re_pub.match(r'^(\d+)$', texto.strip())
+        if not m:
+            send_text(destino, "Responde com o número da opção, Patrão.")
+            return
+        idx = int(m.group(1)) - 1
+        publicos = payload.get("publicos", [])
+        if idx < 0 or idx >= len(publicos):
+            send_text(destino, f"Número inválido. Escolhe entre 1 e {len(publicos)}.")
+            return
+        escolhido = publicos[idx]
+        # Guardar escolha na sessão do lote pendente ou confirmar
+        sessao_lote = payload.get("sessao_lote")
+        if sessao_lote:
+            # Atualiza o cmd da sessão de lote pendente com o público escolhido
+            sessao_lote["cmd"]["publico_salvo_id_override"] = escolhido["id"]
+            sessao_lote["cmd"]["publico_salvo_nome_override"] = escolhido["nome"]
+            _limpar_sessao(sender_jid)
+            send_text(destino, f"Público selecionado: *{escolhido['nome']}*\nAgora pode continuar com a subida.")
+        else:
+            _limpar_sessao(sender_jid)
+            send_text(destino, f"Público *{escolhido['nome']}* selecionado (ID: {escolhido['id']}).\nUse esse ID ao subir o próximo anúncio para esse cliente.")
+        return
 
     # ── Estados de coleta de dados (aceitam qualquer texto) ──────────────────
     if estado == "aguardando_cliente":

@@ -129,6 +129,18 @@ class GestorJakeOS:
             raise RuntimeError(data.get("error", "Erro ao listar campanhas"))
         return data.get("campanhas", [])
 
+    def listar_publicos_salvos(self, cliente_id: int) -> list:
+        """Retorna lista de públicos salvos de um cliente via Jake OS."""
+        self._garantir_auth()
+        resp = self._session.get(
+            f"{self._base}/api/anuncios/clientes/{cliente_id}/publicos-salvos",
+            timeout=15,
+        )
+        data = resp.json()
+        if resp.status_code != 200:
+            raise RuntimeError(data.get("error", "Erro ao listar públicos"))
+        return data.get("publicos", [])
+
     def pausar_campanha(self, campaign_id: str, token_key: str) -> bool:
         """Pausa uma campanha. Retorna True se OK."""
         return self._set_status(campaign_id, "PAUSED", token_key)

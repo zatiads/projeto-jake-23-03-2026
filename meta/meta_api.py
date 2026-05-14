@@ -366,7 +366,8 @@ def criar_campanha(token: str, account_id: str, campanha_tipo: str,
 def criar_conjunto(token: str, account_id: str, campaign_id: str,
                    campanha_tipo: str, publico: dict, localizacao: dict,
                    orcamento: float = None, optimization_goal: str = None,
-                   pixel_id: str = None, nome: str = None) -> str:
+                   pixel_id: str = None, nome: str = None,
+                   saved_audience_id: str = None) -> str:
     """
     Cria ad set com status PAUSED.
     campanha_tipo: 'MESSAGES' → optimization_goal=CONVERSATIONS
@@ -376,21 +377,24 @@ def criar_conjunto(token: str, account_id: str, campaign_id: str,
     Retorna adset_id.
     """
     url = f"{GRAPH_URL}/{account_id}/adsets"
-    targeting = {
-        "age_min": publico.get("idade_min") or publico.get("age_min", 18),
-        "age_max": publico.get("idade_max") or publico.get("age_max", 65),
-        "geo_locations": {
-            "countries": localizacao.get("paises", ["BR"]),
-            "cities": localizacao.get("cidades", []),
-        },
-        "targeting_automation": {"advantage_audience": 0},
-    }
-    if publico.get("genders"):
-        targeting["genders"] = publico["genders"]
-    elif publico.get("genero"):
-        targeting["genders"] = publico["genero"]
-    if publico.get("custom_audience_id"):
-        targeting["custom_audiences"] = [{"id": publico["custom_audience_id"]}]
+    if saved_audience_id:
+        targeting = {"saved_audience_id": saved_audience_id}
+    else:
+        targeting = {
+            "age_min": publico.get("idade_min") or publico.get("age_min", 18),
+            "age_max": publico.get("idade_max") or publico.get("age_max", 65),
+            "geo_locations": {
+                "countries": localizacao.get("paises", ["BR"]),
+                "cities": localizacao.get("cidades", []),
+            },
+            "targeting_automation": {"advantage_audience": 0},
+        }
+        if publico.get("genders"):
+            targeting["genders"] = publico["genders"]
+        elif publico.get("genero"):
+            targeting["genders"] = publico["genero"]
+        if publico.get("custom_audience_id"):
+            targeting["custom_audiences"] = [{"id": publico["custom_audience_id"]}]
 
     payload = {
         "campaign_id": campaign_id,

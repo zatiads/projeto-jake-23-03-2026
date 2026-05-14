@@ -644,9 +644,12 @@
                   <h3 class="anu-bloco-title">Revisão Final</h3>
                 </div>
                 <div class="anu-revisao-grid" id="anu-revisao-grid"></div>
-                <label class="anu-label" style="margin-bottom:12px">Público
-                  <select id="anu-pub-selector" class="anu-select"><option value="">Usar perfil do cliente</option></select>
-                  <span class="anu-hint">Opcional — sobrescreve o público do perfil do cliente</span>
+                <label class="anu-label" style="margin-bottom:12px">Público Salvo
+                  <div style="display:flex;gap:8px;align-items:center;">
+                    <select id="anu-pub-selector" class="anu-select" style="flex:1"><option value="">— padrão do cliente —</option></select>
+                    <button type="button" id="anu-btn-buscar-publicos" class="anu-btn-sec" style="white-space:nowrap">🔍 Buscar</button>
+                  </div>
+                  <span class="anu-hint" id="anu-pub-hint">Padrão: público salvo do perfil do cliente. Clique em Buscar para selecionar outro.</span>
                 </label>
                 <div class="anu-localizacao-alerta hidden" id="anu-localizacao-alerta">⚠ Localização não configurada — edite o perfil do cliente antes de publicar</div>
                 <button class="anu-btn-publicar" id="anu-btn-publicar" disabled>🚀 Publicar Anúncio</button>

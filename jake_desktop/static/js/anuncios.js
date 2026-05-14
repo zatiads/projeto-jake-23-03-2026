@@ -421,6 +421,28 @@
   // ── Revisão ─────────────────────────────────────────
   function bindRevisaoEvents() {
     var bp=document.getElementById('anu-btn-publicar'); if(bp) bp.addEventListener('click',abrirModal);
+    var bb=document.getElementById('anu-btn-buscar-publicos');
+    if(bb) bb.addEventListener('click', function(){
+      if(!_clienteAtivo){alert('Selecione um cliente primeiro.');return;}
+      bb.textContent='⏳ Buscando...'; bb.disabled=true;
+      fetch('/api/anuncios/clientes/'+_clienteAtivo.id+'/publicos-salvos')
+        .then(function(r){return r.json();})
+        .then(function(d){
+          bb.textContent='🔍 Buscar'; bb.disabled=false;
+          if(d.error){alert('Erro: '+d.error);return;}
+          var sel=document.getElementById('anu-pub-selector');
+          sel.innerHTML='<option value="">— padrão do cliente —</option>';
+          (d.publicos||[]).forEach(function(p){
+            var opt=document.createElement('option');
+            opt.value=p.id; opt.textContent=p.nome;
+            if(_clienteAtivo.publico_salvo_id && p.id===_clienteAtivo.publico_salvo_id) opt.selected=true;
+            sel.appendChild(opt);
+          });
+          var hint=document.getElementById('anu-pub-hint');
+          if(hint) hint.textContent=(d.publicos||[]).length+' público(s) encontrado(s). Selecione ou deixe o padrão.';
+        })
+        .catch(function(e){bb.textContent='🔍 Buscar';bb.disabled=false;alert('Erro de rede: '+e);});
+    });
   }
 
   function atualizarRevisao() {
@@ -503,7 +525,7 @@
       orcamento_diario:parseFloat(_val('anu-camp-orcamento'))||30,
       creative_ref:_creativeRef,
       copy:{titulo:_val('anu-copy-titulo'),texto:_val('anu-copy-texto'),cta:_val('anu-copy-cta')||'SEND_MESSAGE'},
-      audience_id: parseInt(_val('anu-pub-selector')) || null
+      saved_audience_id: _val('anu-pub-selector') || null
     };
 
     fetch('/api/anuncios/publicar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
