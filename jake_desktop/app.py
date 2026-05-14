@@ -3459,12 +3459,17 @@ def anuncios_wa_subir():
     d              = request.get_json() or {}
     drive_url      = (d.get("drive_url") or "").strip()
     arquivo_local  = (d.get("arquivo_local") or "").strip()
+    arquivos_locais = [a for a in (d.get("arquivos_locais") or []) if a]
     cliente_ids    = d.get("cliente_ids") or []
     orcamento_raw  = d.get("orcamento")
     campanha_nome  = (d.get("campanha_nome") or "").strip()
     campanha_tipo  = (d.get("campanha_tipo") or "MESSAGES").strip().upper()
 
-    if not drive_url and not arquivo_local:
+    # Normalizar: arquivo_local avulso vai para a lista
+    if arquivo_local and arquivo_local not in arquivos_locais:
+        arquivos_locais.insert(0, arquivo_local)
+
+    if not drive_url and not arquivos_locais:
         return jsonify({"error": "drive_url ou arquivo_local obrigatório"}), 400
     if not cliente_ids:
         return jsonify({"error": "cliente_ids obrigatório"}), 400
@@ -3479,21 +3484,20 @@ def anuncios_wa_subir():
 
     _MIME_EXT_WA = {"image/jpeg": ".jpg", "image/png": ".png", "video/mp4": ".mp4"}
 
-    if arquivo_local:
-        # Arquivo já salvo localmente (enviado via WhatsApp)
+    if arquivos_locais:
+        # Um ou mais arquivos já salvos localmente (enviados via WhatsApp)
         import re as _re_loc
-        if not _re_loc.match(r'^/tmp/wa_media_[a-f0-9\-]+\.(jpg|png|mp4)$', arquivo_local):
-            return jsonify({"error": "arquivo_local inválido"}), 400
-        if not os.path.exists(arquivo_local):
-            return jsonify({"error": "Arquivo local não encontrado. Reenvia o arquivo."}), 400
-        ext_loc = os.path.splitext(arquivo_local)[1].lower()
         _EXT_MIME = {".jpg": "image/jpeg", ".png": "image/png", ".mp4": "video/mp4"}
-        mime_base = _EXT_MIME.get(ext_loc, "")
-        if not mime_base:
-            return jsonify({"error": f"Extensão não suportada: {ext_loc}"}), 400
+        for arq in arquivos_locais:
+            if not _re_loc.match(r'^/tmp/wa_media_[a-f0-9\-]+\.(jpg|png|mp4)$', arq):
+                return jsonify({"error": f"arquivo_local inválido: {arq}"}), 400
+            if not os.path.exists(arq):
+                return jsonify({"error": f"Arquivo não encontrado. Reenvia: {arq}"}), 400
+        ext_loc = os.path.splitext(arquivos_locais[0])[1].lower()
+        mime_base = _EXT_MIME.get(ext_loc, "image/jpeg")
         ext = ext_loc
         tmp_uuid_val = str(uuid.uuid4())
-        tmp_path = arquivo_local  # usa o mesmo arquivo, sem cópia
+        tmp_path = arquivos_locais[0]
     else:
         # Download do Google Drive
         file_id = None
@@ -3572,14 +3576,15 @@ def anuncios_wa_subir():
     # Armazenar payload para stream
     mc_token = str(uuid.uuid4())
     _lote_payloads[mc_token] = {
-        "clientes":      clientes,
-        "tmp_uuid":      tmp_uuid_val,
-        "tmp_ext":       ext,
-        "tmp_path":      tmp_path,
-        "copy":          {},
-        "campanha_nome": campanha_nome,
-        "orcamento":     orcamento,
-        "campanha_tipo": campanha_tipo,
+        "clientes":       clientes,
+        "tmp_uuid":       tmp_uuid_val,
+        "tmp_ext":        ext,
+        "tmp_path":       tmp_path,
+        "tmp_paths":      arquivos_locais if arquivos_locais else [tmp_path],
+        "copy":           {},
+        "campanha_nome":  campanha_nome,
+        "orcamento":      orcamento,
+        "campanha_tipo":  campanha_tipo,
     }
     threading.Timer(1800, lambda: _lote_payloads.pop(mc_token, None)).start()
 
@@ -4002,18 +4007,21 @@ def anuncios_multi_cliente_stream(mc_token):
         campanha_nome = payload["campanha_nome"]
         orcamento     = payload["orcamento"]
         total         = len(clientes)
+        tmp_paths     = payload.get("tmp_paths") or [payload.get("tmp_path") or os.path.join(_TMP_DIR, f"{tmp_uuid_val}{tmp_ext}")]
 
-        tmp_path = payload.get("tmp_path") or os.path.join(_TMP_DIR, f"{tmp_uuid_val}{tmp_ext}")
-        try:
-            with open(tmp_path, "rb") as f:
-                file_bytes = f.read()
-            filename = f"mc_criativo{tmp_ext}"
-            _EXT_MIME = {".mp4": "video/mp4", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-                         ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp"}
-            mime = _EXT_MIME.get(tmp_ext, "image/jpeg")
-        except Exception as e:
-            yield _sse({"status": "erro", "cliente": "upload", "erro": f"Arquivo temp não encontrado: {e}", "idx": 0, "total": total})
-            return
+        _EXT_MIME = {".mp4": "video/mp4", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                     ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp"}
+
+        # Carregar todos os arquivos de mídia
+        arquivos_bytes = []
+        for tp in tmp_paths:
+            try:
+                ext_i = os.path.splitext(tp)[1].lower()
+                with open(tp, "rb") as f:
+                    arquivos_bytes.append({"bytes": f.read(), "ext": ext_i, "mime": _EXT_MIME.get(ext_i, "image/jpeg")})
+            except Exception as e:
+                yield _sse({"status": "erro", "cliente": "upload", "erro": f"Arquivo não encontrado: {tp}: {e}", "idx": 0, "total": total})
+                return
 
         for idx, cliente in enumerate(clientes):
             nome       = cliente["nome"]
@@ -4039,15 +4047,18 @@ def anuncios_multi_cliente_stream(mc_token):
                 yield _sse({"status": "erro", "cliente": nome, "erro": "token_key inválido ou token ausente", "idx": idx + 1, "total": total})
                 continue
 
-            campaign_id = adset_id = ad_id = None
+            campaign_id = adset_id = None
+            ad_ids = []
             try:
-                # 1. Upload imagem para a conta deste cliente
-                if "video" in mime:
-                    video_id = _meta_api.upload_video(token_val, account_id, file_bytes, filename)
-                    creative_ref = {"tipo": "video", "video_id": video_id}
-                else:
-                    resultado = _meta_api.upload_imagem(token_val, account_id, file_bytes, filename)
-                    creative_ref = {"tipo": "imagem", "hash": resultado["hash"]}
+                # 1. Upload de todos os criativos para a conta deste cliente
+                creative_refs = []
+                for arq in arquivos_bytes:
+                    if "video" in arq["mime"]:
+                        video_id = _meta_api.upload_video(token_val, account_id, arq["bytes"], f"criativo{arq['ext']}")
+                        creative_refs.append({"tipo": "video", "video_id": video_id})
+                    else:
+                        resultado = _meta_api.upload_imagem(token_val, account_id, arq["bytes"], f"criativo{arq['ext']}")
+                        creative_refs.append({"tipo": "imagem", "hash": resultado["hash"]})
 
                 # 2. Campanha
                 cbo = camp_tipo not in ("ENGAGEMENT", "PURCHASE")
@@ -4067,38 +4078,44 @@ def anuncios_multi_cliente_stream(mc_token):
                     _meta_api.deletar_objeto_meta(token_val, campaign_id)
                     raise Exception(f"Falha no conjunto: {e2}")
 
-                # 4. Anúncio
-                try:
-                    _CAMP_CTA = {"MESSAGES": "SEND_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}
-                    cta = _CAMP_CTA.get(camp_tipo, "SEND_MESSAGE")
-                    ad_id = _meta_api.criar_anuncio(
-                        token_val, account_id, adset_id, page_id, creative_ref,
-                        copy_data.get("titulo", ""), copy_data.get("texto", ""),
-                        cta, link_url=link_url
-                    )
-                except Exception as e3:
-                    _meta_api.deletar_objeto_meta(token_val, adset_id)
-                    _meta_api.deletar_objeto_meta(token_val, campaign_id)
-                    raise Exception(f"Falha no anúncio: {e3}")
+                # 4. Um anúncio por criativo
+                _CAMP_CTA = {"MESSAGES": "SEND_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}
+                cta = _CAMP_CTA.get(camp_tipo, "SEND_MESSAGE")
+                for i_cr, creative_ref in enumerate(creative_refs):
+                    try:
+                        ad_id = _meta_api.criar_anuncio(
+                            token_val, account_id, adset_id, page_id, creative_ref,
+                            copy_data.get("titulo", ""), copy_data.get("texto", ""),
+                            cta, link_url=link_url
+                        )
+                        ad_ids.append(ad_id)
+                    except Exception as e3:
+                        if i_cr == 0:
+                            _meta_api.deletar_objeto_meta(token_val, adset_id)
+                            _meta_api.deletar_objeto_meta(token_val, campaign_id)
+                            raise Exception(f"Falha no anúncio {i_cr+1}: {e3}")
+                        # Criativos adicionais: registra erro mas não desfaz
 
-                # 5. Log
-                try:
-                    conn = _get_db(); cur = conn.cursor()
-                    cur.execute("""
-                        INSERT INTO ad_publish_log
-                            (cliente_id, account_id, campaign_id, adset_id, ad_id,
-                             status, audience_id, payload_json)
-                        VALUES (%s,%s,%s,%s,%s,'sucesso',NULL,%s)
-                    """, (cliente["id"], account_id, campaign_id, adset_id, ad_id,
-                          json.dumps(copy_data)))
-                    conn.commit()
-                except Exception:
-                    pass
-                finally:
-                    try: conn.close()
-                    except Exception: pass
+                # 5. Log (um registro por anúncio criado)
+                for ad_id_log in (ad_ids or [None]):
+                    try:
+                        conn = _get_db(); cur = conn.cursor()
+                        cur.execute("""
+                            INSERT INTO ad_publish_log
+                                (cliente_id, account_id, campaign_id, adset_id, ad_id,
+                                 status, audience_id, payload_json)
+                            VALUES (%s,%s,%s,%s,%s,'sucesso',NULL,%s)
+                        """, (cliente["id"], account_id, campaign_id, adset_id, ad_id_log,
+                              json.dumps(copy_data)))
+                        conn.commit()
+                    except Exception:
+                        pass
+                    finally:
+                        try: conn.close()
+                        except Exception: pass
 
-                yield _sse({"status": "ok", "cliente": nome, "ad_id": ad_id, "idx": idx + 1, "total": total})
+                yield _sse({"status": "ok", "cliente": nome, "campanha_id": campaign_id,
+                            "ads": len(ad_ids), "idx": idx + 1, "total": total})
 
             except Exception as e:
                 try:
@@ -4108,7 +4125,7 @@ def anuncios_multi_cliente_stream(mc_token):
                             (cliente_id, account_id, campaign_id, adset_id, ad_id,
                              status, audience_id, erro_msg, payload_json)
                         VALUES (%s,%s,%s,%s,%s,'erro',NULL,%s,%s)
-                    """, (cliente["id"], account_id, campaign_id, adset_id, ad_id,
+                    """, (cliente["id"], account_id, campaign_id, adset_id, None,
                           str(e), json.dumps(copy_data)))
                     conn.commit()
                 except Exception:
@@ -4118,11 +4135,10 @@ def anuncios_multi_cliente_stream(mc_token):
                     except Exception: pass
                 yield _sse({"status": "erro", "cliente": nome, "erro": str(e), "idx": idx + 1, "total": total})
 
-        # Limpar arquivo temp
-        try:
-            os.remove(tmp_path)
-        except Exception:
-            pass
+        # Limpar arquivos temp
+        for tp in tmp_paths:
+            try: os.remove(tp)
+            except Exception: pass
 
         yield _sse({"status": "concluido", "total": total})
 

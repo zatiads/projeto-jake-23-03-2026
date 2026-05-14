@@ -264,13 +264,28 @@ def _eh_gestor_cmd(texto: str) -> bool:
     return any(k in t for k in _KEYWORDS_GESTOR)
 
 
-def _formatar_resumo_subida(clientes: list, orcamento: float, campanha_tipo: str, campanha_nome: str) -> str:
+def _parse_estrutura(texto: str) -> dict | None:
+    """Parseia notação X-Y-Z (campanhas-conjuntos-criativos). Retorna dict ou None se inválido."""
+    import re as _re_est
+    m = _re_est.match(r'^(\d+)[x\-](\d+)[x\-](\d+)$', texto.strip())
+    if not m:
+        return None
+    c, cs, cr = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    if c < 1 or cs < 1 or cr < 1 or c > 10 or cs > 10 or cr > 50:
+        return None
+    return {"campanhas": c, "conjuntos": cs, "criativos": cr}
+
+
+def _formatar_resumo_subida(clientes: list, orcamento: float, campanha_tipo: str, campanha_nome: str,
+                             estrutura: dict | None = None) -> str:
     linhas = [f"Vou subir *{campanha_nome}* para:"]
     for c in clientes:
         pub_nome = c.get("publico_salvo_nome") or "—"
         linhas.append(f"  • {c['nome']}")
         linhas.append(f"    Público: {pub_nome}")
     linhas.append(f"Orçamento: R${orcamento:.0f}/dia cada | Tipo: {campanha_tipo}")
+    if estrutura:
+        linhas.append(f"Estrutura: {estrutura['campanhas']}-{estrutura['conjuntos']}-{estrutura['criativos']} ({estrutura['criativos']} criativo(s) por conjunto)")
     linhas.append("Confirma? (sim/não)")
     return "\n".join(linhas)
 
@@ -282,7 +297,9 @@ def _formatar_resultado_stream(eventos: list, total_clientes: int) -> str:
     for e in ok:
         camp = e.get("campanha_id", "")
         nome = e.get("cliente", "")
-        linhas.append(f"  ✅ {nome}" + (f" (camp. {camp})" if camp else ""))
+        ads = e.get("ads", 1)
+        sufixo = f" — {ads} anúncio(s)" if ads and ads > 1 else ""
+        linhas.append(f"  ✅ {nome}{sufixo}" + (f" (camp. {camp})" if camp else ""))
     for e in erros:
         nome = e.get("cliente", "")
         msg = e.get("erro", e.get("message", "erro"))
@@ -294,12 +311,41 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
     intencao = cmd["intencao"]
 
     if intencao == "subir_anuncio":
-        drive_link    = cmd.get("drive_link") or ""
-        arquivo_local = cmd.get("arquivo_local") or ""
-        if not drive_link and not arquivo_local:
-            _set_sessao(sender_jid, "aguardando_drive_link", {"cmd": cmd, "clientes": clientes})
-            send_text(destino, "Me manda o link do Google Drive do criativo.")
+        # 1. Estrutura da campanha (X-Y-Z)
+        estrutura = cmd.get("estrutura")
+        if not estrutura:
+            _set_sessao(sender_jid, "aguardando_estrutura", {"cmd": cmd, "clientes": clientes})
+            send_text(destino, "Qual a estrutura da campanha? (ex: 1-1-7 = 1 campanha, 1 conjunto, 7 criativos)")
             return
+
+        num_criativos = estrutura.get("criativos", 1)
+
+        # 2. Criativos (arquivos ou drive link)
+        drive_link     = cmd.get("drive_link") or ""
+        arquivo_local  = cmd.get("arquivo_local") or ""
+        arquivos_locais = [a for a in (cmd.get("arquivos_locais") or []) if a]
+        # Normalizar: se tem arquivo_local avulso, incluir na lista
+        if arquivo_local and arquivo_local not in arquivos_locais:
+            arquivos_locais.insert(0, arquivo_local)
+        cmd["arquivos_locais"] = arquivos_locais
+
+        total_files = len(arquivos_locais) + (1 if drive_link else 0)
+        if total_files == 0:
+            if num_criativos == 1:
+                _set_sessao(sender_jid, "aguardando_drive_link", {"cmd": cmd, "clientes": clientes})
+                send_text(destino, "Envia o criativo (imagem/vídeo aqui ou link do Google Drive).")
+            else:
+                _set_sessao(sender_jid, "aguardando_criativos", {"cmd": cmd, "clientes": clientes})
+                send_text(destino, f"Envia os {num_criativos} criativos (0/{num_criativos} recebidos).")
+            return
+
+        if total_files < num_criativos:
+            faltam = num_criativos - total_files
+            _set_sessao(sender_jid, "aguardando_criativos", {"cmd": cmd, "clientes": clientes})
+            send_text(destino, f"Recebido! ({total_files}/{num_criativos}) — envia mais {faltam} criativo(s).")
+            return
+
+        # 3. Orçamento
         orcamento = cmd.get("orcamento")
         if not orcamento:
             orcamento = clientes[0].get("orcamento_diario") if clientes else None
@@ -307,7 +353,8 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
             send_text(destino, "Qual o orçamento diário por cliente? (ex: R$30)")
             _set_sessao(sender_jid, "aguardando_orcamento", {"cmd": cmd, "clientes": clientes})
             return
-        # Bloquear se algum cliente não tem público salvo configurado
+
+        # 4. Público salvo obrigatório
         sem_publico = [c["nome"] for c in clientes if not c.get("publico_salvo_id")]
         if sem_publico:
             nomes = ", ".join(sem_publico)
@@ -317,7 +364,7 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
         campanha_tipo = cmd.get("campanha_tipo") or "MESSAGES"
         import datetime
         campanha_nome = cmd.get("campanha_nome") or f"WA {datetime.date.today().strftime('%d/%m')}"
-        resumo = _formatar_resumo_subida(clientes, float(orcamento), campanha_tipo, campanha_nome)
+        resumo = _formatar_resumo_subida(clientes, float(orcamento), campanha_tipo, campanha_nome, estrutura)
         send_text(destino, resumo)
         _set_sessao(sender_jid, "aguardando_confirmacao_subida", {
             "cmd": cmd, "clientes": clientes,
@@ -326,6 +373,8 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
             "campanha_nome":  campanha_nome,
             "drive_link":     drive_link,
             "arquivo_local":  arquivo_local,
+            "arquivos_locais": arquivos_locais,
+            "estrutura":      estrutura,
         })
 
     elif intencao in ("pausar_campanha", "ativar_campanha"):
@@ -442,6 +491,31 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
     resposta  = texto.lower().strip()
     negativo  = any(r in resposta for r in ["não", "nao", "n", "cancela", "cancel"])
     positivo  = any(r in resposta for r in ["sim", "s", "yes", "ok", "confirma"])
+
+    # ── Estrutura da campanha (X-Y-Z) ────────────────────────────────────────
+    if estado == "aguardando_estrutura":
+        estrutura = _parse_estrutura(texto)
+        if not estrutura:
+            send_text(destino, "Formato inválido. Use X-Y-Z, ex: 1-1-7 (campanhas-conjuntos-criativos).")
+            return
+        payload["cmd"]["estrutura"] = estrutura
+        clientes = payload.get("clientes", [])
+        _limpar_sessao(sender_jid)
+        _montar_confirmacao_final(sender_jid, destino, payload["cmd"], clientes)
+        return
+
+    # ── Coleta de múltiplos criativos ────────────────────────────────────────
+    if estado == "aguardando_criativos":
+        # Aqui chegam textos durante a coleta — ignora se não for cancelamento
+        if negativo:
+            _limpar_sessao(sender_jid)
+            send_text(destino, "Cancelado, Patrão.")
+            return
+        estrutura = payload["cmd"].get("estrutura", {})
+        num_criativos = estrutura.get("criativos", 1)
+        recebidos = len(payload["cmd"].get("arquivos_locais") or [])
+        send_text(destino, f"Aguardando criativos... ({recebidos}/{num_criativos} recebidos). Envia os arquivos ou diz 'cancela'.")
+        return
 
     # ── Escolha de público salvo ──────────────────────────────────────────────
     if estado == "aguardando_cliente_publico":
@@ -608,6 +682,7 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
                     campanha_nome=payload["campanha_nome"],
                     campanha_tipo=payload["campanha_tipo"],
                     arquivo_local=payload.get("arquivo_local") or None,
+                    arquivos_locais=payload.get("arquivos_locais") or None,
                 )
                 mc_token = dados["mc_token"]
                 eventos = gestor.consumir_stream(mc_token)
@@ -697,6 +772,25 @@ def processar_midia(sender_jid: str, msg_key: dict, message: dict, tipo_midia: s
     except Exception as e:
         logger.error(f"processar_midia: erro ao salvar tmp: {e}")
         send_text(destino, "Erro interno ao salvar arquivo. Tenta de novo, Patrão.")
+        return
+
+    # Se há sessão aguardando criativos (múltiplos arquivos)
+    if sessao and sessao.get("estado") == "aguardando_criativos":
+        payload = sessao["payload"]
+        arquivos = payload["cmd"].get("arquivos_locais") or []
+        arquivos.append(tmp_path)
+        payload["cmd"]["arquivos_locais"] = arquivos
+        estrutura = payload["cmd"].get("estrutura", {})
+        num_criativos = estrutura.get("criativos", 1)
+        recebidos = len(arquivos)
+        if recebidos >= num_criativos:
+            clientes = payload.get("clientes", [])
+            _limpar_sessao(sender_jid)
+            send_text(destino, f"Todos os criativos recebidos! ({recebidos}/{num_criativos})")
+            _montar_confirmacao_final(sender_jid, destino, payload["cmd"], clientes)
+        else:
+            _set_sessao(sender_jid, "aguardando_criativos", payload)
+            send_text(destino, f"Recebido! ({recebidos}/{num_criativos}) — envia mais {num_criativos - recebidos}.")
         return
 
     # Se há sessão aguardando mídia (cliente já selecionado), continuar de onde parou

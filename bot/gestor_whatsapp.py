@@ -52,11 +52,12 @@ class GestorJakeOS:
 
     def subir_anuncio(self, cliente_ids: list, drive_url: str | None, orcamento: float,
                       campanha_nome: str, campanha_tipo: str = "MESSAGES",
-                      arquivo_local: str | None = None) -> dict:
+                      arquivo_local: str | None = None,
+                      arquivos_locais: list | None = None) -> dict:
         """
         Prepara lote via Jake OS. Retorna dict com mc_token para consumir o stream.
         Lança RuntimeError em caso de falha.
-        Aceita drive_url (link Google Drive) ou arquivo_local (path /tmp/...).
+        Aceita drive_url, arquivo_local (único) ou arquivos_locais (múltiplos).
         """
         self._garantir_auth()
         payload = {
@@ -65,7 +66,9 @@ class GestorJakeOS:
             "campanha_nome": campanha_nome,
             "campanha_tipo": campanha_tipo,
         }
-        if arquivo_local:
+        if arquivos_locais:
+            payload["arquivos_locais"] = arquivos_locais
+        elif arquivo_local:
             payload["arquivo_local"] = arquivo_local
         else:
             payload["drive_url"] = drive_url or ""

@@ -247,7 +247,7 @@ def download_media_bytes(msg_key: dict, msg_content: dict) -> tuple[bytes, str] 
     """
     try:
         resp = requests.post(
-            f"{_evo_base()}/message/getBase64FromMediaMessage/{_wa_instance()}",
+            f"{_evo_base()}/chat/getBase64FromMediaMessage/{_wa_instance()}",
             headers={"apikey": _evo_key(), "Content-Type": "application/json"},
             json={"message": {"key": msg_key, "message": msg_content}},
             timeout=30,
