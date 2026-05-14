@@ -325,13 +325,16 @@ def _parse_estrutura(texto: str) -> dict | None:
 
 
 def _formatar_resumo_subida(clientes: list, orcamento: float, campanha_tipo: str, campanha_nome: str,
-                             estrutura: dict | None = None) -> str:
+                             estrutura: dict | None = None, orcamento_por_conjunto: float | None = None) -> str:
     linhas = [f"🚀 Vou subir *{campanha_nome}* para:"]
     for c in clientes:
         pub_nome = c.get("publico_salvo_nome") or "—"
         linhas.append(f"  👤 {c['nome']}")
         linhas.append(f"    🎯 Público: {pub_nome}")
-    linhas.append(f"💰 Orçamento: R${orcamento:.0f}/dia | Tipo: {campanha_tipo}")
+    if orcamento_por_conjunto:
+        linhas.append(f"💰 Orçamento: R${orcamento:.0f}/dia (R${orcamento_por_conjunto:.0f} por conjunto) | Tipo: {campanha_tipo}")
+    else:
+        linhas.append(f"💰 Orçamento: R${orcamento:.0f}/dia | Tipo: {campanha_tipo}")
     if estrutura:
         linhas.append(f"📊 Estrutura: {estrutura['campanhas']}-{estrutura['conjuntos']}-{estrutura['criativos']} ({estrutura['criativos']} criativo(s) por conjunto)")
     linhas.append("\n✅ Confirma? (sim/não)")
@@ -400,7 +403,8 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
         # 3. Orçamento — sempre pergunta, nunca puxa do banco
         orcamento = cmd.get("orcamento")
         if not orcamento:
-            send_text(destino, "💰 Qual o orçamento diário por cliente?")
+            _hint = " (pode dizer ex: 30 ou 30, sendo 15 em cada conjunto)" if num_conjuntos > 1 else ""
+            send_text(destino, f"💰 Qual o orçamento diário da campanha?{_hint}")
             _set_sessao(sender_jid, "aguardando_orcamento", {"cmd": cmd, "clientes": clientes})
             return
 
@@ -414,17 +418,19 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
         campanha_tipo = cmd.get("campanha_tipo") or "MESSAGES"
         import datetime
         campanha_nome = cmd.get("campanha_nome") or f"WA {datetime.date.today().strftime('%d/%m')}"
-        resumo = _formatar_resumo_subida(clientes, float(orcamento), campanha_tipo, campanha_nome, estrutura)
+        orcamento_por_conjunto = cmd.get("orcamento_por_conjunto") or None
+        resumo = _formatar_resumo_subida(clientes, float(orcamento), campanha_tipo, campanha_nome, estrutura, orcamento_por_conjunto)
         send_text(destino, resumo)
         _set_sessao(sender_jid, "aguardando_confirmacao_subida", {
             "cmd": cmd, "clientes": clientes,
-            "orcamento":      float(orcamento),
-            "campanha_tipo":  campanha_tipo,
-            "campanha_nome":  campanha_nome,
-            "drive_link":     drive_link,
-            "arquivo_local":  arquivo_local,
-            "arquivos_locais": arquivos_locais,
-            "estrutura":      estrutura,
+            "orcamento":               float(orcamento),
+            "orcamento_por_conjunto":  float(orcamento_por_conjunto) if orcamento_por_conjunto else None,
+            "campanha_tipo":           campanha_tipo,
+            "campanha_nome":           campanha_nome,
+            "drive_link":              drive_link,
+            "arquivo_local":           arquivo_local,
+            "arquivos_locais":         arquivos_locais,
+            "estrutura":               estrutura,
         })
 
     elif intencao in ("pausar_campanha", "ativar_campanha"):
@@ -677,12 +683,17 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
     # ── Aguardando orçamento (aceita qualquer texto) ─────────────────────────
     if estado == "aguardando_orcamento":
         import re as _re_orc
-        m = _re_orc.search(r'[\d,.]+', texto)
-        if not m:
+        # Detectar formato "30, sendo 15 em cada conjunto" ou "15 por conjunto"
+        _m_conj = _re_orc.search(r'(\d+(?:[,.]\d+)?)\s*(?:por|em\s+cada?)\s+conjunto', texto.lower())
+        numeros = _re_orc.findall(r'\d+(?:[,.]\d+)?', texto)
+        if not numeros:
             send_text(destino, "Não entendi o valor. Manda só o número, ex: 30")
             return
-        orcamento = float(m.group().replace(",", "."))
+        orcamento = float(numeros[0].replace(",", "."))
+        orcamento_por_conjunto = float(_m_conj.group(1).replace(",", ".")) if _m_conj else None
         payload["cmd"]["orcamento"] = orcamento
+        if orcamento_por_conjunto:
+            payload["cmd"]["orcamento_por_conjunto"] = orcamento_por_conjunto
         _limpar_sessao(sender_jid)
         _montar_confirmacao_final(sender_jid, destino, payload["cmd"], payload["clientes"])
         return
@@ -727,16 +738,24 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
                 gestor = get_gestor()
                 cliente_ids = [c["id"] for c in payload["clientes"]]
                 _est = payload.get("estrutura") or {}
+                _drive = payload.get("drive_link") or None
+                _arq_local = payload.get("arquivo_local") or None
+                _arqs = payload.get("arquivos_locais") or None
+                logger.info(f"_executar: drive={_drive!r} arquivo_local={_arq_local!r} arquivos_locais={_arqs!r}")
+                if not _drive and not _arq_local and not _arqs:
+                    send_text(destino, "❌ Erro interno: criativos não encontrados. Reinicia o fluxo e envia as imagens de novo, Patrão.")
+                    return
                 dados = gestor.subir_anuncio(
                     cliente_ids=cliente_ids,
-                    drive_url=payload.get("drive_link") or None,
+                    drive_url=_drive,
                     orcamento=payload["orcamento"],
                     campanha_nome=payload["campanha_nome"],
                     campanha_tipo=payload["campanha_tipo"],
-                    arquivo_local=payload.get("arquivo_local") or None,
-                    arquivos_locais=payload.get("arquivos_locais") or None,
+                    arquivo_local=_arq_local,
+                    arquivos_locais=_arqs,
                     num_conjuntos=_est.get("conjuntos", 1),
                     cri_por_conjunto=_est.get("criativos", 1),
+                    orcamento_por_conjunto=payload.get("orcamento_por_conjunto") or None,
                 )
                 mc_token = dados["mc_token"]
                 eventos = gestor.consumir_stream(mc_token)

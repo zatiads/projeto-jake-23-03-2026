@@ -55,7 +55,8 @@ class GestorJakeOS:
                       arquivo_local: str | None = None,
                       arquivos_locais: list | None = None,
                       num_conjuntos: int = 1,
-                      cri_por_conjunto: int | None = None) -> dict:
+                      cri_por_conjunto: int | None = None,
+                      orcamento_por_conjunto: float | None = None) -> dict:
         """
         Prepara lote via Jake OS. Retorna dict com mc_token para consumir o stream.
         Lança RuntimeError em caso de falha.
@@ -78,6 +79,8 @@ class GestorJakeOS:
             payload["num_conjuntos"] = num_conjuntos
         if cri_por_conjunto:
             payload["cri_por_conjunto"] = cri_por_conjunto
+        if orcamento_por_conjunto:
+            payload["orcamento_por_conjunto"] = orcamento_por_conjunto
         resp = self._session.post(
             f"{self._base}/api/anuncios/wa/subir",
             json=payload,

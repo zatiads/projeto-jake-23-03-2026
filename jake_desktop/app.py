@@ -3464,6 +3464,7 @@ def anuncios_wa_subir():
     orcamento_raw  = d.get("orcamento")
     campanha_nome  = (d.get("campanha_nome") or "").strip()
     campanha_tipo  = (d.get("campanha_tipo") or "MESSAGES").strip().upper()
+    orcamento_por_conjunto_raw = d.get("orcamento_por_conjunto")
 
     # Normalizar: arquivo_local avulso vai para a lista
     if arquivo_local and arquivo_local not in arquivos_locais:
@@ -3481,6 +3482,12 @@ def anuncios_wa_subir():
         orcamento = float(orcamento_raw)
     except (TypeError, ValueError):
         return jsonify({"error": "orcamento deve ser número"}), 400
+    orcamento_por_conjunto = None
+    if orcamento_por_conjunto_raw is not None:
+        try:
+            orcamento_por_conjunto = float(orcamento_por_conjunto_raw)
+        except (TypeError, ValueError):
+            pass
 
     _MIME_EXT_WA = {"image/jpeg": ".jpg", "image/png": ".png", "video/mp4": ".mp4"}
 
@@ -3585,8 +3592,9 @@ def anuncios_wa_subir():
         "campanha_nome":     campanha_nome,
         "orcamento":         orcamento,
         "campanha_tipo":     campanha_tipo,
-        "num_conjuntos":     d.get("num_conjuntos") or 1,
-        "cri_por_conjunto":  d.get("cri_por_conjunto") or len(arquivos_locais if arquivos_locais else [tmp_path]),
+        "num_conjuntos":          d.get("num_conjuntos") or 1,
+        "cri_por_conjunto":       d.get("cri_por_conjunto") or len(arquivos_locais if arquivos_locais else [tmp_path]),
+        "orcamento_por_conjunto": orcamento_por_conjunto,
     }
     threading.Timer(1800, lambda: _lote_payloads.pop(mc_token, None)).start()
 
@@ -4002,16 +4010,17 @@ def anuncios_multi_cliente_stream(mc_token):
             yield _sse({"status": "erro", "cliente": "", "erro": "Token inválido ou expirado", "idx": 0, "total": 0})
             return
 
-        clientes         = payload["clientes"]
-        tmp_uuid_val     = payload["tmp_uuid"]
-        tmp_ext          = payload.get("tmp_ext", ".jpg")
-        copy_data        = payload["copy"]
-        campanha_nome    = payload["campanha_nome"]
-        orcamento        = payload["orcamento"]
-        total            = len(clientes)
-        num_conjuntos    = int(payload.get("num_conjuntos") or 1)
-        cri_por_conjunto = int(payload.get("cri_por_conjunto") or 1)
-        tmp_paths        = payload.get("tmp_paths") or [payload.get("tmp_path") or os.path.join(_TMP_DIR, f"{tmp_uuid_val}{tmp_ext}")]
+        clientes              = payload["clientes"]
+        tmp_uuid_val          = payload["tmp_uuid"]
+        tmp_ext               = payload.get("tmp_ext", ".jpg")
+        copy_data             = payload["copy"]
+        campanha_nome         = payload["campanha_nome"]
+        orcamento             = payload["orcamento"]
+        orcamento_por_conj    = payload.get("orcamento_por_conjunto") or None
+        total                 = len(clientes)
+        num_conjuntos         = int(payload.get("num_conjuntos") or 1)
+        cri_por_conjunto      = int(payload.get("cri_por_conjunto") or 1)
+        tmp_paths             = payload.get("tmp_paths") or [payload.get("tmp_path") or os.path.join(_TMP_DIR, f"{tmp_uuid_val}{tmp_ext}")]
 
         _EXT_MIME = {".mp4": "video/mp4", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                      ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp"}
@@ -4083,9 +4092,10 @@ def anuncios_multi_cliente_stream(mc_token):
                         break
 
                     try:
+                        _adset_orc = orcamento_por_conj or (orcamento if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None)
                         adset_id = _meta_api.criar_conjunto(
                             token_val, account_id, campaign_id, camp_tipo, publico, localizacao,
-                            orcamento=(orcamento if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None),
+                            orcamento=_adset_orc,
                             optimization_goal=opt_goal, pixel_id=pixel_id,
                             saved_audience_id=saved_aud_id or None,
                         )
