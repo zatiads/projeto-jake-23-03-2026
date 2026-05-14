@@ -326,18 +326,21 @@ def _parse_estrutura(texto: str) -> dict | None:
 
 def _formatar_resumo_subida(clientes: list, orcamento: float, campanha_tipo: str, campanha_nome: str,
                              estrutura: dict | None = None, orcamento_por_conjunto: float | None = None) -> str:
-    linhas = [f"🚀 Vou subir *{campanha_nome}* para:"]
+    linhas = [f"🚀 *{campanha_nome}*", ""]
     for c in clientes:
         pub_nome = c.get("publico_salvo_nome") or "—"
-        linhas.append(f"  👤 {c['nome']}")
-        linhas.append(f"    🎯 Público: {pub_nome}")
+        linhas.append(f"👤 {c['nome']}")
+        linhas.append(f"   🎯 {pub_nome}")
+        linhas.append("")
     if orcamento_por_conjunto:
-        linhas.append(f"💰 Orçamento: R${orcamento:.0f}/dia (R${orcamento_por_conjunto:.0f} por conjunto) | Tipo: {campanha_tipo}")
+        linhas.append(f"💰 R${orcamento:.0f}/dia (R${orcamento_por_conjunto:.0f} por conjunto)")
     else:
-        linhas.append(f"💰 Orçamento: R${orcamento:.0f}/dia | Tipo: {campanha_tipo}")
+        linhas.append(f"💰 R${orcamento:.0f}/dia")
+    linhas.append(f"📣 Tipo: {campanha_tipo}")
     if estrutura:
-        linhas.append(f"📊 Estrutura: {estrutura['campanhas']}-{estrutura['conjuntos']}-{estrutura['criativos']} ({estrutura['criativos']} criativo(s) por conjunto)")
-    linhas.append("\n✅ Confirma? (sim/não)")
+        linhas.append(f"📊 {estrutura['campanhas']}-{estrutura['conjuntos']}-{estrutura['criativos']}")
+    linhas.append("")
+    linhas.append("✅ Confirma? (sim/não)")
     return "\n".join(linhas)
 
 
@@ -872,10 +875,8 @@ def processar_midia(sender_jid: str, msg_key: dict, message: dict, tipo_midia: s
     if _acao:
         tipo, rec, num, cmd_, clientes_ = _acao
         if tipo == "confirmar":
-            send_text(destino, f"📸 Todos os criativos recebidos! ({rec}/{num})")
             _montar_confirmacao_final(sender_jid, destino, cmd_, clientes_)
-        else:
-            send_text(destino, f"📸 Recebido! ({rec}/{num}) — envia mais {num - rec}.")
+        # "aguardar" — sem mensagem por imagem para não flodar
         return
 
     # Se há sessão aguardando mídia (cliente já selecionado), continuar de onde parou

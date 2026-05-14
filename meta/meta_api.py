@@ -225,7 +225,7 @@ import json as _json_meta
 
 # Mapeamento interno → Meta API objective strings
 _OBJETIVO_MAP = {
-    "MESSAGES":   "MESSAGES",
+    "MESSAGES":   "OUTCOME_ENGAGEMENT",   # MESSAGES depreciado na v21+ → OUTCOME_ENGAGEMENT
     "ENGAGEMENT": "OUTCOME_ENGAGEMENT",
     "PURCHASE":   "OUTCOME_SALES",
 }
@@ -405,7 +405,7 @@ def criar_conjunto(token: str, account_id: str, campaign_id: str,
     }
 
     if campanha_tipo == "MESSAGES":
-        payload["optimization_goal"] = "CONVERSATIONS"
+        payload["optimization_goal"] = "LINK_CLICKS"  # CONVERSATIONS depreciado → LINK_CLICKS p/ CTWA
         payload["billing_event"] = "IMPRESSIONS"
     elif campanha_tipo == "PURCHASE":
         goal = optimization_goal or "LINK_CLICKS"
