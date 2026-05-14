@@ -397,12 +397,10 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
             send_text(destino, f"📸 Recebido! ({total_files}/{num_criativos}) — envia mais {faltam}.")
             return
 
-        # 3. Orçamento
+        # 3. Orçamento — sempre pergunta, nunca puxa do banco
         orcamento = cmd.get("orcamento")
         if not orcamento:
-            orcamento = clientes[0].get("orcamento_diario") if clientes else None
-        if not orcamento:
-            send_text(destino, "💰 Qual o orçamento diário por cliente? (ex: R$30)")
+            send_text(destino, "💰 Qual o orçamento diário por cliente?")
             _set_sessao(sender_jid, "aguardando_orcamento", {"cmd": cmd, "clientes": clientes})
             return
 
