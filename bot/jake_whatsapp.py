@@ -427,7 +427,6 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
         _limpar_sessao(sender_jid)
         send_text(destino, "Subindo anúncios... aguarda, Patrão.")
         _set_sessao(sender_jid, "executando", {})
-        import threading
 
         def _executar():
             try:
@@ -484,6 +483,11 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
 
         import threading as _threading2
         _threading2.Thread(target=_executar_status, daemon=True).start()
+        return
+
+    # ── Estado executando — aguardar ──────────────────────────────────────────
+    if estado == "executando":
+        send_text(destino, "Ainda processando o lote anterior, aguarda, Patrão...")
         return
 
 
