@@ -534,8 +534,14 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
 
     if estado == "aguardando_drive_link":
         link = texto.strip()
-        if "drive.google" not in link and "drive.google.com" not in link:
-            send_text(destino, "Não parece um link do Google Drive. Manda o link completo.")
+        _PALAVRAS_MIDIA = ["imagem", "foto", "vídeo", "video", "arquivo", "direto", "aqui", "mando", "manda"]
+        quer_midia = any(p in link.lower() for p in _PALAVRAS_MIDIA) and "drive.google" not in link
+        if quer_midia:
+            _set_sessao(sender_jid, "aguardando_midia", payload)
+            send_text(destino, "Pode mandar! Envia a imagem ou vídeo direto aqui.")
+            return
+        if "drive.google" not in link:
+            send_text(destino, "Não parece um link do Google Drive. Manda o link completo ou envia a imagem/vídeo direto aqui.")
             return
         payload["cmd"]["drive_link"] = link
         clientes = payload.get("clientes", [])
@@ -691,6 +697,17 @@ def processar_midia(sender_jid: str, msg_key: dict, message: dict, tipo_midia: s
     except Exception as e:
         logger.error(f"processar_midia: erro ao salvar tmp: {e}")
         send_text(destino, "Erro interno ao salvar arquivo. Tenta de novo, Patrão.")
+        return
+
+    # Se há sessão aguardando mídia (cliente já selecionado), continuar de onde parou
+    if sessao and sessao.get("estado") == "aguardando_midia":
+        payload = sessao["payload"]
+        payload["cmd"]["arquivo_local"] = tmp_path
+        payload["cmd"]["drive_link"] = None
+        clientes = payload.get("clientes", [])
+        _limpar_sessao(sender_jid)
+        send_text(destino, "Arquivo recebido!")
+        _montar_confirmacao_final(sender_jid, destino, payload["cmd"], clientes)
         return
 
     # Iniciar fluxo guiado — pedir nome do cliente
