@@ -3581,10 +3581,12 @@ def anuncios_wa_subir():
         "tmp_ext":        ext,
         "tmp_path":       tmp_path,
         "tmp_paths":      arquivos_locais if arquivos_locais else [tmp_path],
-        "copy":           {},
-        "campanha_nome":  campanha_nome,
-        "orcamento":      orcamento,
-        "campanha_tipo":  campanha_tipo,
+        "copy":              {},
+        "campanha_nome":     campanha_nome,
+        "orcamento":         orcamento,
+        "campanha_tipo":     campanha_tipo,
+        "num_conjuntos":     d.get("num_conjuntos") or 1,
+        "cri_por_conjunto":  d.get("cri_por_conjunto") or len(arquivos_locais if arquivos_locais else [tmp_path]),
     }
     threading.Timer(1800, lambda: _lote_payloads.pop(mc_token, None)).start()
 
@@ -4000,14 +4002,16 @@ def anuncios_multi_cliente_stream(mc_token):
             yield _sse({"status": "erro", "cliente": "", "erro": "Token inválido ou expirado", "idx": 0, "total": 0})
             return
 
-        clientes      = payload["clientes"]
-        tmp_uuid_val  = payload["tmp_uuid"]
-        tmp_ext       = payload.get("tmp_ext", ".jpg")
-        copy_data     = payload["copy"]
-        campanha_nome = payload["campanha_nome"]
-        orcamento     = payload["orcamento"]
-        total         = len(clientes)
-        tmp_paths     = payload.get("tmp_paths") or [payload.get("tmp_path") or os.path.join(_TMP_DIR, f"{tmp_uuid_val}{tmp_ext}")]
+        clientes         = payload["clientes"]
+        tmp_uuid_val     = payload["tmp_uuid"]
+        tmp_ext          = payload.get("tmp_ext", ".jpg")
+        copy_data        = payload["copy"]
+        campanha_nome    = payload["campanha_nome"]
+        orcamento        = payload["orcamento"]
+        total            = len(clientes)
+        num_conjuntos    = int(payload.get("num_conjuntos") or 1)
+        cri_por_conjunto = int(payload.get("cri_por_conjunto") or 1)
+        tmp_paths        = payload.get("tmp_paths") or [payload.get("tmp_path") or os.path.join(_TMP_DIR, f"{tmp_uuid_val}{tmp_ext}")]
 
         _EXT_MIME = {".mp4": "video/mp4", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                      ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp"}
@@ -4060,41 +4064,51 @@ def anuncios_multi_cliente_stream(mc_token):
                         resultado = _meta_api.upload_imagem(token_val, account_id, arq["bytes"], f"criativo{arq['ext']}")
                         creative_refs.append({"tipo": "imagem", "hash": resultado["hash"]})
 
-                # 2. Campanha
+                # 2. Campanha (uma por cliente)
                 cbo = camp_tipo not in ("ENGAGEMENT", "PURCHASE")
                 campaign_id = _meta_api.criar_campanha(
                     token_val, account_id, camp_tipo, campanha_nome, orcamento, cbo=cbo
                 )
 
-                # 3. Conjunto
-                try:
-                    adset_id = _meta_api.criar_conjunto(
-                        token_val, account_id, campaign_id, camp_tipo, publico, localizacao,
-                        orcamento=(orcamento if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None),
-                        optimization_goal=opt_goal, pixel_id=pixel_id,
-                        saved_audience_id=saved_aud_id or None,
-                    )
-                except Exception as e2:
-                    _meta_api.deletar_objeto_meta(token_val, campaign_id)
-                    raise Exception(f"Falha no conjunto: {e2}")
-
-                # 4. Um anúncio por criativo
+                # 3. N conjuntos, cada um com cri_por_conjunto criativos
                 _CAMP_CTA = {"MESSAGES": "SEND_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}
                 cta = _CAMP_CTA.get(camp_tipo, "SEND_MESSAGE")
-                for i_cr, creative_ref in enumerate(creative_refs):
+
+                for i_conj in range(num_conjuntos):
+                    # Fatia os criativos para este conjunto
+                    inicio = i_conj * cri_por_conjunto
+                    fim    = inicio + cri_por_conjunto
+                    refs_conj = creative_refs[inicio:fim]
+                    if not refs_conj:
+                        break
+
                     try:
-                        ad_id = _meta_api.criar_anuncio(
-                            token_val, account_id, adset_id, page_id, creative_ref,
-                            copy_data.get("titulo", ""), copy_data.get("texto", ""),
-                            cta, link_url=link_url
+                        adset_id = _meta_api.criar_conjunto(
+                            token_val, account_id, campaign_id, camp_tipo, publico, localizacao,
+                            orcamento=(orcamento if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None),
+                            optimization_goal=opt_goal, pixel_id=pixel_id,
+                            saved_audience_id=saved_aud_id or None,
                         )
-                        ad_ids.append(ad_id)
-                    except Exception as e3:
-                        if i_cr == 0:
-                            _meta_api.deletar_objeto_meta(token_val, adset_id)
+                    except Exception as e2:
+                        if i_conj == 0:
                             _meta_api.deletar_objeto_meta(token_val, campaign_id)
-                            raise Exception(f"Falha no anúncio {i_cr+1}: {e3}")
-                        # Criativos adicionais: registra erro mas não desfaz
+                            raise Exception(f"Falha no conjunto {i_conj+1}: {e2}")
+                        continue
+
+                    for i_cr, creative_ref in enumerate(refs_conj):
+                        try:
+                            ad_id = _meta_api.criar_anuncio(
+                                token_val, account_id, adset_id, page_id, creative_ref,
+                                copy_data.get("titulo", ""), copy_data.get("texto", ""),
+                                cta, link_url=link_url
+                            )
+                            ad_ids.append(ad_id)
+                        except Exception as e3:
+                            if i_cr == 0 and i_conj == 0:
+                                _meta_api.deletar_objeto_meta(token_val, adset_id)
+                                _meta_api.deletar_objeto_meta(token_val, campaign_id)
+                                raise Exception(f"Falha no anúncio {i_conj+1}/{i_cr+1}: {e3}")
+                        # Erros em criativos adicionais: registra mas não desfaz
 
                 # 5. Log (um registro por anúncio criado)
                 for ad_id_log in (ad_ids or [None]):

@@ -366,16 +366,20 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
             send_text(destino, "📊 Qual a estrutura da campanha? (ex: 1-1-7 = 1 campanha, 1 conjunto, 7 criativos)")
             return
 
-        num_criativos = estrutura.get("criativos", 1)
+        # Total de arquivos = conjuntos × criativos_por_conjunto
+        num_conjuntos   = estrutura.get("conjuntos", 1)
+        cri_por_conjunto = estrutura.get("criativos", 1)
+        num_criativos   = num_conjuntos * cri_por_conjunto
 
         # 2. Criativos (arquivos ou drive link)
         drive_link     = cmd.get("drive_link") or ""
         arquivo_local  = cmd.get("arquivo_local") or ""
         arquivos_locais = [a for a in (cmd.get("arquivos_locais") or []) if a]
-        # Normalizar: se tem arquivo_local avulso, incluir na lista
         if arquivo_local and arquivo_local not in arquivos_locais:
             arquivos_locais.insert(0, arquivo_local)
         cmd["arquivos_locais"] = arquivos_locais
+
+        label = f"{num_criativos} criativos ({num_conjuntos} conjunto(s) × {cri_por_conjunto})" if num_conjuntos > 1 else f"{num_criativos} criativo(s)"
 
         total_files = len(arquivos_locais) + (1 if drive_link else 0)
         if total_files == 0:
@@ -384,13 +388,13 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
                 send_text(destino, "📸 Envia o criativo (imagem/vídeo aqui ou link do Google Drive).")
             else:
                 _set_sessao(sender_jid, "aguardando_criativos", {"cmd": cmd, "clientes": clientes})
-                send_text(destino, f"📸 Envia os {num_criativos} criativos (0/{num_criativos} recebidos).")
+                send_text(destino, f"📸 Envia os {label} (0/{num_criativos} recebidos).")
             return
 
         if total_files < num_criativos:
             faltam = num_criativos - total_files
             _set_sessao(sender_jid, "aguardando_criativos", {"cmd": cmd, "clientes": clientes})
-            send_text(destino, f"Recebido! ({total_files}/{num_criativos}) — envia mais {faltam} criativo(s).")
+            send_text(destino, f"📸 Recebido! ({total_files}/{num_criativos}) — envia mais {faltam}.")
             return
 
         # 3. Orçamento
@@ -724,6 +728,7 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
                 from bot.gestor_whatsapp import get_gestor
                 gestor = get_gestor()
                 cliente_ids = [c["id"] for c in payload["clientes"]]
+                _est = payload.get("estrutura") or {}
                 dados = gestor.subir_anuncio(
                     cliente_ids=cliente_ids,
                     drive_url=payload.get("drive_link") or None,
@@ -732,6 +737,8 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
                     campanha_tipo=payload["campanha_tipo"],
                     arquivo_local=payload.get("arquivo_local") or None,
                     arquivos_locais=payload.get("arquivos_locais") or None,
+                    num_conjuntos=_est.get("conjuntos", 1),
+                    cri_por_conjunto=_est.get("criativos", 1),
                 )
                 mc_token = dados["mc_token"]
                 eventos = gestor.consumir_stream(mc_token)
@@ -831,7 +838,8 @@ def processar_midia(sender_jid: str, msg_key: dict, message: dict, tipo_midia: s
             _arquivos = _payload["cmd"].get("arquivos_locais") or []
             _arquivos.append(tmp_path)
             _payload["cmd"]["arquivos_locais"] = _arquivos
-            _num = (_payload["cmd"].get("estrutura") or {}).get("criativos", 1)
+            _est = (_payload["cmd"].get("estrutura") or {})
+            _num = _est.get("conjuntos", 1) * _est.get("criativos", 1)
             _rec = len(_arquivos)
             if _rec >= _num:
                 _clientes = _payload.get("clientes", [])

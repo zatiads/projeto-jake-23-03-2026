@@ -53,7 +53,9 @@ class GestorJakeOS:
     def subir_anuncio(self, cliente_ids: list, drive_url: str | None, orcamento: float,
                       campanha_nome: str, campanha_tipo: str = "MESSAGES",
                       arquivo_local: str | None = None,
-                      arquivos_locais: list | None = None) -> dict:
+                      arquivos_locais: list | None = None,
+                      num_conjuntos: int = 1,
+                      cri_por_conjunto: int | None = None) -> dict:
         """
         Prepara lote via Jake OS. Retorna dict com mc_token para consumir o stream.
         Lança RuntimeError em caso de falha.
@@ -72,6 +74,10 @@ class GestorJakeOS:
             payload["arquivo_local"] = arquivo_local
         else:
             payload["drive_url"] = drive_url or ""
+        if num_conjuntos > 1:
+            payload["num_conjuntos"] = num_conjuntos
+        if cri_por_conjunto:
+            payload["cri_por_conjunto"] = cri_por_conjunto
         resp = self._session.post(
             f"{self._base}/api/anuncios/wa/subir",
             json=payload,
