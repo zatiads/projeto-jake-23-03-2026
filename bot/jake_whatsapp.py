@@ -74,6 +74,97 @@ COMO VOCE RESPONDE:
 
 Sempre chame o Bruno de 'Patrao'."""
 
+PROMPT_GESTOR = """Você é um parser de comandos de gestão de tráfego. Analise a mensagem e retorne SOMENTE um JSON válido (sem markdown, sem texto extra) com esta estrutura:
+
+{
+  "intencao": "subir_anuncio" | "pausar_campanha" | "ativar_campanha" | "desconhecida",
+  "drive_link": "URL completa do Google Drive ou null",
+  "clientes": ["lista", "de", "nomes", "mencionados"],
+  "orcamento": numero_float_ou_null,
+  "campanha_tipo": "MESSAGES" | "ENGAGEMENT" | "PURCHASE" | null
+}
+
+Regras:
+- Se mencionar "sobe", "subir", "upload", "anuncio" com link do Drive → subir_anuncio
+- Se mencionar "pausa", "pausar", "desativa" → pausar_campanha
+- Se mencionar "ativa", "ativar", "liga", "retoma" → ativar_campanha
+- campanha_tipo padrão: MESSAGES se não informado e intencao = subir_anuncio
+- Extraia o valor em R$ como orcamento float (ex: "R$30" → 30.0)
+- clientes: lista exatamente como o usuário escreveu, em minúsculas"""
+
+
+def interpretar_comando(texto: str) -> dict:
+    """Interpreta mensagem do Bruno e retorna dict de intenção. Nunca lança exceção."""
+    import json as _json
+    try:
+        raw = chamar_claude(PROMPT_GESTOR, texto)
+        # Limpar possível markdown
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        return _json.loads(raw.strip())
+    except Exception:
+        return {"intencao": "desconhecida", "drive_link": None, "clientes": [], "orcamento": None, "campanha_tipo": None}
+
+
+def _buscar_clientes_db() -> list:
+    """Busca todos os clientes ativos do banco. Retorna lista de dicts."""
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(os.path.join(_root, ".env"))
+        import psycopg2
+        import psycopg2.extras
+        conn = psycopg2.connect(os.environ["DATABASE_URL"])
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id, nome, agencia, account_id, token_key FROM ad_client_profiles ORDER BY nome")
+        rows = [dict(r) for r in cur.fetchall()]
+        conn.close()
+        return rows
+    except Exception as e:
+        logger.error(f"Erro ao buscar clientes: {e}")
+        return []
+
+
+def resolver_clientes(nomes: list) -> dict:
+    """
+    Faz fuzzy match dos nomes digitados contra o banco.
+    Retorna:
+      {
+        "confirmados": [{"id": ..., "nome": ..., ...}],
+        "ambiguos": [{"digitado": "...", "candidato": {...}, "score": 0.85}],
+        "nao_encontrados": ["nome1", ...]
+      }
+    """
+    from difflib import SequenceMatcher
+    clientes_db = _buscar_clientes_db()
+    confirmados, ambiguos, nao_encontrados = [], [], []
+
+    for nome_digitado in nomes:
+        nd = nome_digitado.lower().strip()
+        melhor_score = 0.0
+        melhor_cliente = None
+
+        for c in clientes_db:
+            score = SequenceMatcher(None, nd, c["nome"].lower()).ratio()
+            # Bonus se o nome digitado está contido no nome do cliente
+            if nd in c["nome"].lower():
+                score = max(score, 0.85)
+            if score > melhor_score:
+                melhor_score = score
+                melhor_cliente = c
+
+        if melhor_score >= 0.80 and melhor_cliente:
+            confirmados.append(melhor_cliente)
+        elif melhor_score >= 0.50 and melhor_cliente:
+            ambiguos.append({"digitado": nome_digitado, "candidato": melhor_cliente, "score": melhor_score})
+        else:
+            nao_encontrados.append(nome_digitado)
+
+    return {"confirmados": confirmados, "ambiguos": ambiguos, "nao_encontrados": nao_encontrados}
+
+
 # ── Claude ────────────────────────────────────────────────────────────────────
 _anthropic_client = None
 
