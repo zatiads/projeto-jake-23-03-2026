@@ -3491,6 +3491,7 @@ def anuncios_wa_subir():
         "copy":          {},
         "campanha_nome": campanha_nome,
         "orcamento":     orcamento,
+        "campanha_tipo": campanha_tipo,
     }
     threading.Timer(1800, lambda: _lote_payloads.pop(mc_token, None)).start()
 
@@ -3930,7 +3931,7 @@ def anuncios_multi_cliente_stream(mc_token):
             token_key  = cliente["token_key"]
             token_val  = os.getenv(token_key, "")
             page_id    = cliente.get("page_id", "")
-            camp_tipo  = cliente.get("campanha_tipo", "MESSAGES")
+            camp_tipo  = payload.get("campanha_tipo") or cliente.get("campanha_tipo") or "MESSAGES"
             localizacao = cliente.get("localizacao_json") or {}
             publico    = cliente.get("publico_json") or {}
             link_url   = cliente.get("link_url") or ""
