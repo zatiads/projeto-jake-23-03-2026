@@ -3297,6 +3297,36 @@ def anuncios_listar_campanhas(account_id):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/anuncios/campanha/<campaign_id>/status", methods=["PATCH"])
+@login_required
+def anuncios_campanha_status(campaign_id):
+    """Pausa ou ativa uma campanha Meta. Body: {status: 'PAUSED'|'ACTIVE', token_key: '...'}"""
+    d         = request.get_json() or {}
+    status    = (d.get("status") or "").strip().upper()
+    token_key = (d.get("token_key") or "META_ACCESS_TOKEN").strip()
+
+    if status not in ("PAUSED", "ACTIVE"):
+        return jsonify({"error": "status deve ser PAUSED ou ACTIVE"}), 400
+    if token_key not in _VALID_TOKEN_KEYS:
+        return jsonify({"error": "token_key inválido"}), 400
+    token = os.getenv(token_key, "")
+    if not token:
+        return jsonify({"error": f"{token_key} não configurado"}), 500
+
+    try:
+        resp = requests.post(
+            f"https://graph.facebook.com/v21.0/{campaign_id}",
+            data={"status": status, "access_token": token},
+            timeout=15,
+        )
+        data = resp.json()
+        if data.get("success"):
+            return jsonify({"ok": True, "campaign_id": campaign_id, "status": status})
+        return jsonify({"error": data.get("error", {}).get("message", "Erro desconhecido")}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/anuncios/lote/drive-download", methods=["POST"])
 @login_required
 def anuncios_lote_drive_download():
