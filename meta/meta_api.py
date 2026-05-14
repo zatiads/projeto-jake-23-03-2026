@@ -3,9 +3,12 @@ Meta (Facebook) Marketing API — insights e relatório no formato Jake IA.
 Conta: act_360347436292903 (OdontoCompany Carazinho).
 Extrai reach, cliques, leads (mensagens iniciadas) e spend; calcula CPL.
 """
+import logging
 import requests
 from datetime import date, timedelta
 from typing import Optional, Tuple
+
+_log = logging.getLogger(__name__)
 
 from .config_meta import META_ACCESS_TOKEN, get_conta_for_cliente, meta_configured
 
@@ -223,6 +226,15 @@ def get_saldo_conta(account_id: str) -> Optional[dict]:
 import time as _time
 import json as _json_meta
 
+
+def _safe_json(resp) -> dict:
+    """Parse seguro de resposta requests — evita JSONDecodeError em corpo vazio."""
+    try:
+        return resp.json()
+    except Exception:
+        txt = resp.text or ""
+        raise Exception(f"Resposta inesperada da Meta (HTTP {resp.status_code}): {txt[:200]}")
+
 # Mapeamento interno → Meta API objective strings
 _OBJETIVO_MAP = {
     "MESSAGES":   "OUTCOME_ENGAGEMENT",   # MESSAGES depreciado na v21+ → OUTCOME_ENGAGEMENT
@@ -249,7 +261,7 @@ def upload_imagem(token: str, account_id: str, imagem_bytes: bytes, filename: st
     url = f"{GRAPH_URL}/{account_id}/adimages"
     resp = requests.post(url, params={"access_token": token},
                          files={"filename": (filename, imagem_bytes)})
-    data = resp.json()
+    data = _safe_json(resp)
     if "images" in data:
         img_data = list(data["images"].values())[0]
         return {"hash": img_data["hash"]}
@@ -261,7 +273,7 @@ def upload_video(token: str, account_id: str, video_bytes: bytes, filename: str)
     url = f"{GRAPH_URL}/{account_id}/advideos"
     resp = requests.post(url, params={"access_token": token},
                          files={"source": (filename, video_bytes)})
-    data = resp.json()
+    data = _safe_json(resp)
     if "id" not in data:
         raise Exception(data.get("error", {}).get("message", "Erro no upload de vídeo"))
 
@@ -270,7 +282,7 @@ def upload_video(token: str, account_id: str, video_bytes: bytes, filename: str)
         _time.sleep(3)
         check = requests.get(f"{GRAPH_URL}/{video_id}",
                              params={"fields": "status", "access_token": token})
-        video_status = check.json().get("status", {}).get("video_status", "")
+        video_status = (_safe_json(check)).get("status", {}).get("video_status", "")
         if video_status == "ready":
             return video_id
         if video_status == "error":
@@ -283,7 +295,7 @@ def listar_publicos_salvos(token: str, account_id: str) -> list:
     """Lista saved audiences da conta. Retorna lista de dicts com id, name, targeting."""
     url = f"{GRAPH_URL}/{account_id}/saved_audiences"
     resp = requests.get(url, params={"fields": "id,name,targeting", "access_token": token, "limit": 50})
-    data = resp.json()
+    data = _safe_json(resp)
     if "data" in data:
         return data["data"]
     raise Exception(data.get("error", {}).get("message", "Erro ao listar saved audiences"))
@@ -293,7 +305,7 @@ def listar_custom_audiences(token: str, account_id: str) -> list:
     """Lista custom audiences da conta. Retorna lista de dicts com id, name, subtype."""
     url = f"{GRAPH_URL}/{account_id}/customaudiences"
     resp = requests.get(url, params={"fields": "id,name,subtype", "access_token": token, "limit": 50})
-    data = resp.json()
+    data = _safe_json(resp)
     if "data" in data:
         return data["data"]
     raise Exception(data.get("error", {}).get("message", "Erro ao listar custom audiences"))
@@ -303,14 +315,14 @@ def listar_paginas(token: str, business_id: str = None) -> list:
     """Lista páginas gerenciadas. Tenta /me/accounts; se vazio e business_id fornecido, usa /{biz}/owned_pages."""
     url = f"{GRAPH_URL}/me/accounts"
     resp = requests.get(url, params={"fields": "id,name,category", "access_token": token, "limit": 50})
-    data = resp.json()
+    data = _safe_json(resp)
     if "data" in data and data["data"]:
         return data["data"]
 
     if business_id:
         url2 = f"{GRAPH_URL}/{business_id}/owned_pages"
         resp2 = requests.get(url2, params={"fields": "id,name,category", "access_token": token, "limit": 50})
-        data2 = resp2.json()
+        data2 = _safe_json(resp2)
         if "data" in data2:
             return data2["data"]
         raise Exception(data2.get("error", {}).get("message", "Erro ao listar páginas da BM"))
@@ -327,7 +339,7 @@ def listar_campanhas(token: str, account_id: str) -> list:
         "access_token": token,
         "limit": 50,
     })
-    data = resp.json()
+    data = _safe_json(resp)
     if "data" in data:
         return data["data"]
     raise Exception(data.get("error", {}).get("message", "Erro ao listar campanhas"))
@@ -357,7 +369,7 @@ def criar_campanha(token: str, account_id: str, campanha_tipo: str,
         payload["is_adset_budget_sharing_enabled"] = "false"
 
     resp = requests.post(url, data=payload)
-    data = resp.json()
+    data = _safe_json(resp)
     if "id" in data:
         return data["id"]
     raise Exception(data.get("error", {}).get("message", "Erro ao criar campanha"))
@@ -367,7 +379,7 @@ def criar_conjunto(token: str, account_id: str, campaign_id: str,
                    campanha_tipo: str, publico: dict, localizacao: dict,
                    orcamento: float = None, optimization_goal: str = None,
                    pixel_id: str = None, nome: str = None,
-                   saved_audience_id: str = None) -> str:
+                   saved_audience_id: str = None, page_id: str = None) -> str:
     """
     Cria ad set com status PAUSED.
     campanha_tipo: 'MESSAGES' → optimization_goal=CONVERSATIONS
@@ -378,7 +390,18 @@ def criar_conjunto(token: str, account_id: str, campaign_id: str,
     """
     url = f"{GRAPH_URL}/{account_id}/adsets"
     if saved_audience_id:
-        targeting = {"saved_audience_id": saved_audience_id}
+        # Busca o targeting spec completo do público salvo (inclui geo_locations)
+        sa_resp = requests.get(
+            f"{GRAPH_URL}/{saved_audience_id}",
+            params={"fields": "targeting", "access_token": token},
+            timeout=15,
+        )
+        sa_data = _safe_json(sa_resp)
+        targeting = sa_data.get("targeting") or {}
+        if not targeting or not targeting.get("geo_locations"):
+            # Fallback: usa saved_audience_id direto (pode falhar se sem geo)
+            targeting = {"saved_audience_id": saved_audience_id}
+        print(f"[META] saved_audience targeting={_json_meta.dumps(targeting)[:300]}", flush=True)
     else:
         targeting = {
             "age_min": publico.get("idade_min") or publico.get("age_min", 18),
@@ -405,8 +428,11 @@ def criar_conjunto(token: str, account_id: str, campaign_id: str,
     }
 
     if campanha_tipo == "MESSAGES":
-        payload["optimization_goal"] = "LINK_CLICKS"  # CONVERSATIONS depreciado → LINK_CLICKS p/ CTWA
+        payload["optimization_goal"] = "CONVERSATIONS"
+        payload["destination_type"] = "WHATSAPP"
         payload["billing_event"] = "IMPRESSIONS"
+        if page_id:
+            payload["promoted_object"] = _json_meta.dumps({"page_id": page_id})
     elif campanha_tipo == "PURCHASE":
         goal = optimization_goal or "LINK_CLICKS"
         payload["optimization_goal"] = goal
@@ -423,7 +449,8 @@ def criar_conjunto(token: str, account_id: str, campaign_id: str,
             payload["daily_budget"] = int(orcamento * 100)
 
     resp = requests.post(url, data=payload)
-    data = resp.json()
+    data = _safe_json(resp)
+    print(f"[META] criar_conjunto payload={_json_meta.dumps({k:v for k,v in payload.items() if k!='access_token'})} resp={data}", flush=True)
     if "id" in data:
         return data["id"]
     raise Exception(data.get("error", {}).get("message", "Erro ao criar conjunto"))
@@ -436,32 +463,40 @@ def criar_anuncio(token: str, account_id: str, adset_id: str, page_id: str,
     Cria AdCreative + Ad com status PAUSED.
     creative_ref: {'tipo': 'imagem', 'hash': '...'} ou {'tipo': 'video', 'video_id': '...'}
     page_id: obrigatório para object_story_spec (Facebook Page ID do cliente).
-    cta: 'SEND_MESSAGE' | 'LEARN_MORE' | 'SIGN_UP'
+    cta: 'WHATSAPP_MESSAGE' | 'LEARN_MORE' | 'SIGN_UP'
     Retorna ad_id.
     """
     creative_url = f"{GRAPH_URL}/{account_id}/adcreatives"
 
-    cta_value = {"value": {"link": link_url}} if link_url and cta != "SEND_MESSAGE" else {}
+    # Click-to-WhatsApp: link é placeholder obrigatório; destino real = WhatsApp vinculado à página
+    if cta in ("WHATSAPP_MESSAGE", "SEND_MESSAGE"):
+        _ctwa_link = "https://www.facebook.com"
+        cta_value = {"value": {"app_destination": "WHATSAPP"}}
+        cta = "WHATSAPP_MESSAGE"
+    elif link_url:
+        _ctwa_link = link_url
+        cta_value = {"value": {"link": link_url}}
+    else:
+        _ctwa_link = ""
+        cta_value = {}
 
     if creative_ref["tipo"] == "imagem":
         link_data = {
             "image_hash": creative_ref["hash"],
-            "message": texto,
-            "name": titulo,
+            "message": texto or "",
+            "name": titulo or "Anúncio",
+            "link": _ctwa_link,
             "call_to_action": {"type": cta, **cta_value},
         }
-        if link_url and cta != "SEND_MESSAGE":
-            link_data["link"] = link_url
         story_spec = {"page_id": page_id, "link_data": link_data}
     elif creative_ref["tipo"] == "video":
         video_data = {
             "video_id": creative_ref["video_id"],
-            "message": texto,
-            "title": titulo,
+            "message": texto or "",
+            "title": titulo or "Anúncio",
+            "link": _ctwa_link,
             "call_to_action": {"type": cta, **cta_value},
         }
-        if link_url and cta != "SEND_MESSAGE":
-            video_data["link"] = link_url
         story_spec = {"page_id": page_id, "video_data": video_data}
     elif creative_ref["tipo"] == "carrossel":
         child_attachments = [
@@ -481,25 +516,29 @@ def criar_anuncio(token: str, account_id: str, adset_id: str, page_id: str,
     else:
         raise ValueError(f"creative_ref.tipo desconhecido: {creative_ref['tipo']}")
 
-    cr = requests.post(creative_url, data={
+    cr_payload = {
         "name": f"Criativo - {titulo[:30]}",
         "object_story_spec": _json_meta.dumps(story_spec),
         "access_token": token,
-    })
-    cr_data = cr.json()
+    }
+    cr = requests.post(creative_url, data=cr_payload)
+    cr_data = _safe_json(cr)
+    print(f"[META] criar_criativo payload={_json_meta.dumps(story_spec)[:300]} resp={cr_data}", flush=True)
     if "id" not in cr_data:
         raise Exception(cr_data.get("error", {}).get("message", "Erro ao criar criativo"))
     creative_id = cr_data["id"]
 
     ad_url = f"{GRAPH_URL}/{account_id}/ads"
-    ad = requests.post(ad_url, data={
-        "name": titulo[:40],
+    ad_payload = {
+        "name": (titulo[:40] if titulo else "Anúncio"),
         "adset_id": adset_id,
         "creative": _json_meta.dumps({"creative_id": creative_id}),
         "status": "PAUSED",
         "access_token": token,
-    })
-    ad_data = ad.json()
+    }
+    ad = requests.post(ad_url, data=ad_payload)
+    ad_data = _safe_json(ad)
+    print(f"[META] criar_ad resp={ad_data}", flush=True)
     if "id" in ad_data:
         return ad_data["id"]
     raise Exception(ad_data.get("error", {}).get("message", "Erro ao criar anúncio"))
@@ -519,7 +558,7 @@ def get_ad(token: str, ad_id: str) -> dict:
         params={"fields": "id,name,status,effective_status", "access_token": token},
         timeout=15,
     )
-    data = resp.json()
+    data = _safe_json(resp)
     if "error" in data:
         raise Exception(data["error"].get("message", "Erro ao buscar ad"))
     return data
@@ -532,7 +571,7 @@ def get_adset(token: str, adset_id: str) -> dict:
         params={"fields": "id,name,status,daily_budget,lifetime_budget", "access_token": token},
         timeout=15,
     )
-    data = resp.json()
+    data = _safe_json(resp)
     if "error" in data:
         raise Exception(data["error"].get("message", "Erro ao buscar adset"))
     return data
@@ -548,7 +587,7 @@ def atualizar_status_ad(token: str, ad_id: str, status: str) -> None:
         data={"status": status},
         timeout=15,
     )
-    data = resp.json()
+    data = _safe_json(resp)
     if "error" in data:
         raise Exception(data["error"].get("message", f"Erro ao atualizar status do ad {ad_id}"))
 
@@ -563,7 +602,7 @@ def atualizar_status_campanha(token: str, campaign_id: str, status: str) -> None
         data={"status": status},
         timeout=15,
     )
-    data = resp.json()
+    data = _safe_json(resp)
     if "error" in data:
         raise Exception(data["error"].get("message", f"Erro ao atualizar status da campanha {campaign_id}"))
 
@@ -580,6 +619,6 @@ def atualizar_orcamento_conjunto(token: str, adset_id: str, daily_budget_cents: 
         data={"daily_budget": str(daily_budget_cents)},
         timeout=15,
     )
-    data = resp.json()
+    data = _safe_json(resp)
     if "error" in data:
         raise Exception(data["error"].get("message", f"Erro ao atualizar orçamento do adset {adset_id}"))

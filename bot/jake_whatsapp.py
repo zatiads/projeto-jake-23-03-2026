@@ -99,7 +99,9 @@ Regras:
 - Se mencionar "ativa", "ativar", "liga", "retoma" → ativar_campanha
 - campanha_tipo padrão: MESSAGES se não informado e intencao = subir_anuncio
 - Extraia o valor em R$ como orcamento float (ex: "R$30" → 30.0)
-- clientes: lista exatamente como o usuário escreveu, em minúsculas"""
+- clientes: lista exatamente como o usuário escreveu, em minúsculas
+- NUNCA inclua "jake" na lista de clientes — Jake é o nome do assistente, não um cliente
+- Se a mensagem não citar nenhum cliente real, retorne clientes: []"""
 
 
 def interpretar_comando(texto: str) -> dict:
@@ -274,6 +276,31 @@ import time as _time
 _sessoes: dict = {}
 _TTL_SESSAO = 600  # 10 minutos
 _sessoes_lock = __import__("threading").Lock()
+_SESSOES_FILE = "/tmp/jake_wa_sessoes.json"
+
+
+def _salvar_sessoes():
+    """Persiste sessões em disco para sobreviver a restarts."""
+    try:
+        with open(_SESSOES_FILE, "w") as f:
+            json.dump(_sessoes, f)
+    except Exception:
+        pass
+
+
+def _carregar_sessoes():
+    """Restaura sessões do disco na inicialização."""
+    global _sessoes
+    try:
+        with open(_SESSOES_FILE) as f:
+            dados = json.load(f)
+        agora = _time.time()
+        _sessoes = {jid: s for jid, s in dados.items() if s.get("expira_em", 0) > agora}
+    except Exception:
+        _sessoes = {}
+
+
+_carregar_sessoes()
 
 
 def _get_sessao(jid: str):
@@ -281,6 +308,7 @@ def _get_sessao(jid: str):
         s = _sessoes.get(jid)
         if s and _time.time() > s["expira_em"]:
             _sessoes.pop(jid, None)
+            _salvar_sessoes()
             return None
         return s
 
@@ -289,14 +317,16 @@ def _set_sessao(jid: str, estado: str, payload: dict):
     with _sessoes_lock:
         _sessoes[jid] = {
             "estado":    estado,
-        "payload":   payload,
-        "expira_em": _time.time() + _TTL_SESSAO,
-    }
+            "payload":   payload,
+            "expira_em": _time.time() + _TTL_SESSAO,
+        }
+        _salvar_sessoes()
 
 
 def _limpar_sessao(jid: str):
     with _sessoes_lock:
         _sessoes.pop(jid, None)
+        _salvar_sessoes()
 
 
 _KEYWORDS_GESTOR = [
@@ -324,19 +354,116 @@ def _parse_estrutura(texto: str) -> dict | None:
     return {"campanhas": c, "conjuntos": cs, "criativos": cr}
 
 
+_TIPO_LABEL = {"MESSAGES": "Mensagem", "ENGAGEMENT": "Engajamento", "PURCHASE": "Conversão"}
+_CTA_LABEL  = {
+    "MESSAGES":   "Clique e fale com a gente no WhatsApp!",
+    "ENGAGEMENT": "Clique e saiba mais!",
+    "PURCHASE":   "Clique e garanta agora!",
+}
+
+
+def _gerar_copy_aida(arquivo_local: str, campanha_tipo: str, segmento: str, cliente_nome: str) -> dict:
+    """Analisa o criativo com Claude Vision e gera copy AIDA estruturada."""
+    import base64, re as _re_copy
+    ext = os.path.splitext(arquivo_local)[1].lower()
+    tipo_label = {"MESSAGES": "mensagens no WhatsApp", "ENGAGEMENT": "engajamento", "PURCHASE": "conversões"}.get(campanha_tipo, "mensagens")
+    cta_label  = _CTA_LABEL.get(campanha_tipo, "Clique e fale com a gente no WhatsApp!")
+    cta_val    = "WHATSAPP_MESSAGE" if campanha_tipo == "MESSAGES" else "LEARN_MORE"
+
+    prompt_txt = (
+        f"Você é um copywriter especialista em Meta Ads no Brasil.\n"
+        f"Cliente: {cliente_nome} | Segmento: {segmento or 'não informado'} | Objetivo: {tipo_label}\n\n"
+        f"Analise este criativo e escreva uma copy persuasiva no modelo AIDA:\n"
+        f"- titulo: headline de até 40 caracteres (Atenção)\n"
+        f"- texto: corpo com Interesse + Desejo + Ação, até 200 caracteres.\n"
+        f"  Termine SEMPRE com: \"{cta_label}\"\n\n"
+        f'Responda APENAS com JSON: {{"titulo":"...","texto":"..."}}'
+    )
+
+    messages: list = []
+    if ext not in (".mp4", ".mov", ".avi", ".webm"):
+        try:
+            with open(arquivo_local, "rb") as f:
+                img_b64 = base64.standard_b64encode(f.read()).decode()
+            mime = "image/png" if ext == ".png" else "image/gif" if ext == ".gif" else "image/jpeg"
+            messages = [{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": mime, "data": img_b64}},
+                {"type": "text", "text": prompt_txt},
+            ]}]
+        except Exception:
+            messages = [{"role": "user", "content": prompt_txt + "\n(imagem indisponível — gere copy genérica para o segmento)"}]
+    else:
+        messages = [{"role": "user", "content": prompt_txt + "\n(criativo em vídeo — gere copy genérica para o segmento)"}]
+
+    def _parse_copy(raw: str) -> dict | None:
+        m = _re_copy.search(r'\{.*\}', raw, _re_copy.DOTALL)
+        if m:
+            data = json.loads(m.group())
+            if data.get("titulo") or data.get("texto"):
+                return {
+                    "titulo": (data.get("titulo") or "")[:40],
+                    "texto":  (data.get("texto")  or "")[:300],
+                    "cta":    cta_val,
+                }
+        return None
+
+    # Tenta Anthropic (Claude Vision)
+    if ANTHROPIC_API_KEY:
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(model="claude-sonnet-4-6", max_tokens=400, messages=messages)
+            result = _parse_copy(resp.content[0].text.strip())
+            if result:
+                return result
+        except Exception as e:
+            logger.warning(f"_gerar_copy_aida (Anthropic) falhou: {e}")
+
+    # Fallback: OpenAI GPT-4o Vision
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if openai_key:
+        try:
+            import openai as _openai
+            import base64 as _b64
+            oai = _openai.OpenAI(api_key=openai_key)
+            # Monta mensagem para OpenAI
+            if ext not in (".mp4", ".mov", ".avi", ".webm"):
+                with open(arquivo_local, "rb") as f:
+                    img_b64 = _b64.standard_b64encode(f.read()).decode()
+                mime = "image/png" if ext == ".png" else "image/gif" if ext == ".gif" else "image/jpeg"
+                oai_content = [
+                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{img_b64}"}},
+                    {"type": "text", "text": prompt_txt},
+                ]
+            else:
+                oai_content = prompt_txt + "\n(criativo em vídeo — gere copy genérica para o segmento)"
+            oai_resp = oai.chat.completions.create(
+                model="gpt-4o",
+                max_tokens=400,
+                messages=[{"role": "user", "content": oai_content}],
+            )
+            result = _parse_copy(oai_resp.choices[0].message.content.strip())
+            if result:
+                return result
+        except Exception as e:
+            logger.warning(f"_gerar_copy_aida (OpenAI fallback) falhou: {e}")
+
+    return {"titulo": "", "texto": "", "cta": cta_val}
+
+
 def _formatar_resumo_subida(clientes: list, orcamento: float, campanha_tipo: str, campanha_nome: str,
-                             estrutura: dict | None = None, orcamento_por_conjunto: float | None = None) -> str:
+                             estrutura: dict | None = None, orcamento_por_conjunto: float | None = None,
+                             copy: dict | None = None) -> str:
     linhas = [f"🚀 *{campanha_nome}*", ""]
     for c in clientes:
         pub_nome = c.get("publico_salvo_nome") or "—"
         linhas.append(f"👤 {c['nome']}")
-        linhas.append(f"   🎯 {pub_nome}")
+        linhas.append(f"   🎯 Público: {pub_nome}")
         linhas.append("")
     if orcamento_por_conjunto:
         linhas.append(f"💰 R${orcamento:.0f}/dia (R${orcamento_por_conjunto:.0f} por conjunto)")
     else:
         linhas.append(f"💰 R${orcamento:.0f}/dia")
-    linhas.append(f"📣 Tipo: {campanha_tipo}")
+    linhas.append(f"📣 Tipo: {_TIPO_LABEL.get(campanha_tipo, campanha_tipo)}")
     if estrutura:
         linhas.append(f"📊 {estrutura['campanhas']}-{estrutura['conjuntos']}-{estrutura['criativos']}")
     linhas.append("")
@@ -420,10 +547,49 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
 
         campanha_tipo = cmd.get("campanha_tipo") or "MESSAGES"
         import datetime
-        campanha_nome = cmd.get("campanha_nome") or f"WA {datetime.date.today().strftime('%d/%m')}"
+        # Nomenclatura estruturada: Cliente | Tipo | Mês26
+        _tipo_lbl = _TIPO_LABEL.get(campanha_tipo, campanha_tipo)
+        _MESES_PT = {"Jan":"Jan","Feb":"Fev","Mar":"Mar","Apr":"Abr","May":"Mai","Jun":"Jun","Jul":"Jul","Aug":"Ago","Sep":"Set","Oct":"Out","Nov":"Nov","Dec":"Dez"}
+        _mes_en   = datetime.date.today().strftime("%b")
+        _mes_ano  = _MESES_PT.get(_mes_en, _mes_en) + datetime.date.today().strftime("%y")  # Mai26
+        _nome_base = clientes[0]["nome"] if len(clientes) == 1 else "Multi"
+        campanha_nome = cmd.get("campanha_nome") or f"{_tipo_lbl} | {_mes_ano}"
         orcamento_por_conjunto = cmd.get("orcamento_por_conjunto") or None
-        resumo = _formatar_resumo_subida(clientes, float(orcamento), campanha_tipo, campanha_nome, estrutura, orcamento_por_conjunto)
+
+        # Gera copy via IA para cada criativo (se ainda não gerado)
+        _segmento = clientes[0].get("segmento", "") if clientes else ""
+        copies_list = cmd.get("copies_list") or []
+        if arquivos_locais and len(copies_list) < len(arquivos_locais):
+            send_text(destino, f"🤖 Analisando {len(arquivos_locais)} criativo(s) e gerando copies...")
+            copies_list = []
+            _copy_falhou = False
+            for _arq in arquivos_locais:
+                _c = _gerar_copy_aida(_arq, campanha_tipo, _segmento, _nome_base)
+                if not _c.get("titulo") and not _c.get("texto"):
+                    _copy_falhou = True
+                copies_list.append(_c)
+            cmd["copies_list"] = copies_list
+            if _copy_falhou:
+                send_text(destino, "⚠️ Não consegui gerar as copies automaticamente (IA indisponível). Você pode confirmar assim mesmo e editar depois, ou me mandar os textos agora.")
+        # copy principal = primeiro criativo (para exibição na confirmação)
+        copy = copies_list[0] if copies_list else (cmd.get("copy") or {})
+
+        resumo = _formatar_resumo_subida(clientes, float(orcamento), campanha_tipo, campanha_nome, estrutura, orcamento_por_conjunto, copy=copy)
         send_text(destino, resumo)
+
+        # Mostra todas as copies se houver conteúdo gerado
+        _copies_com_conteudo = [cp for cp in copies_list if cp.get("titulo") or cp.get("texto")]
+        if _copies_com_conteudo:
+            linhas_copies = ["✍️ *Copies por criativo:*", ""]
+            for i_c, cp in enumerate(copies_list, 1):
+                linhas_copies.append(f"*Criativo {i_c}:*")
+                if cp.get("titulo"):
+                    linhas_copies.append(f"*{cp['titulo']}*")
+                if cp.get("texto"):
+                    linhas_copies.append(cp["texto"])
+                linhas_copies.append("")
+            linhas_copies.append("Se quiser trocar alguma copy, me avisa qual criativo e manda o texto novo.")
+            send_text(destino, "\n".join(linhas_copies))
         _set_sessao(sender_jid, "aguardando_confirmacao_subida", {
             "cmd": cmd, "clientes": clientes,
             "orcamento":               float(orcamento),
@@ -434,6 +600,8 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
             "arquivo_local":           arquivo_local,
             "arquivos_locais":         arquivos_locais,
             "estrutura":               estrutura,
+            "copy":                    copy,
+            "copies_list":             copies_list,
         })
 
     elif intencao in ("pausar_campanha", "ativar_campanha"):
@@ -759,6 +927,8 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
                     num_conjuntos=_est.get("conjuntos", 1),
                     cri_por_conjunto=_est.get("criativos", 1),
                     orcamento_por_conjunto=payload.get("orcamento_por_conjunto") or None,
+                    copy=payload.get("copy") or {},
+                    copies_list=payload.get("copies_list") or [],
                 )
                 mc_token = dados["mc_token"]
                 eventos = gestor.consumir_stream(mc_token)
@@ -914,6 +1084,17 @@ def processar_mensagem(sender_jid: str, texto: str):
     if sessao:
         _processar_confirmacao(sender_jid, texto, sessao)
         return
+
+    # Detectar resposta órfã (sessão expirou por restart do serviço)
+    import re as _re_orfao
+    destino_orfao = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
+    _t = texto.strip()
+    if _re_orfao.match(r'^\d+[x\-]\d+[x\-]\d+$', _t):
+        send_text(destino_orfao, "⚠️ Minha sessão expirou, Patrão (o serviço reiniciou). Repete o comando do início — manda o criativo ou o link do Drive de novo.")
+        return
+    if _re_orfao.match(r'^\d+(?:[,\.]\d+)?$', _t) and float(_t.replace(',', '.')) < 10000:
+        # Número solto — pode ser orçamento de sessão perdida; só avisa se não for óbvio contexto de conversa
+        pass  # não interrompe para não bloquear usos legítimos
 
     # Intenção: comando de gestor
     if _eh_gestor_cmd(texto):

@@ -3553,8 +3553,9 @@ def anuncios_wa_subir():
     try:
         conn = _get_db(); cur = conn.cursor()
         cur.execute(
-            "SELECT id, nome, agencia, account_id, token_key, page_id, link_url, "
-            "campanha_tipo, optimization_goal, pixel_id, localizacao_json, publico_json "
+            "SELECT id, nome, agencia, account_id, token_key, page_id, link_url, whatsapp, "
+            "campanha_tipo, optimization_goal, pixel_id, localizacao_json, publico_json, "
+            "publico_salvo_id, publico_salvo_nome "
             "FROM ad_client_profiles WHERE id = ANY(%s)",
             (cliente_ids,)
         )
@@ -3588,7 +3589,8 @@ def anuncios_wa_subir():
         "tmp_ext":        ext,
         "tmp_path":       tmp_path,
         "tmp_paths":      arquivos_locais if arquivos_locais else [tmp_path],
-        "copy":              {},
+        "copy":              d.get("copy") or {},
+        "copies_list":       d.get("copies_list") or [],
         "campanha_nome":     campanha_nome,
         "orcamento":         orcamento,
         "campanha_tipo":     campanha_tipo,
@@ -3669,7 +3671,7 @@ def anuncios_gerar_copy():
     camp_tipo    = d.get("campanha_tipo", "MESSAGES")
     segmento     = d.get("segmento", "")
 
-    cta_sugerido = "SEND_MESSAGE" if camp_tipo == "MESSAGES" else "LEARN_MORE"
+    cta_sugerido = "WHATSAPP_MESSAGE" if camp_tipo == "MESSAGES" else "LEARN_MORE"
     objetivo_txt = "gerar mensagens no WhatsApp" if camp_tipo == "MESSAGES" else "gerar engajamento"
 
     system = (
@@ -3809,6 +3811,7 @@ def anuncios_publicar():
                 optimization_goal=cliente.get("optimization_goal") or None,
                 pixel_id=cliente.get("pixel_id") or None,
                 saved_audience_id=saved_audience_id,
+                page_id=page_id or None,
             )
         except Exception as e2:
             if not campanha_exist_id:
@@ -3820,7 +3823,7 @@ def anuncios_publicar():
             ad_id = _meta_api.criar_anuncio(
                 token, account_id, adset_id, page_id, creative_ref,
                 copy_data["titulo"], copy_data["texto"],
-                copy_data.get("cta", "SEND_MESSAGE"),
+                copy_data.get("cta", "WHATSAPP_MESSAGE"),
                 link_url=link_url
             )
         except Exception as e3:
@@ -3928,7 +3931,8 @@ def anuncios_multi_cliente_preparar():
         conn = _get_db(); cur = conn.cursor()
         cur.execute(
             "SELECT id, nome, agencia, account_id, token_key, page_id, link_url, "
-            "campanha_tipo, optimization_goal, pixel_id, localizacao_json, publico_json "
+            "campanha_tipo, optimization_goal, pixel_id, localizacao_json, publico_json, "
+            "publico_salvo_id, publico_salvo_nome "
             "FROM ad_client_profiles WHERE id = ANY(%s)",
             (cliente_ids,)
         )
@@ -4013,7 +4017,8 @@ def anuncios_multi_cliente_stream(mc_token):
         clientes              = payload["clientes"]
         tmp_uuid_val          = payload["tmp_uuid"]
         tmp_ext               = payload.get("tmp_ext", ".jpg")
-        copy_data             = payload["copy"]
+        copy_data             = payload.get("copy") or {}
+        copies_list           = payload.get("copies_list") or []
         campanha_nome         = payload["campanha_nome"]
         orcamento             = payload["orcamento"]
         orcamento_por_conj    = payload.get("orcamento_por_conjunto") or None
@@ -4080,7 +4085,7 @@ def anuncios_multi_cliente_stream(mc_token):
                 )
 
                 # 3. N conjuntos, cada um com cri_por_conjunto criativos
-                _CAMP_CTA = {"MESSAGES": "SEND_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}
+                _CAMP_CTA = {"MESSAGES": "WHATSAPP_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}
                 cta = _CAMP_CTA.get(camp_tipo, "SEND_MESSAGE")
 
                 for i_conj in range(num_conjuntos):
@@ -4093,11 +4098,15 @@ def anuncios_multi_cliente_stream(mc_token):
 
                     try:
                         _adset_orc = orcamento_por_conj or (orcamento if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None)
+                        _conj_nome = f"{nome} | Conjunto {i_conj + 1}" if num_conjuntos > 1 else f"{nome} | Conjunto"
+                        print(f"[STREAM] saved_aud_id={saved_aud_id!r} publico={publico!r} loc={localizacao!r}", flush=True)
                         adset_id = _meta_api.criar_conjunto(
                             token_val, account_id, campaign_id, camp_tipo, publico, localizacao,
                             orcamento=_adset_orc,
                             optimization_goal=opt_goal, pixel_id=pixel_id,
                             saved_audience_id=saved_aud_id or None,
+                            page_id=page_id or None,
+                            nome=_conj_nome,
                         )
                     except Exception as e2:
                         if i_conj == 0:
@@ -4107,9 +4116,14 @@ def anuncios_multi_cliente_stream(mc_token):
 
                     for i_cr, creative_ref in enumerate(refs_conj):
                         try:
+                            # Copy específica para este criativo, ou fallback para a copy global
+                            _idx_global = i_conj * cri_por_conjunto + i_cr
+                            _copy_cr = (copies_list[_idx_global] if _idx_global < len(copies_list) else None) or copy_data
+                            _titulo_ad = _copy_cr.get("titulo") or f"Criativo {_idx_global + 1}"
+                            _texto_ad  = _copy_cr.get("texto") or ""
                             ad_id = _meta_api.criar_anuncio(
                                 token_val, account_id, adset_id, page_id, creative_ref,
-                                copy_data.get("titulo", ""), copy_data.get("texto", ""),
+                                _titulo_ad, _texto_ad,
                                 cta, link_url=link_url
                             )
                             ad_ids.append(ad_id)
@@ -4959,7 +4973,7 @@ def drive_stream(db_token):
     def _sse(data: dict) -> str:
         return "data: " + json.dumps(data, ensure_ascii=False) + "\n\n"
 
-    _CAMP_CTA = {"MESSAGES": "SEND_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}
+    _CAMP_CTA = {"MESSAGES": "WHATSAPP_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}
 
     def _gerar():
         if not payload:
@@ -5063,6 +5077,7 @@ def drive_stream(db_token):
                         optimization_goal=opt_goal,
                         pixel_id=pixel_id,
                         nome=f"Conjunto {i+1} — {camp_nome}",
+                        page_id=page_id or None,
                     )
                     created_adset_ids.append(adset_id)
                 except Exception as e:
@@ -5270,7 +5285,8 @@ def anuncios_publicar_lote_stream(lote_token):
                 adset_id = _meta_api.criar_conjunto(
                     token, account_id, campaign_id, camp_tipo, publico, localizacao,
                     orcamento=orcamento_conj, optimization_goal=opt_goal,
-                    pixel_id=pixel_id, nome=conjunto.get("nome")
+                    pixel_id=pixel_id, nome=conjunto.get("nome"),
+                    page_id=page_id or None,
                 )
                 yield _sse({"tipo": "conjunto_ok", "conjunto_idx": ci, "adset_id": adset_id})
             except Exception as e:
@@ -5285,7 +5301,7 @@ def anuncios_publicar_lote_stream(lote_token):
                         token, account_id, adset_id, page_id,
                         criativo["creative_ref"],
                         copy.get("titulo", ""), copy.get("texto", ""),
-                        copy.get("cta", "SEND_MESSAGE"),
+                        copy.get("cta", "WHATSAPP_MESSAGE"),
                         link_url=link_url
                     )
                     try:
@@ -5403,7 +5419,7 @@ def anuncios_copy_lote():
         "ENGAGEMENT": "gerar engajamento no post",
         "PURCHASE":   "gerar conversões/vendas na landing page",
     }.get(camp_tipo, "gerar conversões")
-    cta_sugerido = "SEND_MESSAGE" if camp_tipo == "MESSAGES" else "LEARN_MORE"
+    cta_sugerido = "WHATSAPP_MESSAGE" if camp_tipo == "MESSAGES" else "LEARN_MORE"
 
     lista_txt = "\n".join(
         f"- indice: {c['indice']}, tipo: {c['tipo']}, descricao: {c.get('descricao','(sem descricao)')}"
@@ -5440,7 +5456,7 @@ def anuncios_copy_lote():
 _planejador_payloads = {}   # {token: payload} — two-phase SSE
 
 _PLANEJADOR_OBJETIVOS = {"MESSAGES", "ENGAGEMENT", "PURCHASE"}
-_PLANEJADOR_CTA       = {"MESSAGES": "SEND_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}
+_PLANEJADOR_CTA       = {"MESSAGES": "WHATSAPP_MESSAGE", "PURCHASE": "SHOP_NOW", "ENGAGEMENT": "LEARN_MORE"}
 _PLANEJADOR_LABEL     = {"MESSAGES": "Mensagens", "ENGAGEMENT": "Engajamento", "PURCHASE": "Conversões"}
 
 _PLANEJADOR_PROMPT = """\
@@ -5767,6 +5783,7 @@ def planejador_subir_stream(pl_token):
                 optimization_goal=opt_goal,
                 pixel_id=pixel_id,
                 nome=f"Conjunto — {camp_nome}",
+                page_id=page_id or None,
             )
         except Exception as e:
             if newly_created_campaign:

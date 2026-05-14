@@ -120,14 +120,8 @@
           <span class="nav-icon">⬡</span>
           <span class="nav-label">Painel Inicial</span>
         </a>
-        <a class="nav-item" data-page="rotina" href="#">
-          <span class="nav-icon">🔄</span>
-          <span class="nav-label">Rotina</span>
-        </a>
-        <a class="nav-item" data-page="social-brief" href="#">
-          <span class="nav-icon">📊</span>
-          <span class="nav-label">Social Brief</span>
-        </a>
+        <!-- Rotina e Social Brief desativados -->
+
         <a class="nav-item" data-page="financeiro" href="#">
           <span class="nav-icon">₿</span>
           <span class="nav-label">Financeiro Pessoal</span>
@@ -150,14 +144,8 @@
           <span class="nav-icon">🤖</span>
           <span class="nav-label">Gestor IA</span>
         </a>
-        <a class="nav-item" data-page="planejador" href="#">
-          <span class="nav-icon">💬</span>
-          <span class="nav-label">Planejador</span>
-        </a>
-        <a class="nav-item" data-page="copys" href="#">
-          <span class="nav-icon">✦</span>
-          <span class="nav-label">Criar Copys</span>
-        </a>
+        <!-- Planejador movido para dentro do Gestor IA -->
+        <!-- Criar Copys desativado -->
         <a class="nav-item" data-page="criativos" href="#">
           <span class="nav-icon">⚙️</span>
           <span class="nav-label">Fábrica de Criativos</span>
@@ -178,10 +166,7 @@
           <span class="nav-icon">🥗</span>
           <span class="nav-label">Nutrição</span>
         </a>
-        <a class="nav-item" data-page="dr" href="#">
-          <span class="nav-icon">🎯</span>
-          <span class="nav-label">Direct Response</span>
-        </a>
+        <!-- Direct Response desativado -->
       </nav>
 
       <div class="sidebar-footer">
@@ -1070,6 +1055,7 @@
             <button class="gestor-tab-btn active" data-tab="timeline" onclick="gestorSwitchTab('timeline')">Timeline</button>
             <button class="gestor-tab-btn" data-tab="contas" onclick="gestorSwitchTab('contas')">Contas</button>
             <button class="gestor-tab-btn" data-tab="relatorios" onclick="gestorSwitchTab('relatorios')">Relatórios</button>
+            <button class="gestor-tab-btn" data-tab="planejador" onclick="gestorSwitchTab('planejador')">Planejador</button>
             <button class="gestor-tab-btn" data-tab="config" onclick="gestorSwitchTab('config')">Configuração</button>
           </div>
 
@@ -1113,6 +1099,23 @@
             <div id="gestor-relatorios-lista"></div>
           </div>
 
+          <!-- Sub-aba: Planejador (chat de campanhas) -->
+          <div id="gestor-tab-planejador" class="gestor-tab-content" style="display:none">
+            <div class="plan-layout" style="height:calc(100vh - 220px)">
+              <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+                <button onclick="planejadorNovaConversa()" class="anu-btn-secondary" style="font-size:11px">+ Nova conversa</button>
+              </div>
+              <div id="plan-chat" class="plan-chat" style="flex:1"></div>
+              <div class="plan-input-bar">
+                <button id="plan-mic-btn" class="plan-mic-btn" onclick="planejadorToggleMic()">🎤</button>
+                <input id="plan-input" class="plan-input" type="text"
+                       placeholder="Ex: sobe campanha para Queen Poltronas, engajamento, link do drive..."
+                       onkeydown="if(event.key==='Enter')planejadorEnviar()">
+                <button class="plan-send-btn" onclick="planejadorEnviar()">→</button>
+              </div>
+            </div>
+          </div>
+
           <!-- Sub-aba: Configuração -->
           <div id="gestor-tab-config" class="gestor-tab-content" style="display:none">
             <div style="max-width:480px;display:flex;flex-direction:column;gap:16px;">
@@ -1126,27 +1129,7 @@
         </div>
       </section>
 
-      <!-- PLANEJADOR DE CAMPANHAS ──────────────────────── -->
-      <section class="page" id="page-planejador">
-        <div class="plan-layout">
-
-          <div class="plan-header">
-            <div class="plan-title">Planejador de Campanhas</div>
-            <button onclick="planejadorNovaConversa()" class="anu-btn-secondary" style="font-size:11px">+ Nova conversa</button>
-          </div>
-
-          <div id="plan-chat" class="plan-chat"></div>
-
-          <div class="plan-input-bar">
-            <button id="plan-mic-btn" class="plan-mic-btn" onclick="planejadorToggleMic()">🎤</button>
-            <input id="plan-input" class="plan-input" type="text"
-                   placeholder="Ex: sobe campanha para Queen Poltronas, engajamento, link do drive..."
-                   onkeydown="if(event.key==='Enter')planejadorEnviar()">
-            <button class="plan-send-btn" onclick="planejadorEnviar()">→</button>
-          </div>
-
-        </div>
-      </section>
+      <!-- Planejador movido para dentro do Gestor IA (aba Planejador) -->
 
       <!-- 4. CRIAR COPYS ──────────────────────────────── -->
       <section class="page" id="page-copys">

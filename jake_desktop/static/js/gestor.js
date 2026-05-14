@@ -205,7 +205,7 @@
 
   // ── Sub-abas ──────────────────────────────────────────────────────────────
   window.gestorSwitchTab = function (tab) {
-    ['timeline', 'contas', 'relatorios', 'config'].forEach(function (t) {
+    ['timeline', 'contas', 'relatorios', 'planejador', 'config'].forEach(function (t) {
       var el = document.getElementById('gestor-tab-' + t);
       if (el) el.style.display = (t === tab) ? '' : 'none';
       var btn = document.querySelector('.gestor-tab-btn[data-tab="' + t + '"]');
