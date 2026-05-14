@@ -623,6 +623,19 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
         _montar_confirmacao_final(sender_jid, destino, payload["cmd"], clientes)
         return
 
+    # ── Aguardando orçamento (aceita qualquer texto) ─────────────────────────
+    if estado == "aguardando_orcamento":
+        import re as _re_orc
+        m = _re_orc.search(r'[\d,.]+', texto)
+        if not m:
+            send_text(destino, "Não entendi o valor. Manda só o número, ex: 30")
+            return
+        orcamento = float(m.group().replace(",", "."))
+        payload["cmd"]["orcamento"] = orcamento
+        _limpar_sessao(sender_jid)
+        _montar_confirmacao_final(sender_jid, destino, payload["cmd"], payload["clientes"])
+        return
+
     if negativo:
         _limpar_sessao(sender_jid)
         send_text(destino, "Cancelado, Patrão.")
@@ -649,19 +662,6 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
         else:
             _limpar_sessao(sender_jid)
             _montar_confirmacao_final(sender_jid, destino, payload["cmd"], confirmados)
-        return
-
-    # ── Aguardando orçamento ──────────────────────────────────────────────────
-    if estado == "aguardando_orcamento":
-        import re as _re_orc
-        m = _re_orc.search(r'[\d,.]+', texto)
-        if not m:
-            send_text(destino, "Não entendi o valor. Manda só o número, ex: 30")
-            return
-        orcamento = float(m.group().replace(",", "."))
-        payload["cmd"]["orcamento"] = orcamento
-        _limpar_sessao(sender_jid)
-        _montar_confirmacao_final(sender_jid, destino, payload["cmd"], payload["clientes"])
         return
 
     # ── Confirmação final de subida ───────────────────────────────────────────
