@@ -215,12 +215,295 @@ def _eh_grupo(texto: str) -> bool:
     t = texto.lower()
     return sum(1 for k in _KEYWORDS_GRUPO if k in t) >= 2
 
+import time as _time
+
+# ── Sessões de conversa (estado por JID) ──────────────────────────────────────
+_sessoes: dict = {}
+_TTL_SESSAO = 600  # 10 minutos
+
+
+def _get_sessao(jid: str):
+    s = _sessoes.get(jid)
+    if s and _time.time() > s["expira_em"]:
+        _sessoes.pop(jid, None)
+        return None
+    return s
+
+
+def _set_sessao(jid: str, estado: str, payload: dict):
+    _sessoes[jid] = {
+        "estado":    estado,
+        "payload":   payload,
+        "expira_em": _time.time() + _TTL_SESSAO,
+    }
+
+
+def _limpar_sessao(jid: str):
+    _sessoes.pop(jid, None)
+
+
+_KEYWORDS_GESTOR = [
+    "sobe", "subir", "upload", "anuncio", "anúncio",
+    "pausa", "pausar", "ativa", "ativar", "drive.google",
+    "campanha", "campanhas",
+]
+
+def _eh_gestor_cmd(texto: str) -> bool:
+    t = texto.lower()
+    return any(k in t for k in _KEYWORDS_GESTOR)
+
+
+def _formatar_resumo_subida(clientes: list, orcamento: float, campanha_tipo: str, campanha_nome: str) -> str:
+    linhas = [f"Vou subir *{campanha_nome}* para:"]
+    for c in clientes:
+        linhas.append(f"  • {c['nome']} ({c['account_id']})")
+    linhas.append(f"Orçamento: R${orcamento:.0f}/dia cada | Tipo: {campanha_tipo}")
+    linhas.append("Confirma? (sim/não)")
+    return "\n".join(linhas)
+
+
+def _formatar_resultado_stream(eventos: list, total_clientes: int) -> str:
+    ok = [e for e in eventos if e.get("tipo") == "concluido" or e.get("status") == "ok"]
+    erros = [e for e in eventos if e.get("tipo") == "erro" or e.get("status") == "erro"]
+    linhas = [f"Anúncio subido! {len(ok)}/{total_clientes} concluídos"]
+    for e in ok:
+        camp = e.get("campanha_id", "")
+        nome = e.get("cliente", "")
+        linhas.append(f"  ✅ {nome}" + (f" (camp. {camp})" if camp else ""))
+    for e in erros:
+        nome = e.get("cliente", "")
+        msg = e.get("erro", e.get("message", "erro"))
+        linhas.append(f"  ❌ {nome}: {msg}")
+    return "\n".join(linhas)
+
+
+def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes: list):
+    intencao = cmd["intencao"]
+
+    if intencao == "subir_anuncio":
+        drive_link = cmd.get("drive_link") or ""
+        if not drive_link:
+            send_text(destino, "Não encontrei o link do Drive no comando. Inclui o link e tenta de novo.")
+            return
+        orcamento = cmd.get("orcamento")
+        if not orcamento:
+            orcamento = clientes[0].get("orcamento_diario") if clientes else None
+        if not orcamento:
+            send_text(destino, "Qual o orçamento diário por cliente? (ex: R$30)")
+            _set_sessao(sender_jid, "aguardando_orcamento", {"cmd": cmd, "clientes": clientes})
+            return
+        campanha_tipo = cmd.get("campanha_tipo") or "MESSAGES"
+        import datetime
+        campanha_nome = cmd.get("campanha_nome") or f"WA {datetime.date.today().strftime('%d/%m')}"
+        resumo = _formatar_resumo_subida(clientes, float(orcamento), campanha_tipo, campanha_nome)
+        send_text(destino, resumo)
+        _set_sessao(sender_jid, "aguardando_confirmacao_subida", {
+            "cmd": cmd, "clientes": clientes,
+            "orcamento": float(orcamento),
+            "campanha_tipo": campanha_tipo,
+            "campanha_nome": campanha_nome,
+            "drive_link": drive_link,
+        })
+
+    elif intencao in ("pausar_campanha", "ativar_campanha"):
+        from bot.gestor_whatsapp import get_gestor
+        acao = "pausar" if intencao == "pausar_campanha" else "ativar"
+        try:
+            gestor = get_gestor()
+            todas_campanhas = []
+            for c in clientes:
+                camps = gestor.listar_campanhas(c["account_id"], c["token_key"])
+                status_filtro = "ACTIVE" if acao == "pausar" else "PAUSED"
+                camps_filtradas = [cp for cp in camps if cp.get("status") == status_filtro or cp.get("effective_status") == status_filtro]
+                for cp in camps_filtradas:
+                    cp["_cliente"] = c
+                todas_campanhas.extend(camps_filtradas)
+
+            if not todas_campanhas:
+                send_text(destino, f"Nenhuma campanha para {acao} encontrada nos clientes informados.")
+                return
+
+            nomes_camps = "\n".join(f"  • {cp['name']} ({cp['_cliente']['nome']})" for cp in todas_campanhas[:10])
+            send_text(destino, f"Vou {acao} {len(todas_campanhas)} campanha(s):\n{nomes_camps}\nConfirma? (sim/não)")
+            _set_sessao(sender_jid, f"aguardando_confirmacao_{acao}", {
+                "campanhas": todas_campanhas,
+                "clientes": clientes,
+            })
+        except Exception as e:
+            send_text(destino, f"Erro ao buscar campanhas: {e}")
+
+
+def _processar_gestor_cmd(sender_jid: str, texto: str):
+    """Interpreta comando de gestor, resolve clientes e pede confirmação."""
+    destino = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
+
+    cmd = interpretar_comando(texto)
+    intencao = cmd.get("intencao", "desconhecida")
+
+    if intencao == "desconhecida":
+        send_text(destino, "Não entendi o comando, Patrão. Tenta algo como: 'Sobe [link drive] para [cliente], R$30'")
+        return
+
+    nomes = cmd.get("clientes") or []
+    if not nomes:
+        send_text(destino, "Não consegui identificar os clientes. Menciona o nome do cliente no comando.")
+        return
+
+    resolucao = resolver_clientes(nomes)
+
+    if resolucao["nao_encontrados"]:
+        nomes_str = ", ".join(resolucao["nao_encontrados"])
+        send_text(destino, f"Não encontrei: {nomes_str}. Verifica o nome ou lista os clientes com 'lista clientes'.")
+        return
+
+    if resolucao["ambiguos"]:
+        amb = resolucao["ambiguos"][0]
+        _set_sessao(sender_jid, "aguardando_confirmacao_clientes", {
+            "cmd": cmd,
+            "confirmados": resolucao["confirmados"],
+            "ambiguos": resolucao["ambiguos"],
+            "ambiguo_atual": 0,
+        })
+        cand = amb["candidato"]
+        send_text(destino, f"Encontrei *{cand['nome']}* para '{amb['digitado']}', é esse? (sim/não)")
+        return
+
+    clientes = resolucao["confirmados"]
+    _montar_confirmacao_final(sender_jid, destino, cmd, clientes)
+
+
+def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
+    """Processa resposta do Bruno em uma sessão de confirmação ativa."""
+    destino   = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
+    estado    = sessao["estado"]
+    payload   = sessao["payload"]
+    resposta  = texto.lower().strip()
+    negativo  = any(r in resposta for r in ["não", "nao", "n", "cancela", "cancel"])
+    positivo  = any(r in resposta for r in ["sim", "s", "yes", "ok", "confirma"])
+
+    if negativo:
+        _limpar_sessao(sender_jid)
+        send_text(destino, "Cancelado, Patrão.")
+        return
+
+    if not positivo:
+        send_text(destino, "Responde sim ou não, Patrão.")
+        return
+
+    # ── Confirmação de cliente ambíguo ────────────────────────────────────────
+    if estado == "aguardando_confirmacao_clientes":
+        idx       = payload["ambiguo_atual"]
+        ambiguos  = payload["ambiguos"]
+        amb       = ambiguos[idx]
+        confirmados = payload["confirmados"] + [amb["candidato"]]
+        idx += 1
+
+        if idx < len(ambiguos):
+            payload["confirmados"] = confirmados
+            payload["ambiguo_atual"] = idx
+            _set_sessao(sender_jid, "aguardando_confirmacao_clientes", payload)
+            prox = ambiguos[idx]
+            send_text(destino, f"E *{prox['candidato']['nome']}* para '{prox['digitado']}', é esse? (sim/não)")
+        else:
+            _limpar_sessao(sender_jid)
+            _montar_confirmacao_final(sender_jid, destino, payload["cmd"], confirmados)
+        return
+
+    # ── Aguardando orçamento ──────────────────────────────────────────────────
+    if estado == "aguardando_orcamento":
+        import re as _re_orc
+        m = _re_orc.search(r'[\d,.]+', texto)
+        if not m:
+            send_text(destino, "Não entendi o valor. Manda só o número, ex: 30")
+            return
+        orcamento = float(m.group().replace(",", "."))
+        payload["cmd"]["orcamento"] = orcamento
+        _limpar_sessao(sender_jid)
+        _montar_confirmacao_final(sender_jid, destino, payload["cmd"], payload["clientes"])
+        return
+
+    # ── Confirmação final de subida ───────────────────────────────────────────
+    if estado == "aguardando_confirmacao_subida":
+        _limpar_sessao(sender_jid)
+        send_text(destino, "Subindo anúncios... aguarda, Patrão.")
+        _set_sessao(sender_jid, "executando", {})
+        import threading
+
+        def _executar():
+            try:
+                from bot.gestor_whatsapp import get_gestor
+                gestor = get_gestor()
+                cliente_ids = [c["id"] for c in payload["clientes"]]
+                dados = gestor.subir_anuncio(
+                    cliente_ids=cliente_ids,
+                    drive_url=payload["drive_link"],
+                    orcamento=payload["orcamento"],
+                    campanha_nome=payload["campanha_nome"],
+                    campanha_tipo=payload["campanha_tipo"],
+                )
+                mc_token = dados["mc_token"]
+                eventos = gestor.consumir_stream(mc_token)
+                resultado = _formatar_resultado_stream(eventos, len(payload["clientes"]))
+                send_text(destino, resultado)
+            except Exception as e:
+                send_text(destino, f"Erro ao subir anúncios: {e}")
+            finally:
+                _limpar_sessao(sender_jid)
+
+        import threading as _threading
+        _threading.Thread(target=_executar, daemon=True).start()
+        return
+
+    # ── Confirmação de pausar/ativar ──────────────────────────────────────────
+    if estado in ("aguardando_confirmacao_pausar", "aguardando_confirmacao_ativar"):
+        acao = "pausar" if "pausar" in estado else "ativar"
+        _limpar_sessao(sender_jid)
+        campanhas = payload["campanhas"]
+        send_text(destino, f"Executando... {len(campanhas)} campanha(s)")
+
+        def _executar_status():
+            try:
+                from bot.gestor_whatsapp import get_gestor
+                gestor = get_gestor()
+                ok, erros = 0, 0
+                for cp in campanhas:
+                    try:
+                        if acao == "pausar":
+                            gestor.pausar_campanha(cp["id"], cp["_cliente"]["token_key"])
+                        else:
+                            gestor.ativar_campanha(cp["id"], cp["_cliente"]["token_key"])
+                        ok += 1
+                    except Exception:
+                        erros += 1
+                msg = f"{ok}/{len(campanhas)} campanhas {'pausadas' if acao == 'pausar' else 'ativadas'}"
+                if erros:
+                    msg += f" ({erros} com erro)"
+                send_text(destino, msg)
+            except Exception as e:
+                send_text(destino, f"Erro: {e}")
+
+        import threading as _threading2
+        _threading2.Thread(target=_executar_status, daemon=True).start()
+        return
+
+
 # ── Handler de mensagem ────────────────────────────────────────────────────────
 
 def processar_mensagem(sender_jid: str, texto: str):
     """Processa mensagem do Bruno e envia resposta."""
     chat_id = jid_to_chat_id(sender_jid)
     historico = carregar_historico(chat_id)
+
+    # Verificar sessão ativa (confirmação pendente)
+    sessao = _get_sessao(sender_jid)
+    if sessao:
+        _processar_confirmacao(sender_jid, texto, sessao)
+        return
+
+    # Intenção: comando de gestor
+    if _eh_gestor_cmd(texto):
+        _processar_gestor_cmd(sender_jid, texto)
+        return
 
     # Intencao: enviar para grupo
     if _eh_grupo(texto):
