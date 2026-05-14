@@ -236,6 +236,36 @@ def financeiro_context() -> str:
 
     return "\n".join(linhas)
 
+# ── Download de mídia ────────────────────────────────────────────────────────
+
+def download_media_bytes(msg_key: dict, msg_content: dict) -> tuple[bytes, str] | None:
+    """
+    Baixa mídia de uma mensagem WhatsApp via Evolution API getBase64FromMediaMessage.
+    Retorna (bytes, mimetype) ou None se falhar.
+    msg_key: o dict 'key' da mensagem (id, remoteJid, fromMe)
+    msg_content: o dict 'message' da mensagem (imageMessage, videoMessage, etc.)
+    """
+    try:
+        resp = requests.post(
+            f"{_evo_base()}/message/getBase64FromMediaMessage/{_wa_instance()}",
+            headers={"apikey": _evo_key(), "Content-Type": "application/json"},
+            json={"message": {"key": msg_key, "message": msg_content}},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        b64 = data.get("base64") or data.get("data", {}).get("base64", "")
+        mimetype = data.get("mimetype") or data.get("data", {}).get("mimetype", "")
+        if not b64:
+            logger.error(f"download_media: sem base64 na resposta: {data}")
+            return None
+        import base64 as _b64
+        return _b64.b64decode(b64), mimetype
+    except Exception as e:
+        logger.error(f"download_media error: {e}")
+        return None
+
+
 # ── Verificar conexão WhatsApp ─────────────────────────────────────────────────
 
 def verificar_conexao() -> str:

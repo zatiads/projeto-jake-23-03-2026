@@ -50,20 +50,25 @@ class GestorJakeOS:
         if not self._autenticado:
             self.login()
 
-    def subir_anuncio(self, cliente_ids: list, drive_url: str, orcamento: float,
-                      campanha_nome: str, campanha_tipo: str = "MESSAGES") -> dict:
+    def subir_anuncio(self, cliente_ids: list, drive_url: str | None, orcamento: float,
+                      campanha_nome: str, campanha_tipo: str = "MESSAGES",
+                      arquivo_local: str | None = None) -> dict:
         """
         Prepara lote via Jake OS. Retorna dict com mc_token para consumir o stream.
         Lança RuntimeError em caso de falha.
+        Aceita drive_url (link Google Drive) ou arquivo_local (path /tmp/...).
         """
         self._garantir_auth()
         payload = {
-            "drive_url":     drive_url,
             "cliente_ids":   cliente_ids,
             "orcamento":     orcamento,
             "campanha_nome": campanha_nome,
             "campanha_tipo": campanha_tipo,
         }
+        if arquivo_local:
+            payload["arquivo_local"] = arquivo_local
+        else:
+            payload["drive_url"] = drive_url or ""
         resp = self._session.post(
             f"{self._base}/api/anuncios/wa/subir",
             json=payload,

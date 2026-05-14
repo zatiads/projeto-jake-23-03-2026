@@ -3420,15 +3420,16 @@ def anuncios_wa_subir():
     """Endpoint para Jake WhatsApp: baixa Drive, salva tmp, prepara mc_token para stream."""
     import re as _re_wa
     from urllib.parse import urlparse as _urlparse_wa, parse_qs as _parse_qs_wa
-    d             = request.get_json() or {}
-    drive_url     = (d.get("drive_url") or "").strip()
-    cliente_ids   = d.get("cliente_ids") or []
-    orcamento_raw = d.get("orcamento")
-    campanha_nome = (d.get("campanha_nome") or "").strip()
-    campanha_tipo = (d.get("campanha_tipo") or "MESSAGES").strip().upper()
+    d              = request.get_json() or {}
+    drive_url      = (d.get("drive_url") or "").strip()
+    arquivo_local  = (d.get("arquivo_local") or "").strip()
+    cliente_ids    = d.get("cliente_ids") or []
+    orcamento_raw  = d.get("orcamento")
+    campanha_nome  = (d.get("campanha_nome") or "").strip()
+    campanha_tipo  = (d.get("campanha_tipo") or "MESSAGES").strip().upper()
 
-    if not drive_url:
-        return jsonify({"error": "drive_url obrigatório"}), 400
+    if not drive_url and not arquivo_local:
+        return jsonify({"error": "drive_url ou arquivo_local obrigatório"}), 400
     if not cliente_ids:
         return jsonify({"error": "cliente_ids obrigatório"}), 400
     if not campanha_nome:
@@ -3440,50 +3441,65 @@ def anuncios_wa_subir():
     except (TypeError, ValueError):
         return jsonify({"error": "orcamento deve ser número"}), 400
 
-    # Extrair file_id do Drive
-    file_id = None
-    m = _re_wa.search(r'/file/d/([a-zA-Z0-9_-]+)', drive_url)
-    if m:
-        file_id = m.group(1)
-    elif "id=" in drive_url:
-        file_id = _parse_qs_wa(_urlparse_wa(drive_url).query).get("id", [None])[0]
-    if not file_id:
-        return jsonify({"error": "URL do Drive inválida. Use drive.google.com/file/d/ID/view"}), 400
-
-    # Baixar arquivo do Drive
-    download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
-    try:
-        resp = requests.get(download_url, stream=True, allow_redirects=True, timeout=30)
-        resp.raise_for_status()
-    except Exception as e:
-        return jsonify({"error": f"Erro ao baixar do Drive: {e}"}), 400
-
-    content_type = resp.headers.get("Content-Type", "")
-    if "text/html" in content_type:
-        return jsonify({"error": "Arquivo não público. Compartilhe com 'qualquer pessoa com o link'"}), 400
-
     _MIME_EXT_WA = {"image/jpeg": ".jpg", "image/png": ".png", "video/mp4": ".mp4"}
-    mime_base = content_type.split(";")[0].strip()
-    ext = _MIME_EXT_WA.get(mime_base)
-    if not ext:
-        return jsonify({"error": f"Tipo não suportado: {mime_base}. Use JPG, PNG ou MP4"}), 400
 
-    _MAX_WA = 100 * 1024 * 1024
-    content = b""
-    for chunk in resp.iter_content(chunk_size=65536):
-        content += chunk
-        if len(content) > _MAX_WA:
-            return jsonify({"error": "Arquivo muito grande. Limite: 100 MB"}), 400
+    if arquivo_local:
+        # Arquivo já salvo localmente (enviado via WhatsApp)
+        import re as _re_loc
+        if not _re_loc.match(r'^/tmp/wa_media_[a-f0-9\-]+\.(jpg|png|mp4)$', arquivo_local):
+            return jsonify({"error": "arquivo_local inválido"}), 400
+        if not os.path.exists(arquivo_local):
+            return jsonify({"error": "Arquivo local não encontrado. Reenvia o arquivo."}), 400
+        ext_loc = os.path.splitext(arquivo_local)[1].lower()
+        _EXT_MIME = {".jpg": "image/jpeg", ".png": "image/png", ".mp4": "video/mp4"}
+        mime_base = _EXT_MIME.get(ext_loc, "")
+        if not mime_base:
+            return jsonify({"error": f"Extensão não suportada: {ext_loc}"}), 400
+        ext = ext_loc
+        tmp_uuid_val = str(uuid.uuid4())
+        tmp_path = arquivo_local  # usa o mesmo arquivo, sem cópia
+    else:
+        # Download do Google Drive
+        file_id = None
+        m = _re_wa.search(r'/file/d/([a-zA-Z0-9_-]+)', drive_url)
+        if m:
+            file_id = m.group(1)
+        elif "id=" in drive_url:
+            file_id = _parse_qs_wa(_urlparse_wa(drive_url).query).get("id", [None])[0]
+        if not file_id:
+            return jsonify({"error": "URL do Drive inválida. Use drive.google.com/file/d/ID/view"}), 400
 
-    # Salvar em tmp
-    tmp_uuid_val = str(uuid.uuid4())
-    tmp_path = os.path.join(_TMP_DIR, f"{tmp_uuid_val}{ext}")
-    with open(tmp_path, "wb") as fh:
-        fh.write(content)
-    def _del_tmp():
-        try: os.remove(tmp_path)
-        except Exception: pass
-    threading.Timer(3600, _del_tmp).start()
+        download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        try:
+            resp = requests.get(download_url, stream=True, allow_redirects=True, timeout=30)
+            resp.raise_for_status()
+        except Exception as e:
+            return jsonify({"error": f"Erro ao baixar do Drive: {e}"}), 400
+
+        content_type = resp.headers.get("Content-Type", "")
+        if "text/html" in content_type:
+            return jsonify({"error": "Arquivo não público. Compartilhe com 'qualquer pessoa com o link'"}), 400
+
+        mime_base = content_type.split(";")[0].strip()
+        ext = _MIME_EXT_WA.get(mime_base)
+        if not ext:
+            return jsonify({"error": f"Tipo não suportado: {mime_base}. Use JPG, PNG ou MP4"}), 400
+
+        _MAX_WA = 100 * 1024 * 1024
+        content = b""
+        for chunk in resp.iter_content(chunk_size=65536):
+            content += chunk
+            if len(content) > _MAX_WA:
+                return jsonify({"error": "Arquivo muito grande. Limite: 100 MB"}), 400
+
+        tmp_uuid_val = str(uuid.uuid4())
+        tmp_path = os.path.join(_TMP_DIR, f"{tmp_uuid_val}{ext}")
+        with open(tmp_path, "wb") as fh:
+            fh.write(content)
+        def _del_tmp():
+            try: os.remove(tmp_path)
+            except Exception: pass
+        threading.Timer(3600, _del_tmp).start()
 
     # Buscar clientes no banco
     conn = None
@@ -3523,6 +3539,7 @@ def anuncios_wa_subir():
         "clientes":      clientes,
         "tmp_uuid":      tmp_uuid_val,
         "tmp_ext":       ext,
+        "tmp_path":      tmp_path,
         "copy":          {},
         "campanha_nome": campanha_nome,
         "orcamento":     orcamento,
@@ -3948,7 +3965,7 @@ def anuncios_multi_cliente_stream(mc_token):
         orcamento     = payload["orcamento"]
         total         = len(clientes)
 
-        tmp_path = os.path.join(_TMP_DIR, f"{tmp_uuid_val}{tmp_ext}")
+        tmp_path = payload.get("tmp_path") or os.path.join(_TMP_DIR, f"{tmp_uuid_val}{tmp_ext}")
         try:
             with open(tmp_path, "rb") as f:
                 file_bytes = f.read()

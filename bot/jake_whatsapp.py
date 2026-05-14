@@ -30,7 +30,7 @@ from bot.whatsapp_handlers import (
     carregar_historico, salvar_mensagem,
     get_grupos, encontrar_grupo,
     resumo_gestor, financeiro_context,
-    verificar_conexao,
+    verificar_conexao, download_media_bytes,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -290,8 +290,9 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
     intencao = cmd["intencao"]
 
     if intencao == "subir_anuncio":
-        drive_link = cmd.get("drive_link") or ""
-        if not drive_link:
+        drive_link    = cmd.get("drive_link") or ""
+        arquivo_local = cmd.get("arquivo_local") or ""
+        if not drive_link and not arquivo_local:
             _set_sessao(sender_jid, "aguardando_drive_link", {"cmd": cmd, "clientes": clientes})
             send_text(destino, "Me manda o link do Google Drive do criativo.")
             return
@@ -309,10 +310,11 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
         send_text(destino, resumo)
         _set_sessao(sender_jid, "aguardando_confirmacao_subida", {
             "cmd": cmd, "clientes": clientes,
-            "orcamento": float(orcamento),
-            "campanha_tipo": campanha_tipo,
-            "campanha_nome": campanha_nome,
-            "drive_link": drive_link,
+            "orcamento":      float(orcamento),
+            "campanha_tipo":  campanha_tipo,
+            "campanha_nome":  campanha_nome,
+            "drive_link":     drive_link,
+            "arquivo_local":  arquivo_local,
         })
 
     elif intencao in ("pausar_campanha", "ativar_campanha"):
@@ -499,10 +501,11 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
                 cliente_ids = [c["id"] for c in payload["clientes"]]
                 dados = gestor.subir_anuncio(
                     cliente_ids=cliente_ids,
-                    drive_url=payload["drive_link"],
+                    drive_url=payload.get("drive_link") or None,
                     orcamento=payload["orcamento"],
                     campanha_nome=payload["campanha_nome"],
                     campanha_tipo=payload["campanha_tipo"],
+                    arquivo_local=payload.get("arquivo_local") or None,
                 )
                 mc_token = dados["mc_token"]
                 eventos = gestor.consumir_stream(mc_token)
@@ -553,6 +556,57 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
     if estado == "executando":
         send_text(destino, "Ainda processando o lote anterior, aguarda, Patrão...")
         return
+
+
+# ── Handler de mídia ──────────────────────────────────────────────────────────
+
+_MIME_EXT_MAP_WA = {
+    "image/jpeg": ".jpg", "image/png": ".png", "video/mp4": ".mp4",
+}
+
+def processar_midia(sender_jid: str, msg_key: dict, message: dict, tipo_midia: str):
+    """Processa imagem/vídeo recebido via WhatsApp — inicia fluxo guiado de subida."""
+    import uuid as _uuid_m
+    destino = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
+
+    # Se já tem lote em execução, recusar
+    sessao = _get_sessao(sender_jid)
+    if sessao and sessao.get("estado") == "executando":
+        send_text(destino, "Ainda processando o lote anterior, aguarda, Patrão...")
+        return
+
+    # Baixar bytes do arquivo
+    result = download_media_bytes(msg_key, message)
+    if not result:
+        send_text(destino, "Não consegui baixar o arquivo. Tenta enviar de novo, Patrão.")
+        return
+
+    media_bytes, mimetype = result
+    mime_base = mimetype.split(";")[0].strip() if mimetype else ""
+    ext = _MIME_EXT_MAP_WA.get(mime_base)
+    if not ext:
+        ext = ".jpg" if tipo_midia == "imageMessage" else ".mp4"
+
+    # Salvar em /tmp
+    tmp_path = f"/tmp/wa_media_{_uuid_m.uuid4()}{ext}"
+    try:
+        with open(tmp_path, "wb") as fh:
+            fh.write(media_bytes)
+    except Exception as e:
+        logger.error(f"processar_midia: erro ao salvar tmp: {e}")
+        send_text(destino, "Erro interno ao salvar arquivo. Tenta de novo, Patrão.")
+        return
+
+    # Iniciar fluxo guiado — pedir nome do cliente
+    cmd = {
+        "intencao":      "subir_anuncio",
+        "drive_link":    None,
+        "arquivo_local": tmp_path,
+        "orcamento":     None,
+        "campanha_tipo": "MESSAGES",
+    }
+    _set_sessao(sender_jid, "aguardando_cliente", {"cmd": cmd})
+    send_text(destino, "Recebi o arquivo! Pra qual cliente você quer subir?")
 
 
 # ── Handler de mensagem ────────────────────────────────────────────────────────
@@ -664,17 +718,37 @@ def webhook():
         or ""
     ).strip()
 
-    if not texto:
+    # Detectar mídia (imagem ou vídeo)
+    _MIME_EXT_MAP = {
+        "image/jpeg": ".jpg", "image/png": ".png",
+        "video/mp4": ".mp4",
+    }
+    tipo_midia = None
+    if message.get("imageMessage"):
+        tipo_midia = "imageMessage"
+    elif message.get("videoMessage"):
+        tipo_midia = "videoMessage"
+
+    if not texto and not tipo_midia:
         return jsonify({"ok": True})
 
     # Processar em background para nao bloquear o webhook
     import threading
-    def _run():
-        try:
-            processar_mensagem(sender_jid, texto)
-        except Exception as e:
-            logger.error(f"Erro em processar_mensagem: {e}", exc_info=True)
-    threading.Thread(target=_run, daemon=True).start()
+
+    if tipo_midia:
+        def _run_midia():
+            try:
+                processar_midia(sender_jid, msg_data.get("key", {}), message, tipo_midia)
+            except Exception as e:
+                logger.error(f"Erro em processar_midia: {e}", exc_info=True)
+        threading.Thread(target=_run_midia, daemon=True).start()
+    else:
+        def _run():
+            try:
+                processar_mensagem(sender_jid, texto)
+            except Exception as e:
+                logger.error(f"Erro em processar_mensagem: {e}", exc_info=True)
+        threading.Thread(target=_run, daemon=True).start()
 
     return jsonify({"ok": True})
 
