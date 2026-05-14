@@ -216,6 +216,13 @@ _KEYWORDS_FINANCEIRO = [
 
 _KEYWORDS_GRUPO = ["manda", "envia", "grupo", "bom dia", "boa semana", "boa tarde", "boa noite"]
 
+_KEYWORDS_CLIENTES = [
+    "cliente", "clientes", "carteira", "orçamento", "orcamento", "investimento",
+    "objetivo", "meta ads", "campanha", "campanhas", "agencia", "agência",
+    "dentto", "piloti", "quanto investe", "quanto tá investindo", "quanto ta investindo",
+    "quais clientes", "lista de clientes", "meus clientes", "portfólio", "portfolio",
+]
+
 def _eh_financeiro(texto: str) -> bool:
     t = texto.lower()
     return any(k in t for k in _KEYWORDS_FINANCEIRO)
@@ -223,6 +230,43 @@ def _eh_financeiro(texto: str) -> bool:
 def _eh_grupo(texto: str) -> bool:
     t = texto.lower()
     return sum(1 for k in _KEYWORDS_GRUPO if k in t) >= 2
+
+def _eh_sobre_clientes(texto: str) -> bool:
+    t = texto.lower()
+    return any(k in t for k in _KEYWORDS_CLIENTES)
+
+def _context_clientes() -> str:
+    """Monta resumo da carteira de clientes do banco para injetar no contexto."""
+    try:
+        import psycopg2, psycopg2.extras
+        conn = psycopg2.connect(os.environ["DATABASE_URL"])
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT nome, agencia, account_id, campanha_tipo, orcamento_diario,
+                   link_url, publico_salvo_nome
+            FROM ad_client_profiles ORDER BY agencia, nome
+        """)
+        rows = cur.fetchall()
+        conn.close()
+
+        _TIPO_LABEL = {"MESSAGES": "Leads/WhatsApp", "ENGAGEMENT": "Engajamento/Instagram", "PURCHASE": "Compras"}
+        linhas = ["CARTEIRA DE CLIENTES DO BRUNO:"]
+        agencia_atual = None
+        for r in rows:
+            ag = r["agencia"] or "Sem agência"
+            if ag != agencia_atual:
+                linhas.append(f"\n[{ag.upper()}]")
+                agencia_atual = ag
+            orc_mensal = round(float(r["orcamento_diario"] or 0) * 30)
+            tipo = _TIPO_LABEL.get(r["campanha_tipo"] or "", r["campanha_tipo"] or "—")
+            linhas.append(
+                f"  • {r['nome']} | R${orc_mensal}/mês | {tipo}"
+                + (f" | público: {r['publico_salvo_nome']}" if r.get('publico_salvo_nome') else "")
+            )
+        return "\n".join(linhas)
+    except Exception as e:
+        logger.error(f"_context_clientes error: {e}")
+        return ""
 
 import time as _time
 
@@ -856,12 +900,20 @@ def processar_mensagem(sender_jid: str, texto: str):
             salvar_mensagem(chat_id, "assistant", resposta)
             return
 
-    # Intencao: financeiro - injeta contexto no prompt
+    # Intencao: financeiro ou clientes — injeta contexto no prompt
     prompt = PROMPT_ANALISTA
     mensagem_claude = texto
+    contextos = []
     if _eh_financeiro(texto):
         ctx = financeiro_context()
-        mensagem_claude = f"DADOS FINANCEIROS DO SISTEMA:\n{ctx}\n\nPERGUNTA DO PATRAO: {texto}"
+        if ctx:
+            contextos.append(f"DADOS FINANCEIROS DO SISTEMA:\n{ctx}")
+    if _eh_sobre_clientes(texto):
+        ctx = _context_clientes()
+        if ctx:
+            contextos.append(ctx)
+    if contextos:
+        mensagem_claude = "\n\n".join(contextos) + f"\n\nPERGUNTA DO PATRAO: {texto}"
 
     resposta = chamar_claude(prompt, mensagem_claude, historico)
 
