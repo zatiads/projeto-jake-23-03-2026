@@ -3379,6 +3379,124 @@ def anuncios_lote_drive_download():
     return jsonify({"creative_ref": creative_ref, "mime": mime_base, "file_id": file_id, "ok": True})
 
 
+@app.route("/api/anuncios/wa/subir", methods=["POST"])
+@login_required
+def anuncios_wa_subir():
+    """Endpoint para Jake WhatsApp: baixa Drive, salva tmp, prepara mc_token para stream."""
+    import re as _re_wa
+    from urllib.parse import urlparse as _urlparse_wa, parse_qs as _parse_qs_wa
+    d             = request.get_json() or {}
+    drive_url     = (d.get("drive_url") or "").strip()
+    cliente_ids   = d.get("cliente_ids") or []
+    orcamento_raw = d.get("orcamento")
+    campanha_nome = (d.get("campanha_nome") or "").strip()
+    campanha_tipo = (d.get("campanha_tipo") or "MESSAGES").strip().upper()
+
+    if not drive_url:
+        return jsonify({"error": "drive_url obrigatório"}), 400
+    if not cliente_ids:
+        return jsonify({"error": "cliente_ids obrigatório"}), 400
+    if not campanha_nome:
+        return jsonify({"error": "campanha_nome obrigatório"}), 400
+    if campanha_tipo not in ("MESSAGES", "ENGAGEMENT", "PURCHASE"):
+        return jsonify({"error": "campanha_tipo inválido"}), 400
+    try:
+        orcamento = float(orcamento_raw)
+    except (TypeError, ValueError):
+        return jsonify({"error": "orcamento deve ser número"}), 400
+
+    # Extrair file_id do Drive
+    file_id = None
+    m = _re_wa.search(r'/file/d/([a-zA-Z0-9_-]+)', drive_url)
+    if m:
+        file_id = m.group(1)
+    elif "id=" in drive_url:
+        file_id = _parse_qs_wa(_urlparse_wa(drive_url).query).get("id", [None])[0]
+    if not file_id:
+        return jsonify({"error": "URL do Drive inválida. Use drive.google.com/file/d/ID/view"}), 400
+
+    # Baixar arquivo do Drive
+    download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+    try:
+        resp = requests.get(download_url, stream=True, allow_redirects=True, timeout=30)
+        resp.raise_for_status()
+    except Exception as e:
+        return jsonify({"error": f"Erro ao baixar do Drive: {e}"}), 400
+
+    content_type = resp.headers.get("Content-Type", "")
+    if "text/html" in content_type:
+        return jsonify({"error": "Arquivo não público. Compartilhe com 'qualquer pessoa com o link'"}), 400
+
+    _MIME_EXT_WA = {"image/jpeg": ".jpg", "image/png": ".png", "video/mp4": ".mp4"}
+    mime_base = content_type.split(";")[0].strip()
+    ext = _MIME_EXT_WA.get(mime_base)
+    if not ext:
+        return jsonify({"error": f"Tipo não suportado: {mime_base}. Use JPG, PNG ou MP4"}), 400
+
+    _MAX_WA = 100 * 1024 * 1024
+    content = b""
+    for chunk in resp.iter_content(chunk_size=65536):
+        content += chunk
+        if len(content) > _MAX_WA:
+            return jsonify({"error": "Arquivo muito grande. Limite: 100 MB"}), 400
+
+    # Salvar em tmp
+    tmp_uuid_val = str(uuid.uuid4())
+    tmp_path = os.path.join(_TMP_DIR, f"{tmp_uuid_val}{ext}")
+    with open(tmp_path, "wb") as fh:
+        fh.write(content)
+    def _del_tmp():
+        try: os.remove(tmp_path)
+        except Exception: pass
+    threading.Timer(3600, _del_tmp).start()
+
+    # Buscar clientes no banco
+    conn = None
+    try:
+        conn = _get_db(); cur = conn.cursor()
+        cur.execute(
+            "SELECT id, nome, agencia, account_id, token_key, page_id, link_url, "
+            "campanha_tipo, optimization_goal, pixel_id, localizacao_json, publico_json "
+            "FROM ad_client_profiles WHERE id = ANY(%s)",
+            (cliente_ids,)
+        )
+        clientes = [dict(c) for c in cur.fetchall()]
+    except Exception as e:
+        return jsonify({"error": f"Erro ao buscar clientes: {e}"}), 500
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    if not clientes:
+        return jsonify({"error": "Nenhum cliente encontrado"}), 404
+
+    # Validar campos obrigatórios
+    erros = []
+    for c in clientes:
+        if not c.get("page_id"):
+            erros.append(f"{c['nome']}: page_id não configurado")
+        if not c.get("account_id"):
+            erros.append(f"{c['nome']}: account_id não configurado")
+        if c.get("token_key") not in _VALID_TOKEN_KEYS:
+            erros.append(f"{c['nome']}: token_key inválido")
+    if erros:
+        return jsonify({"error": "Clientes com configuração incompleta", "detalhes": erros}), 400
+
+    # Armazenar payload para stream
+    mc_token = str(uuid.uuid4())
+    _lote_payloads[mc_token] = {
+        "clientes":      clientes,
+        "tmp_uuid":      tmp_uuid_val,
+        "tmp_ext":       ext,
+        "copy":          {},
+        "campanha_nome": campanha_nome,
+        "orcamento":     orcamento,
+    }
+    threading.Timer(1800, lambda: _lote_payloads.pop(mc_token, None)).start()
+
+    return jsonify({"mc_token": mc_token, "clientes": len(clientes), "tipo": mime_base})
+
+
 @app.route("/api/anuncios/upload-criativo", methods=["POST"])
 @login_required
 def anuncios_upload_criativo():
