@@ -273,26 +273,30 @@ import time as _time
 # ── Sessões de conversa (estado por JID) ──────────────────────────────────────
 _sessoes: dict = {}
 _TTL_SESSAO = 600  # 10 minutos
+_sessoes_lock = __import__("threading").Lock()
 
 
 def _get_sessao(jid: str):
-    s = _sessoes.get(jid)
-    if s and _time.time() > s["expira_em"]:
-        _sessoes.pop(jid, None)
-        return None
-    return s
+    with _sessoes_lock:
+        s = _sessoes.get(jid)
+        if s and _time.time() > s["expira_em"]:
+            _sessoes.pop(jid, None)
+            return None
+        return s
 
 
 def _set_sessao(jid: str, estado: str, payload: dict):
-    _sessoes[jid] = {
-        "estado":    estado,
+    with _sessoes_lock:
+        _sessoes[jid] = {
+            "estado":    estado,
         "payload":   payload,
         "expira_em": _time.time() + _TTL_SESSAO,
     }
 
 
 def _limpar_sessao(jid: str):
-    _sessoes.pop(jid, None)
+    with _sessoes_lock:
+        _sessoes.pop(jid, None)
 
 
 _KEYWORDS_GESTOR = [
@@ -322,15 +326,15 @@ def _parse_estrutura(texto: str) -> dict | None:
 
 def _formatar_resumo_subida(clientes: list, orcamento: float, campanha_tipo: str, campanha_nome: str,
                              estrutura: dict | None = None) -> str:
-    linhas = [f"Vou subir *{campanha_nome}* para:"]
+    linhas = [f"🚀 Vou subir *{campanha_nome}* para:"]
     for c in clientes:
         pub_nome = c.get("publico_salvo_nome") or "—"
-        linhas.append(f"  • {c['nome']}")
-        linhas.append(f"    Público: {pub_nome}")
-    linhas.append(f"Orçamento: R${orcamento:.0f}/dia cada | Tipo: {campanha_tipo}")
+        linhas.append(f"  👤 {c['nome']}")
+        linhas.append(f"    🎯 Público: {pub_nome}")
+    linhas.append(f"💰 Orçamento: R${orcamento:.0f}/dia | Tipo: {campanha_tipo}")
     if estrutura:
-        linhas.append(f"Estrutura: {estrutura['campanhas']}-{estrutura['conjuntos']}-{estrutura['criativos']} ({estrutura['criativos']} criativo(s) por conjunto)")
-    linhas.append("Confirma? (sim/não)")
+        linhas.append(f"📊 Estrutura: {estrutura['campanhas']}-{estrutura['conjuntos']}-{estrutura['criativos']} ({estrutura['criativos']} criativo(s) por conjunto)")
+    linhas.append("\n✅ Confirma? (sim/não)")
     return "\n".join(linhas)
 
 
@@ -359,7 +363,7 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
         estrutura = cmd.get("estrutura")
         if not estrutura:
             _set_sessao(sender_jid, "aguardando_estrutura", {"cmd": cmd, "clientes": clientes})
-            send_text(destino, "Qual a estrutura da campanha? (ex: 1-1-7 = 1 campanha, 1 conjunto, 7 criativos)")
+            send_text(destino, "📊 Qual a estrutura da campanha? (ex: 1-1-7 = 1 campanha, 1 conjunto, 7 criativos)")
             return
 
         num_criativos = estrutura.get("criativos", 1)
@@ -377,10 +381,10 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
         if total_files == 0:
             if num_criativos == 1:
                 _set_sessao(sender_jid, "aguardando_drive_link", {"cmd": cmd, "clientes": clientes})
-                send_text(destino, "Envia o criativo (imagem/vídeo aqui ou link do Google Drive).")
+                send_text(destino, "📸 Envia o criativo (imagem/vídeo aqui ou link do Google Drive).")
             else:
                 _set_sessao(sender_jid, "aguardando_criativos", {"cmd": cmd, "clientes": clientes})
-                send_text(destino, f"Envia os {num_criativos} criativos (0/{num_criativos} recebidos).")
+                send_text(destino, f"📸 Envia os {num_criativos} criativos (0/{num_criativos} recebidos).")
             return
 
         if total_files < num_criativos:
@@ -394,7 +398,7 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
         if not orcamento:
             orcamento = clientes[0].get("orcamento_diario") if clientes else None
         if not orcamento:
-            send_text(destino, "Qual o orçamento diário por cliente? (ex: R$30)")
+            send_text(destino, "💰 Qual o orçamento diário por cliente? (ex: R$30)")
             _set_sessao(sender_jid, "aguardando_orcamento", {"cmd": cmd, "clientes": clientes})
             return
 
@@ -532,9 +536,10 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
     destino   = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
     estado    = sessao["estado"]
     payload   = sessao["payload"]
+    import re as _re_resp
     resposta  = texto.lower().strip()
-    negativo  = any(r in resposta for r in ["não", "nao", "n", "cancela", "cancel"])
-    positivo  = any(r in resposta for r in ["sim", "s", "yes", "ok", "confirma"])
+    negativo  = bool(_re_resp.search(r'\b(não|nao|cancela|cancel)\b', resposta)) or resposta == "n"
+    positivo  = bool(_re_resp.search(r'\b(sim|yes|ok|confirma)\b', resposta)) or resposta == "s"
 
     # ── Estrutura da campanha (X-Y-Z) ────────────────────────────────────────
     if estado == "aguardando_estrutura":
@@ -553,7 +558,7 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
         # Aqui chegam textos durante a coleta — ignora se não for cancelamento
         if negativo:
             _limpar_sessao(sender_jid)
-            send_text(destino, "Cancelado, Patrão.")
+            send_text(destino, "❌ Cancelado, Patrão.")
             return
         estrutura = payload["cmd"].get("estrutura", {})
         num_criativos = estrutura.get("criativos", 1)
@@ -583,7 +588,7 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
     if estado == "aguardando_confirmacao_cliente_publico":
         if negativo:
             _limpar_sessao(sender_jid)
-            send_text(destino, "Cancelado, Patrão.")
+            send_text(destino, "❌ Cancelado, Patrão.")
             return
         if positivo:
             _listar_publicos_para_cliente(sender_jid, destino, payload["candidato"], payload["cmd"])
@@ -656,7 +661,7 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
         quer_midia = any(p in link.lower() for p in _PALAVRAS_MIDIA) and "drive.google" not in link
         if quer_midia:
             _set_sessao(sender_jid, "aguardando_midia", payload)
-            send_text(destino, "Pode mandar! Envia a imagem ou vídeo direto aqui.")
+            send_text(destino, "📸 Pode mandar! Envia a imagem ou vídeo direto aqui.")
             return
         if "drive.google" not in link:
             send_text(destino, "Não parece um link do Google Drive. Manda o link completo ou envia a imagem/vídeo direto aqui.")
@@ -682,7 +687,7 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
 
     if negativo:
         _limpar_sessao(sender_jid)
-        send_text(destino, "Cancelado, Patrão.")
+        send_text(destino, "❌ Cancelado, Patrão.")
         return
 
     if not positivo:
@@ -711,7 +716,7 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
     # ── Confirmação final de subida ───────────────────────────────────────────
     if estado == "aguardando_confirmacao_subida":
         _limpar_sessao(sender_jid)
-        send_text(destino, "Subindo anúncios... aguarda, Patrão.")
+        send_text(destino, "⏳ Subindo anúncios... aguarda, Patrão.")
         _set_sessao(sender_jid, "executando", {})
 
         def _executar():
@@ -818,23 +823,34 @@ def processar_midia(sender_jid: str, msg_key: dict, message: dict, tipo_midia: s
         send_text(destino, "Erro interno ao salvar arquivo. Tenta de novo, Patrão.")
         return
 
-    # Se há sessão aguardando criativos (múltiplos arquivos)
-    if sessao and sessao.get("estado") == "aguardando_criativos":
-        payload = sessao["payload"]
-        arquivos = payload["cmd"].get("arquivos_locais") or []
-        arquivos.append(tmp_path)
-        payload["cmd"]["arquivos_locais"] = arquivos
-        estrutura = payload["cmd"].get("estrutura", {})
-        num_criativos = estrutura.get("criativos", 1)
-        recebidos = len(arquivos)
-        if recebidos >= num_criativos:
-            clientes = payload.get("clientes", [])
-            _limpar_sessao(sender_jid)
-            send_text(destino, f"Todos os criativos recebidos! ({recebidos}/{num_criativos})")
-            _montar_confirmacao_final(sender_jid, destino, payload["cmd"], clientes)
+    # Se há sessão aguardando criativos — seção crítica atômica para evitar race condition
+    with _sessoes_lock:
+        _s = _sessoes.get(sender_jid)
+        if _s and _s.get("estado") == "aguardando_criativos":
+            _payload = _s["payload"]
+            _arquivos = _payload["cmd"].get("arquivos_locais") or []
+            _arquivos.append(tmp_path)
+            _payload["cmd"]["arquivos_locais"] = _arquivos
+            _num = (_payload["cmd"].get("estrutura") or {}).get("criativos", 1)
+            _rec = len(_arquivos)
+            if _rec >= _num:
+                _clientes = _payload.get("clientes", [])
+                _cmd = _payload["cmd"]
+                _sessoes.pop(sender_jid, None)
+                _acao = ("confirmar", _rec, _num, _cmd, _clientes)
+            else:
+                _s["expira_em"] = _time.time() + _TTL_SESSAO
+                _acao = ("aguardar", _rec, _num, None, None)
         else:
-            _set_sessao(sender_jid, "aguardando_criativos", payload)
-            send_text(destino, f"Recebido! ({recebidos}/{num_criativos}) — envia mais {num_criativos - recebidos}.")
+            _acao = None
+
+    if _acao:
+        tipo, rec, num, cmd_, clientes_ = _acao
+        if tipo == "confirmar":
+            send_text(destino, f"📸 Todos os criativos recebidos! ({rec}/{num})")
+            _montar_confirmacao_final(sender_jid, destino, cmd_, clientes_)
+        else:
+            send_text(destino, f"📸 Recebido! ({rec}/{num}) — envia mais {num - rec}.")
         return
 
     # Se há sessão aguardando mídia (cliente já selecionado), continuar de onde parou
@@ -844,7 +860,7 @@ def processar_midia(sender_jid: str, msg_key: dict, message: dict, tipo_midia: s
         payload["cmd"]["drive_link"] = None
         clientes = payload.get("clientes", [])
         _limpar_sessao(sender_jid)
-        send_text(destino, "Arquivo recebido!")
+        send_text(destino, "📸 Arquivo recebido!")
         _montar_confirmacao_final(sender_jid, destino, payload["cmd"], clientes)
         return
 
