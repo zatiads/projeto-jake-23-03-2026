@@ -292,7 +292,8 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
     if intencao == "subir_anuncio":
         drive_link = cmd.get("drive_link") or ""
         if not drive_link:
-            send_text(destino, "Não encontrei o link do Drive no comando. Inclui o link e tenta de novo.")
+            _set_sessao(sender_jid, "aguardando_drive_link", {"cmd": cmd, "clientes": clientes})
+            send_text(destino, "Me manda o link do Google Drive do criativo.")
             return
         orcamento = cmd.get("orcamento")
         if not orcamento:
@@ -349,13 +350,22 @@ def _processar_gestor_cmd(sender_jid: str, texto: str):
     cmd = interpretar_comando(texto)
     intencao = cmd.get("intencao", "desconhecida")
 
+    _PALAVRAS_SUBIR = ["sobe", "subir", "upload", "anuncio", "anúncio", "criativo"]
     if intencao == "desconhecida":
-        send_text(destino, "Não entendi o comando, Patrão. Tenta algo como: 'Sobe [link drive] para [cliente], R$30'")
+        txt = texto.lower()
+        if any(p in txt for p in _PALAVRAS_SUBIR):
+            # Parece querer subir anúncio mas faltam detalhes — inicia conversa guiada
+            _set_sessao(sender_jid, "aguardando_cliente", {"cmd": {"intencao": "subir_anuncio", "drive_link": None, "orcamento": None, "campanha_tipo": "MESSAGES"}})
+            send_text(destino, "Pra qual cliente você quer subir? Me passa o nome.")
+        else:
+            send_text(destino, "Não entendi o comando, Patrão. Tenta: 'Sobe [link drive] para [cliente], R$30' ou 'Pausa campanhas do [cliente]'")
         return
 
     nomes = cmd.get("clientes") or []
     if not nomes:
-        send_text(destino, "Não consegui identificar os clientes. Menciona o nome do cliente no comando.")
+        # Intenção identificada mas sem clientes — pergunta
+        _set_sessao(sender_jid, "aguardando_cliente", {"cmd": cmd})
+        send_text(destino, "Pra qual cliente? Me passa o nome.")
         return
 
     resolucao = resolver_clientes(nomes)
@@ -389,6 +399,51 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
     resposta  = texto.lower().strip()
     negativo  = any(r in resposta for r in ["não", "nao", "n", "cancela", "cancel"])
     positivo  = any(r in resposta for r in ["sim", "s", "yes", "ok", "confirma"])
+
+    # ── Estados de coleta de dados (aceitam qualquer texto) ──────────────────
+    if estado == "aguardando_cliente":
+        nome = texto.strip()
+        resolucao = resolver_clientes([nome])
+        if resolucao["nao_encontrados"]:
+            send_text(destino, f"Não encontrei '{nome}'. Tenta outro nome ou 'lista clientes'.")
+            return
+        if resolucao["ambiguos"]:
+            amb = resolucao["ambiguos"][0]
+            cand = amb["candidato"]
+            payload["pendente_cliente"] = cand
+            _set_sessao(sender_jid, "aguardando_confirmacao_cliente_guiado", payload)
+            send_text(destino, f"Encontrei *{cand['nome']}*, é esse? (sim/não)")
+            return
+        cliente = resolucao["confirmados"][0]
+        payload["clientes"] = [cliente]
+        _limpar_sessao(sender_jid)
+        _montar_confirmacao_final(sender_jid, destino, payload["cmd"], [cliente])
+        return
+
+    if estado == "aguardando_confirmacao_cliente_guiado":
+        if negativo:
+            _limpar_sessao(sender_jid)
+            send_text(destino, "Cancelado. Me passa o nome certo do cliente.")
+            return
+        if positivo:
+            cliente = payload.pop("pendente_cliente")
+            payload["clientes"] = [cliente]
+            _limpar_sessao(sender_jid)
+            _montar_confirmacao_final(sender_jid, destino, payload["cmd"], [cliente])
+        else:
+            send_text(destino, "Responde sim ou não, Patrão.")
+        return
+
+    if estado == "aguardando_drive_link":
+        link = texto.strip()
+        if "drive.google" not in link and "drive.google.com" not in link:
+            send_text(destino, "Não parece um link do Google Drive. Manda o link completo.")
+            return
+        payload["cmd"]["drive_link"] = link
+        clientes = payload.get("clientes", [])
+        _limpar_sessao(sender_jid)
+        _montar_confirmacao_final(sender_jid, destino, payload["cmd"], clientes)
+        return
 
     if negativo:
         _limpar_sessao(sender_jid)
