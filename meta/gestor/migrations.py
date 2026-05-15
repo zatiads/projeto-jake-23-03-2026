@@ -103,5 +103,39 @@ def run():
         conn.close()
 
 
+def migrate_v2(conn):
+    """Migração v2: suporte a aprovação via WhatsApp."""
+    cur = conn.cursor()
+
+    # Colunas novas em gestor_acoes (idempotente via IF NOT EXISTS)
+    cur.execute("""
+        ALTER TABLE gestor_acoes
+          ADD COLUMN IF NOT EXISTS numero_na_varredura INT,
+          ADD COLUMN IF NOT EXISTS aprovado_em TIMESTAMP,
+          ADD COLUMN IF NOT EXISTS cancelado_em TIMESTAMP,
+          ADD COLUMN IF NOT EXISTS expirado_em TIMESTAMP
+    """)
+
+    # Índice para queries frequentes do job de expiração
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_gestor_acoes_status_varredura
+          ON gestor_acoes(status, varredura_id)
+    """)
+
+    # Tabela de estado de aprovação (persiste entre restarts do bot)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS gestor_estado (
+          id           SERIAL PRIMARY KEY,
+          varredura_id INT NOT NULL REFERENCES gestor_varreduras(id),
+          status       VARCHAR(20) NOT NULL DEFAULT 'aguardando',
+          criado_em    TIMESTAMP DEFAULT NOW(),
+          resolvido_em TIMESTAMP
+        )
+    """)
+
+    conn.commit()
+    print("[migrations] v2 aplicada.")
+
+
 if __name__ == "__main__":
     run()
