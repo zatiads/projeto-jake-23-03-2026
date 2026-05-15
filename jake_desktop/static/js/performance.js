@@ -7,20 +7,18 @@
   /* ── Config de clientes (espelho do relatorios.js) ── */
   var AGENCIES = {
     piloti: [
-      { id: "act_712297048202295",  name: "61 eventos"       },
-      { id: "act_2162454744176337", name: "Amanda"           },
-      { id: "act_1006820257491698", name: "Calixta"          },
-      { id: "act_1095710212746155", name: "Daniele Taveira"  },
-      { id: "act_5684689948235819", name: "HiperClin"        },
-      { id: "act_1006436427517079", name: "IOB"              },
-      { id: "act_126503999415274",  name: "Isac Academia"    },
-      { id: "act_812220691454430",  name: "Maíra Castaldi"   },
-      { id: "act_1693935704869895", name: "Marcus"           },
-      { id: "act_507545471090485",  name: "Odonto Uberaba"   },
-      { id: "act_323137203122197",  name: "Queen Poltronas"  },
-      { id: "act_840594572249284",  name: "RD Contabilidade" },
-      { id: "act_7838846752907408", name: "Realize Sorrisos" },
-      { id: "act_510054631964792",  name: "RunWay"           }
+      { id: "act_3790140084580806", name: "Infinita Hiperbárica" },
+      { id: "act_465321557197081",  name: "MR Runners"           },
+      { id: "act_1076847820195449", name: "Saucker"              },
+      { id: "act_1095710212746155", name: "Daniele Taveira"      },
+      { id: "act_1006436427517079", name: "IOB"                  },
+      { id: "act_126503999415274",  name: "Isac Academia"        },
+      { id: "act_812220691454430",  name: "Maíra Castaldi"       },
+      { id: "act_507545471090485",  name: "Odonto Uberaba"       },
+      { id: "act_323137203122197",  name: "Queen Poltronas"      },
+      { id: "act_840594572249284",  name: "RD Contabilidade"     },
+      { id: "act_7838846752907408", name: "Realize Sorrisos"     },
+      { id: "act_510054631964792",  name: "RunWay"               }
     ],
     dentto: []
   };
@@ -300,55 +298,44 @@
 
   /* ── Init ────────────────────────────────────────── */
   function init() {
-    if (_initialized) return;
-    _initialized = true;
-    var perfSection = document.getElementById("page-performance");
-    if (!perfSection) return;
+    var perfTab = document.getElementById("gestor-tab-performance");
+    if (!perfTab) return;
 
     renderTable(currentAgency);
 
-    // Tabs
-    perfSection.querySelectorAll(".rel-tab").forEach(function(tab) {
-      tab.addEventListener("click", function() {
-        perfSection.querySelectorAll(".rel-tab").forEach(function(t) { t.classList.remove("active"); });
-        tab.classList.add("active");
-        currentAgency = tab.dataset.agency;
-        _initialized = false;
-        renderTable(currentAgency);
-        _initialized = true;
-      });
-    });
+    if (!_initialized) {
+      _initialized = true;
 
-    // Clique na tabela (detalhe)
-    var tbody = document.getElementById("perf-tbody");
-    if (tbody) {
-      tbody.addEventListener("click", function(e) {
-        var btn = e.target.closest(".perf-btn-detail");
-        if (btn) openDrawer(currentAgency, btn.dataset.id);
+      // Tabs de agência
+      perfTab.querySelectorAll(".rel-tab").forEach(function(tab) {
+        tab.addEventListener("click", function() {
+          perfTab.querySelectorAll(".rel-tab").forEach(function(t) { t.classList.remove("active"); });
+          tab.classList.add("active");
+          currentAgency = tab.dataset.agency;
+          renderTable(currentAgency);
+        });
+      });
+
+      // Clique na tabela (detalhe)
+      var tbody = document.getElementById("perf-tbody");
+      if (tbody) {
+        tbody.addEventListener("click", function(e) {
+          var btn = e.target.closest(".perf-btn-detail");
+          if (btn) openDrawer(currentAgency, btn.dataset.id);
+        });
+      }
+
+      // Fechar drawer
+      var closeBtn = document.getElementById("perf-drawer-close");
+      var overlay  = document.getElementById("perf-drawer-overlay");
+      if (closeBtn) closeBtn.addEventListener("click", function() { overlay.style.display = "none"; });
+      if (overlay)  overlay.addEventListener("click", function(e) {
+        if (e.target === overlay) overlay.style.display = "none";
       });
     }
-
-    // Fechar drawer
-    var closeBtn = document.getElementById("perf-drawer-close");
-    var overlay  = document.getElementById("perf-drawer-overlay");
-    if (closeBtn) closeBtn.addEventListener("click", function() { overlay.style.display = "none"; });
-    if (overlay)  overlay.addEventListener("click", function(e) {
-      if (e.target === overlay) overlay.style.display = "none";
-    });
   }
 
-  // Rodar init quando a página de performance for ativada (SPA)
-  // NOTA: showPage() é local no IIFE de app.js — não exposta em window.
-  // Usamos MutationObserver para detectar quando #page-performance recebe a classe "active".
-  document.addEventListener("DOMContentLoaded", function() {
-    var perfPage = document.getElementById("page-performance");
-    if (!perfPage) return;
-    // init imediato se já ativa (ex: hash direto na URL)
-    if (perfPage.classList.contains("active")) init();
-    // Observar quando app.js adiciona classe "active" à seção
-    new MutationObserver(function() {
-      if (perfPage.classList.contains("active")) init();
-    }).observe(perfPage, { attributes: true, attributeFilter: ["class"] });
-  });
+  // Expor para gestorSwitchTab chamar quando ativa a aba Performance
+  window.perfInit = init;
 
 })();

@@ -34,8 +34,9 @@
 
   // Carrega a página correta se houver hash na URL
   var hash = location.hash.replace("#", "");
-  var valid = ["painel","architect","performance","anuncios","gestor","planejador","copys","criativos","relatorios","carrossel","prompts","financeiro","agenda","rotina","social-brief","nutricao","dr"];
-  if (hash && valid.indexOf(hash) !== -1) showPage(hash);
+  var valid = ["painel","architect","anuncios","gestor","planejador","copys","criativos","relatorios","carrossel","prompts","financeiro","agenda","rotina","social-brief","nutricao","dr"];
+  if (hash === "performance") showPage("gestor");
+  else if (hash && valid.indexOf(hash) !== -1) showPage(hash);
   else showPage("painel");
 
   window.showPage = showPage;
