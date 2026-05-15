@@ -185,7 +185,7 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
         cur = db_conn.cursor()
         cur.execute("""
             SELECT id, nome, agencia, account_id, token_key,
-                   campanha_tipo, gestor_config_json, gestor_ativo
+                   campanha_tipo, gestor_config_json, gestor_ativo, tipo_pagamento
             FROM ad_client_profiles
             WHERE gestor_ativo = TRUE
         """)
@@ -204,13 +204,14 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
             token = os.getenv(token_key, "").strip()
         if not token:
             perfis.append({
-                "cliente_id": conta["id"],
-                "nome":       conta["nome"],
-                "agencia":    conta["agencia"],
-                "account_id": conta["account_id"],
-                "objetivo":   conta["campanha_tipo"] or "MESSAGES",
-                "gestor_config": conta["gestor_config_json"],
-                "erro":       f"Token '{token_key}' não configurado",
+                "cliente_id":     conta["id"],
+                "nome":           conta["nome"],
+                "agencia":        conta["agencia"],
+                "account_id":     conta["account_id"],
+                "objetivo":       conta["campanha_tipo"] or "MESSAGES",
+                "gestor_config":  conta["gestor_config_json"],
+                "tipo_pagamento": conta.get("tipo_pagamento") or "pix",
+                "erro":           f"Token '{token_key}' não configurado",
             })
             continue
 
@@ -247,16 +248,17 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
         metricas["cpl_semana_anterior"] = cpl_semana_anterior
 
         perfis.append({
-            "cliente_id":    conta["id"],
-            "nome":          conta["nome"],
-            "agencia":       conta["agencia"],
-            "account_id":    conta["account_id"],
-            "token_key":     token_key,
-            "objetivo":      objetivo,
-            "gestor_config": conta["gestor_config_json"],
-            "saldo":         saldo,
-            "metricas":      metricas,
-            "erro":          None,
+            "cliente_id":      conta["id"],
+            "nome":            conta["nome"],
+            "agencia":         conta["agencia"],
+            "account_id":      conta["account_id"],
+            "token_key":       token_key,
+            "objetivo":        objetivo,
+            "gestor_config":   conta["gestor_config_json"],
+            "tipo_pagamento":  conta.get("tipo_pagamento") or "pix",
+            "saldo":           saldo,
+            "metricas":        metricas,
+            "erro":            None,
         })
 
     return perfis

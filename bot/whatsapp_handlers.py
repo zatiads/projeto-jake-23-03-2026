@@ -336,38 +336,50 @@ def formatar_resumo_gestor(acoes: list, alertas: list, total_contas: int, varred
     if not acoes and not alertas:
         return None
 
-    linhas = [f"Gestor IA — {hoje}"]
+    linhas = [f"🤖 *Gestor IA — {hoje}*"]
+    linhas.append("")
 
     _TIPO_LABEL = {
-        "pausar_ad": "PAUSAR AD",
-        "reativar_ad": "REATIVAR AD",
-        "escalar_orcamento": "ESCALAR ORCAMENTO +15%",
-        "reduzir_orcamento": "REDUZIR ORCAMENTO -20%",
-        "pausar_conta": "PAUSAR CONTA",
-        "duplicar_ad": "DUPLICAR AD",
+        "pausar_ad":        "⏸️ PAUSAR AD",
+        "reativar_ad":      "▶️ REATIVAR AD",
+        "escalar_orcamento":"📈 ESCALAR ORCAMENTO +15%",
+        "reduzir_orcamento":"📉 REDUZIR ORCAMENTO -20%",
+        "duplicar_ad":      "📋 DUPLICAR AD",
+    }
+
+    _ALERTA_EMOJI = {
+        "SALDO_CRITICO":    "💰",
+        "ZERO_CONV":        "❌",
+        "FREQ_ALTA":        "🔄",
+        "SEM_VEICULACAO":   "😴",
+        "LEARNING_TRAVADO": "🔒",
+        "CPL_SEMANAL":      "📊",
     }
 
     if acoes:
-        linhas.append(f"Analisei {total_contas} contas. {len(acoes)} {'acao' if len(acoes) == 1 else 'acoes'} para aprovar:")
+        linhas.append(f"Analisei {total_contas} contas. *{len(acoes)} {'ação' if len(acoes) == 1 else 'ações'} para aprovar:*")
         linhas.append("")
         for a in acoes:
             label = _TIPO_LABEL.get(a["tipo"], a["tipo"].upper())
-            linhas.append(f"{a['numero_na_varredura']}. {label} — {a['cliente_nome']}")
-            linhas.append(f"   {a['entidade_nome']} | {a['motivo']}")
+            linhas.append(f"*{a['numero_na_varredura']}. {label}* — {a['cliente_nome']}")
+            linhas.append(f"   {a['motivo']}")
             linhas.append("")
     else:
-        linhas.append(f"Analisei {total_contas} contas. Sem acoes necessarias.")
+        linhas.append(f"✅ Analisei {total_contas} contas. Sem ações necessárias.")
         linhas.append("")
 
     if alertas:
-        linhas.append("Alertas (sem acao):")
+        linhas.append("⚠️ *Alertas:*")
         for al in alertas:
-            linhas.append(f"- {al['cliente_nome']}: {al['motivo']}")
+            motivo = al['motivo']
+            prefixo = motivo.split(":")[0].strip()
+            emoji = _ALERTA_EMOJI.get(prefixo, "•")
+            linhas.append(f"{emoji} *{al['cliente_nome']}:* {motivo.split(':', 1)[-1].strip()}")
         linhas.append("")
 
     if acoes:
-        linhas.append('Responda "ok" para aprovar tudo ou "cancela N" para cancelar uma acao.')
-        linhas.append("Expira em 4h.")
+        linhas.append('Responda *"ok"* para aprovar tudo ou *"cancela N"* para cancelar uma ação.')
+        linhas.append("⏳ Expira em 4h.")
 
     return "\n".join(linhas)
 
