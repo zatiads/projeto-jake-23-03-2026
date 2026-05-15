@@ -710,19 +710,10 @@
   function mostrar(id){var el=document.getElementById(id);if(el)el.classList.remove('hidden');}
   function esconder(id){var el=document.getElementById(id);if(el)el.classList.add('hidden');}
 
-  // ── Observer ────────────────────────────────────────
+  // Expor para gestorSwitchTab chamar quando ativa a aba Subir Anúncios
   var _iniciado=false;
-  var _obs=new MutationObserver(function(muts){
-    muts.forEach(function(m){
-      if(m.target.id==='page-anuncios'&&m.target.classList.contains('active')){
-        if(!_iniciado){_iniciado=true;init();}
-      }
-    });
-  });
-  var pageAnu=document.getElementById('page-anuncios');
-  if(pageAnu){
-    _obs.observe(pageAnu,{attributes:true,attributeFilter:['class']});
-    if(pageAnu.classList.contains('active')){_iniciado=true;init();}
-  }
+  window.anuInit=function(){
+    if(!_iniciado){_iniciado=true;init();}
+  };
 
 })();

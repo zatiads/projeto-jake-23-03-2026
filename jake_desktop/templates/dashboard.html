@@ -132,31 +132,13 @@
           <span class="nav-label">Site Architect</span>
         </a>
         -->
-        <a class="nav-item" data-page="anuncios" href="#">
-          <span class="nav-icon">▲</span>
-          <span class="nav-label">Subir Anúncios</span>
-        </a>
         <a class="nav-item" data-page="gestor" href="#">
           <span class="nav-icon">🤖</span>
           <span class="nav-label">Gestor IA</span>
         </a>
-        <!-- Planejador movido para dentro do Gestor IA -->
-        <!-- Criar Copys desativado -->
         <a class="nav-item" data-page="criativos" href="#">
           <span class="nav-icon">⚙️</span>
           <span class="nav-label">Fábrica de Criativos</span>
-        </a>
-        <a class="nav-item" data-page="relatorios" href="#">
-          <span class="nav-icon">◉</span>
-          <span class="nav-label">Envio de Relatórios</span>
-        </a>
-        <a class="nav-item" data-page="carrossel" href="#">
-          <span class="nav-icon">◫</span>
-          <span class="nav-label">Gerador de Carrossel</span>
-        </a>
-        <a class="nav-item" data-page="prompts" href="#">
-          <span class="nav-icon">🧠</span>
-          <span class="nav-label">Prompts</span>
         </a>
         <a class="nav-item" data-page="nutricao" href="#">
           <span class="nav-icon">🥗</span>
@@ -400,571 +382,6 @@
         </div>
       </section>
 
-      <!-- 3. SUBIR ANÚNCIOS ───────────────────────────── -->
-      <section class="page" id="page-anuncios">
-        <div class="anu-layout">
-
-          <!-- ── Header-bar: Cliente + Tabs ── -->
-          <div class="anu-header-bar">
-            <div class="anu-header-cliente">
-              <span class="anu-header-cliente-label">Cliente</span>
-              <select id="anu-select-cliente" onchange="anuSelecionarPorSelect(this.value)">
-                <option value="">— selecione —</option>
-              </select>
-            </div>
-            <div class="anu-header-divider"></div>
-            <div class="anu-header-tabs">
-              <button class="anu-btn-secondary anu-tab-btn active" data-tab="publicar" onclick="anuSwitchTab('publicar')" style="font-size:13px">Publicar</button>
-              <button class="anu-btn-secondary anu-tab-btn" data-tab="publicos" onclick="anuSwitchTab('publicos')" style="font-size:13px">Públicos Salvos</button>
-              <button class="anu-btn-secondary anu-tab-btn" data-tab="lote" onclick="anuSwitchTab('lote')" style="font-size:13px">Lote ⚡</button>
-              <button class="anu-btn-secondary anu-tab-btn" data-tab="multi" onclick="anuSwitchTab('multi')" style="font-size:13px">Multi-Cliente</button>
-              <button class="anu-btn-secondary anu-tab-btn" data-tab="drive" onclick="anuSwitchTab('drive')" style="font-size:13px">Drive 📂</button>
-            </div>
-            <div class="anu-header-actions">
-              <button class="anu-btn-icon" id="anu-btn-refresh-clientes" title="Recarregar clientes">↺</button>
-              <button class="anu-btn-novo-cliente" data-agencia="piloti" title="Novo cliente Piloti" style="font-size:.7rem;padding:0 8px;width:auto;border-radius:6px">+ Piloti</button>
-              <button class="anu-btn-novo-cliente" data-agencia="dentto" title="Novo cliente Dentto" style="font-size:.7rem;padding:0 8px;width:auto;border-radius:6px">+ Dentto</button>
-              <button class="anu-btn-novo-cliente" data-agencia="freelance" title="Novo cliente Freelance" style="font-size:.7rem;padding:0 8px;width:auto;border-radius:6px">+ Free</button>
-            </div>
-          </div>
-
-          <!-- Listas ocultas mantidas para compatibilidade JS -->
-          <aside class="anu-sidebar" aria-hidden="true">
-            <ul class="anu-cliente-list" id="anu-lista-piloti"></ul>
-            <ul class="anu-cliente-list" id="anu-lista-dentto"></ul>
-            <ul class="anu-cliente-list" id="anu-lista-freelance"></ul>
-          </aside>
-
-          <!-- ── Área Principal ── -->
-          <main class="anu-main">
-
-            <!-- Tab: Publicar -->
-            <div id="anu-tab-publicar">
-
-            <div class="anu-empty-state" id="anu-empty">
-              <div class="anu-empty-icon">◈</div>
-              <p class="anu-empty-text">Selecione um cliente no menu acima<br>para começar</p>
-            </div>
-
-            <!-- Formulário de perfil -->
-            <div class="anu-perfil-form hidden" id="anu-perfil-form">
-              <div class="anu-bloco">
-                <div class="anu-bloco-header">
-                  <span class="anu-bloco-num">✎</span>
-                  <h3 class="anu-bloco-title" id="anu-perfil-titulo">Novo Cliente</h3>
-                </div>
-                <div class="anu-perfil-grid">
-                  <label class="anu-label">Nome do cliente<input type="text" id="anu-pf-nome" class="anu-input" placeholder="Ex: Clínica Odonto"></label>
-                  <label class="anu-label">Agência<select id="anu-pf-agencia" class="anu-select"><option value="piloti">Piloti</option><option value="dentto">Dentto</option><option value="freelance">Freelance</option></select></label>
-                  <label class="anu-label">Account ID (Meta)<input type="text" id="anu-pf-account-id" class="anu-input" placeholder="act_XXXXXXXXX"></label>
-                  <label class="anu-label">Token<select id="anu-pf-token-key" class="anu-select"><option value="META_TOKEN_PILOTI">META_TOKEN_PILOTI</option><option value="META_TOKEN_DENTTO">META_TOKEN_DENTTO</option><option value="META_ACCESS_TOKEN">META_ACCESS_TOKEN</option><option value="META_TOKEN_VIELIFE">META_TOKEN_VIELIFE</option></select></label>
-                  <label class="anu-label">Business ID (BM)<input type="text" id="anu-pf-business-id" class="anu-input" placeholder="Ex: 1083321289184097"><span class="anu-hint">Necessário para buscar páginas de usuário de sistema</span></label>
-                  <label class="anu-label">Page ID (Facebook)
-                    <div style="display:flex;gap:8px;align-items:center;">
-                      <select id="anu-pf-page-id" class="anu-select" style="flex:1"><option value="">— selecione após buscar —</option></select>
-                      <button type="button" id="anu-btn-buscar-pages" class="anu-btn-sec" style="white-space:nowrap">🔍 Buscar Páginas</button>
-                    </div>
-                    <span class="anu-hint">⚠ Obrigatório — selecione o token acima e clique em Buscar</span>
-                  </label>
-                  <label class="anu-label">URL Landing Page<input type="text" id="anu-pf-link-url" class="anu-input" placeholder="https://site.com.br/pagina"><span class="anu-hint">Obrigatório para campanhas de conversão (PURCHASE)</span></label>
-                  <label class="anu-label">Meta de Desempenho (PURCHASE)<select id="anu-pf-optimization-goal" class="anu-select"><option value="LINK_CLICKS">Maximizar Cliques</option><option value="OFFSITE_CONVERSIONS">Maximizar Conversões (requer Pixel)</option></select></label>
-                  <label class="anu-label">Pixel ID (Meta)<input type="text" id="anu-pf-pixel-id" class="anu-input" placeholder="Ex: 1234567890"><span class="anu-hint">Necessário apenas para Maximizar Conversões</span></label>
-                  <label class="anu-label">WhatsApp<input type="text" id="anu-pf-whatsapp" class="anu-input" placeholder="+5554999999999"></label>
-                  <label class="anu-label">Segmento<input type="text" id="anu-pf-segmento" class="anu-input" placeholder="Ex: odontologia, advocacia"></label>
-                  <label class="anu-label">Tipo campanha padrão<select id="anu-pf-camp-tipo" class="anu-select"><option value="MESSAGES">Mensagem (WhatsApp)</option><option value="ENGAGEMENT">Engajamento</option><option value="PURCHASE">Conversão (Purchase/LP)</option></select></label>
-                  <label class="anu-label">Orçamento diário (R$)<input type="number" id="anu-pf-orcamento" class="anu-input" placeholder="30.00" step="0.01" min="1"></label>
-                  <label class="anu-label anu-label-full">Localização (JSON)<textarea id="anu-pf-localizacao" class="anu-textarea" rows="3" placeholder='{"paises": ["BR"], "cidades": [{"key": "1521902", "radius": 15, "distance_unit": "kilometer"}]}'></textarea><span class="anu-hint">⚠ Obrigatório — sem localização a publicação é bloqueada</span></label>
-                  <label class="anu-label anu-label-full">Público (JSON)<textarea id="anu-pf-publico" class="anu-textarea" rows="2" placeholder='{"idade_min": 25, "idade_max": 55, "genero": [1, 2]}'></textarea></label>
-                  <label class="anu-label">ID Público Salvo (Meta)<input type="text" id="anu-pf-publico-salvo-id" class="anu-input" placeholder="Ex: 23860123456789"><span class="anu-hint">⚠ Obrigatório para subir via WhatsApp — ID do Público Salvo no Gerenciador de Anúncios</span></label>
-                  <label class="anu-label">Nome do Público Salvo<input type="text" id="anu-pf-publico-salvo-nome" class="anu-input" placeholder="Ex: Jake_ODC_Cordeirópolis_5km"></label>
-                </div>
-                <div class="anu-perfil-actions">
-                  <button class="anu-btn-secondary" id="anu-perfil-cancelar">Cancelar</button>
-                  <button class="anu-btn-primary" id="anu-perfil-salvar">Salvar Perfil</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Blocos de criação -->
-            <div class="anu-criacao hidden" id="anu-criacao">
-              <div class="anu-cliente-header">
-                <span class="anu-cliente-nome" id="anu-cliente-nome-display">—</span>
-                <button class="anu-btn-icon" id="anu-btn-editar-cliente" title="Editar perfil">✎</button>
-              </div>
-
-              <!-- Bloco 1: Campanha -->
-              <div class="anu-bloco">
-                <div class="anu-bloco-header">
-                  <span class="anu-bloco-num">①</span>
-                  <h3 class="anu-bloco-title">Campanha</h3>
-                  <span class="anu-bloco-status" id="anu-status-campanha">—</span>
-                </div>
-                <div class="anu-toggle-row">
-                  <button class="anu-toggle-btn active" id="anu-camp-nova-btn" data-mode="nova">Nova campanha</button>
-                  <button class="anu-toggle-btn" id="anu-camp-exist-btn" data-mode="existente">Usar existente</button>
-                </div>
-                <div id="anu-camp-nova-form">
-                  <label class="anu-label">Nome da campanha<input type="text" id="anu-camp-nome" class="anu-input" placeholder="Campanha Março 2026"></label>
-                  <label class="anu-label">Objetivo<input type="text" id="anu-camp-objetivo" class="anu-input" readonly></label>
-                  <label class="anu-label">Orçamento diário (R$)<input type="number" id="anu-camp-orcamento" class="anu-input" step="0.01" min="1"></label>
-                </div>
-                <div id="anu-camp-exist-form" class="hidden">
-                  <label class="anu-label">Campanha existente<select id="anu-camp-select" class="anu-select"><option value="">Carregando...</option></select></label>
-                  <button class="anu-btn-secondary" id="anu-camp-carregar">↺ Carregar campanhas</button>
-                </div>
-              </div>
-
-              <!-- Bloco 2: Criativo -->
-              <div class="anu-bloco">
-                <div class="anu-bloco-header">
-                  <span class="anu-bloco-num">②</span>
-                  <h3 class="anu-bloco-title">Criativo</h3>
-                  <span class="anu-bloco-status" id="anu-status-criativo">—</span>
-                </div>
-                <div class="anu-dropzone" id="anu-dropzone">
-                  <input type="file" id="anu-file-input" accept="image/jpeg,image/png,video/mp4" class="anu-file-hidden">
-                  <div class="anu-dropzone-inner" id="anu-dropzone-inner">
-                    <span class="anu-dropzone-icon">⬆</span>
-                    <p>Arraste ou clique para selecionar<br><small>JPG, PNG ou MP4</small></p>
-                  </div>
-                  <div class="anu-preview hidden" id="anu-preview"></div>
-                </div>
-                <div class="anu-upload-progress hidden" id="anu-upload-progress">
-                  <div class="anu-progress-bar"><div class="anu-progress-fill" id="anu-progress-fill"></div></div>
-                  <span id="anu-progress-msg">Enviando...</span>
-                </div>
-              </div>
-
-              <!-- Bloco 3: Copy IA -->
-              <div class="anu-bloco">
-                <div class="anu-bloco-header">
-                  <span class="anu-bloco-num">③</span>
-                  <h3 class="anu-bloco-title">Copy</h3>
-                  <span class="anu-bloco-status" id="anu-status-copy">—</span>
-                </div>
-                <div class="anu-copy-loading hidden" id="anu-copy-loading">
-                  <span class="anu-spinner"></span> Jake gerando copy...
-                </div>
-                <div id="anu-copy-form">
-                  <label class="anu-label">Título <small>(máx 40 caracteres)</small><input type="text" id="anu-copy-titulo" class="anu-input" maxlength="40"><span class="anu-char-count" id="anu-titulo-count">0/40</span></label>
-                  <label class="anu-label">Texto principal <small>(máx 125 caracteres)</small><textarea id="anu-copy-texto" class="anu-textarea" rows="3" maxlength="125"></textarea><span class="anu-char-count" id="anu-texto-count">0/125</span></label>
-                  <label class="anu-label">CTA<select id="anu-copy-cta" class="anu-select"><option value="SEND_MESSAGE">Enviar mensagem (WhatsApp)</option><option value="LEARN_MORE">Saiba mais</option><option value="SIGN_UP">Cadastre-se</option></select></label>
-                  <button class="anu-btn-secondary" id="anu-copy-regerar">↺ Regerar copy</button>
-                </div>
-              </div>
-
-              <!-- Bloco 4: Revisão -->
-              <div class="anu-bloco anu-bloco-revisao">
-                <div class="anu-bloco-header">
-                  <span class="anu-bloco-num">④</span>
-                  <h3 class="anu-bloco-title">Revisão Final</h3>
-                </div>
-                <div class="anu-revisao-grid" id="anu-revisao-grid"></div>
-                <label class="anu-label" style="margin-bottom:12px">Público Salvo
-                  <div style="display:flex;gap:8px;align-items:center;">
-                    <select id="anu-pub-selector" class="anu-select" style="flex:1"><option value="">— padrão do cliente —</option></select>
-                    <button type="button" id="anu-btn-buscar-publicos" class="anu-btn-sec" style="white-space:nowrap">🔍 Buscar</button>
-                  </div>
-                  <span class="anu-hint" id="anu-pub-hint">Padrão: público salvo do perfil do cliente. Clique em Buscar para selecionar outro.</span>
-                </label>
-                <div class="anu-localizacao-alerta hidden" id="anu-localizacao-alerta">⚠ Localização não configurada — edite o perfil do cliente antes de publicar</div>
-                <button class="anu-btn-publicar" id="anu-btn-publicar" disabled>🚀 Publicar Anúncio</button>
-              </div>
-            </div>
-
-            </div><!-- /anu-tab-publicar -->
-
-            <!-- Tab: Públicos Salvos -->
-            <div id="anu-tab-publicos" style="display:none">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                <span style="font-weight:600">Públicos Salvos</span>
-                <div style="display:flex;gap:8px;">
-                  <button class="anu-btn-secondary" id="anu-btn-importar-meta" style="font-size:13px">Importar do Meta</button>
-                  <button class="anu-btn-secondary" id="anu-btn-novo-publico" style="font-size:13px">+ Novo Público</button>
-                </div>
-              </div>
-              <div id="anu-publicos-lista"></div>
-
-              <div id="anu-publico-form" class="anu-bloco hidden" style="margin-top:12px">
-                <div id="anu-publico-form-titulo" style="font-weight:600;margin-bottom:12px">Novo Público</div>
-                <label class="anu-label">Nome<input type="text" id="anu-pub-nome" class="anu-input" placeholder="Ex: Mulheres BR 25-45"></label>
-                <label class="anu-label">Cliente<select id="anu-pub-cliente" class="anu-select"></select></label>
-                <label class="anu-label">Idade mínima<input type="number" id="anu-pub-age-min" class="anu-input" value="18" min="13" max="65"></label>
-                <label class="anu-label">Idade máxima<input type="number" id="anu-pub-age-max" class="anu-input" value="65" min="13" max="65"></label>
-                <label class="anu-label">Gênero<select id="anu-pub-genero" class="anu-select"><option value="">Todos</option><option value="1">Masculino</option><option value="2">Feminino</option></select></label>
-                <label class="anu-label">País<input type="text" id="anu-pub-pais" class="anu-input" value="BR" placeholder="BR"></label>
-                <div style="display:flex;gap:8px;margin-top:12px;">
-                  <button class="anu-btn-primary" id="anu-pub-salvar">Salvar</button>
-                  <button class="anu-btn-secondary" id="anu-pub-cancelar">Cancelar</button>
-                </div>
-              </div>
-
-              <div id="anu-modal-importar" class="anu-bloco hidden" style="margin-top:12px">
-                <div style="font-weight:600;margin-bottom:12px">Importar do Meta</div>
-                <label class="anu-label">Cliente<select id="anu-imp-cliente" class="anu-select"></select></label>
-                <div style="display:flex;gap:8px;margin-top:12px;">
-                  <button class="anu-btn-primary" id="anu-imp-confirmar">Importar</button>
-                  <button class="anu-btn-secondary" id="anu-imp-cancelar">Cancelar</button>
-                </div>
-                <div id="anu-imp-resultado" style="margin-top:8px;font-size:13px"></div>
-              </div>
-            </div><!-- /anu-tab-publicos -->
-
-            <!-- Tab: Lote -->
-            <div id="anu-tab-lote" style="display:none">
-              <!-- Topo: configurações da campanha -->
-              <div class="lote-topo">
-                <!-- Toggle: Nova / Campanha Existente -->
-                <div style="display:flex;gap:6px;margin-bottom:10px;">
-                  <button id="lote-btn-camp-nova" type="button" class="anu-btn-secondary active" style="font-size:12px" onclick="loteCampToggle('nova')">Nova campanha</button>
-                  <button id="lote-btn-camp-exist" type="button" class="anu-btn-secondary" style="font-size:12px" onclick="loteCampToggle('existente')">Campanha existente</button>
-                </div>
-                <div id="lote-camp-nova-form">
-                  <label class="anu-label">Nome da campanha
-                    <input type="text" id="lote-camp-nome" class="anu-input" placeholder="Campanha Maio 2026">
-                  </label>
-                </div>
-                <div id="lote-camp-exist-form" style="display:none">
-                  <label class="anu-label">Selecionar campanha existente
-                    <select id="lote-camp-select" class="anu-select" disabled>
-                      <option value="">Selecione o cliente primeiro</option>
-                    </select>
-                  </label>
-                </div>
-                <label class="anu-label">Tipo de campanha
-                  <select id="lote-camp-tipo" class="anu-select">
-                    <option value="MESSAGES">Mensagem (WhatsApp)</option>
-                    <option value="ENGAGEMENT">Engajamento</option>
-                    <option value="PURCHASE">Conversão (Purchase)</option>
-                  </select>
-                </label>
-                <label class="anu-label">Orçamento total (R$/dia)
-                  <input type="number" id="lote-orcamento" class="anu-input" placeholder="50.00" step="0.01" min="1">
-                </label>
-                <div class="lote-contador" id="lote-contador">0 × 0 = 0 anúncios</div>
-              </div>
-
-              <!-- 3 colunas -->
-              <div class="lote-colunas">
-                <!-- Col 1: Conjuntos -->
-                <div class="lote-col">
-                  <div class="lote-col-header">
-                    <span>Conjuntos</span>
-                    <button class="anu-btn-icon" id="lote-btn-add-conjunto" title="Adicionar conjunto">+</button>
-                  </div>
-                  <div class="lote-col-body" id="lote-conjuntos-body"></div>
-                </div>
-                <!-- Col 2: Criativos -->
-                <div class="lote-col">
-                  <!-- Toggle: Upload / Drive -->
-                  <div id="lote-drive-toggle" style="display:none;gap:4px;padding:4px 6px;">
-                    <button id="lote-btn-criativo-upload" type="button" class="anu-btn-secondary active" style="font-size:11px" onclick="loteCriativoToggle('upload')">Upload</button>
-                    <button id="lote-btn-criativo-drive" type="button" class="anu-btn-secondary" style="font-size:11px" onclick="loteCriativoToggle('drive')">Link Drive</button>
-                  </div>
-                  <div id="lote-drive-form" style="display:none;padding:6px 0;gap:6px;flex-direction:column;">
-                    <input type="text" id="lote-drive-url" class="anu-input" placeholder="https://drive.google.com/file/d/..." style="font-size:12px">
-                    <button type="button" class="anu-btn-secondary" style="font-size:12px" onclick="loteDriveDownload()">⬇ Baixar e usar</button>
-                    <div id="lote-drive-status" style="font-size:11px;color:rgba(176,190,197,.4)"></div>
-                    <div id="lote-drive-preview" style="margin-top:4px;"></div>
-                  </div>
-                  <div class="lote-col-header">
-                    <span id="lote-criativos-header">Criativos</span>
-                    <button class="anu-btn-icon" id="lote-btn-add-criativo" title="Adicionar criativo" style="display:none">+</button>
-                  </div>
-                  <div class="lote-col-body" id="lote-criativos-body">
-                    <div class="anu-empty-state" style="height:auto;padding:2rem 0">
-                      <div class="anu-empty-text" style="font-size:.82rem">Selecione um conjunto</div>
-                    </div>
-                  </div>
-                </div>
-                <!-- Col 3: Copy -->
-                <div class="lote-col">
-                  <div class="lote-col-header">
-                    <span id="lote-copy-header">Copy</span>
-                  </div>
-                  <div class="lote-col-body" id="lote-copy-body">
-                    <div class="anu-empty-state" style="height:auto;padding:2rem 0">
-                      <div class="anu-empty-text" style="font-size:.82rem">Selecione um criativo</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Rodapé -->
-              <div class="lote-rodape">
-                <div style="display:flex;gap:8px;align-items:center">
-                  <button class="lote-btn-gerar" id="lote-btn-gerar-copies">✦ Gerar todas as copies</button>
-                  <button class="anu-btn-secondary" style="font-size:.75rem;opacity:.6" onclick="if(confirm('Limpar tudo e apagar o rascunho salvo?')) loteLimparLocal()" title="Limpar rascunho salvo">🗑 Limpar</button>
-                </div>
-                <button class="lote-btn-publicar" id="lote-btn-publicar" disabled>🚀 Publicar Lote</button>
-              </div>
-
-              <!-- Modal de progresso SSE -->
-              <div class="anu-modal-overlay hidden" id="lote-modal-progresso">
-                <div class="anu-modal lote-progress-modal">
-                  <h3 class="lote-progress-title">Publicando lote...</h3>
-                  <div class="lote-progress-bar-wrap">
-                    <div class="lote-progress-bar"><div class="lote-progress-fill" id="lote-prog-fill" style="width:0%"></div></div>
-                    <div class="lote-progress-stats" id="lote-prog-stats">Iniciando...</div>
-                  </div>
-                  <div class="lote-progress-log" id="lote-prog-log"></div>
-                  <div class="anu-modal-actions" style="margin-top:1rem">
-                    <button class="anu-btn-secondary hidden" id="lote-prog-fechar">Fechar</button>
-                  </div>
-                </div>
-              </div>
-            </div><!-- /anu-tab-lote -->
-
-            <!-- Tab: Multi-Cliente -->
-            <div id="anu-tab-multi" style="display:none">
-
-              <!-- Stepper header -->
-              <div class="mc-stepper">
-                <div class="mc-step active" data-step="1"><span class="mc-step-num">1</span> Clientes</div>
-                <div class="mc-step" data-step="2"><span class="mc-step-num">2</span> Criativo</div>
-                <div class="mc-step" data-step="3"><span class="mc-step-num">3</span> Revisar</div>
-              </div>
-
-              <!-- Passo 1: Selecionar Clientes -->
-              <div id="mc-passo-1">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                  <span style="font-weight:600;font-size:14px">Selecione os clientes</span>
-                  <div style="display:flex;gap:8px;">
-                    <button class="anu-btn-secondary" style="font-size:12px" onclick="mcSelecionarAgencia('dentto')">Todos Dentto</button>
-                    <button class="anu-btn-secondary" style="font-size:12px" onclick="mcSelecionarAgencia('piloti')">Todos Piloti</button>
-                    <button class="anu-btn-secondary" style="font-size:12px" onclick="mcLimparSelecao()">Limpar</button>
-                  </div>
-                </div>
-                <div id="mc-lista-clientes" style="display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;margin-bottom:16px;"></div>
-                <button class="anu-btn-primary" onclick="mcIrPasso(2)" id="mc-btn-passo2" disabled>Próximo →</button>
-              </div>
-
-              <!-- Passo 2: Criativo -->
-              <div id="mc-passo-2" style="display:none">
-                <div style="display:flex;flex-direction:column;gap:12px;max-width:520px;">
-                  <label class="anu-label">Imagem do anúncio
-                    <div id="mc-dropzone" style="margin-top:4px;min-height:120px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px dashed rgba(176,190,197,.2);border-radius:8px;position:relative;">
-                      <input type="file" id="mc-file-input" accept="image/*,video/mp4" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;">
-                      <div id="mc-dropzone-placeholder" style="text-align:center;pointer-events:none;"><span style="font-size:24px">⬆</span><p style="margin:4px 0 0;font-size:12px;color:rgba(176,190,197,.4)">Clique ou arraste a imagem</p></div>
-                      <img id="mc-preview-img" style="display:none;max-width:100%;max-height:200px;border-radius:6px;pointer-events:none;">
-                    </div>
-                    <div id="mc-upload-status" style="font-size:11px;color:rgba(176,190,197,.4);margin-top:4px;"></div>
-                  </label>
-                  <label class="anu-label">Nome da campanha
-                    <input type="text" id="mc-camp-nome" class="anu-input" placeholder="Campanha Maio 2026">
-                  </label>
-                  <label class="anu-label">Título do anúncio
-                    <input type="text" id="mc-copy-titulo" class="anu-input" placeholder="Título">
-                  </label>
-                  <label class="anu-label">Texto do anúncio
-                    <textarea id="mc-copy-texto" class="anu-input" rows="4" placeholder="Texto do anúncio..."></textarea>
-                  </label>
-                  <label class="anu-label">Orçamento diário (R$)
-                    <input type="number" id="mc-orcamento" class="anu-input" placeholder="30" min="1">
-                  </label>
-                </div>
-                <div style="display:flex;gap:8px;margin-top:16px;">
-                  <button class="anu-btn-secondary" onclick="mcIrPasso(1)">← Voltar</button>
-                  <button class="anu-btn-primary" onclick="mcIrPasso(3)" id="mc-btn-passo3">Revisar →</button>
-                </div>
-              </div>
-
-              <!-- Passo 3: Revisão + Publicar -->
-              <div id="mc-passo-3" style="display:none">
-                <p style="font-size:13px;color:rgba(176,190,197,.5);margin-bottom:12px;">Confirme o público de cada cliente antes de publicar.</p>
-                <div id="mc-revisao-cards" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;max-height:400px;overflow-y:auto;"></div>
-                <div id="mc-progresso" style="display:none;margin-bottom:16px;">
-                  <div style="font-size:13px;font-weight:600;margin-bottom:8px">Publicando...</div>
-                  <div id="mc-prog-lista" style="display:flex;flex-direction:column;gap:4px;font-size:12px;"></div>
-                </div>
-                <div style="display:flex;gap:8px;">
-                  <button class="anu-btn-secondary" onclick="mcIrPasso(2)" id="mc-btn-voltar3">← Voltar</button>
-                  <button class="anu-btn-primary" onclick="mcPublicar()" id="mc-btn-publicar">Publicar Tudo</button>
-                </div>
-              </div>
-
-            </div><!-- /anu-tab-multi -->
-
-            <div id="anu-tab-drive" style="display:none">
-
-              <!-- Stepper header -->
-              <div class="mc-stepper">
-                <div class="db-step active" data-step="1"><span class="mc-step-num">1</span> Drive</div>
-                <div class="db-step" data-step="2"><span class="mc-step-num">2</span> Conjuntos</div>
-                <div class="db-step" data-step="3"><span class="mc-step-num">3</span> Copies</div>
-                <div class="db-step" data-step="4"><span class="mc-step-num">4</span> Publicar</div>
-              </div>
-
-              <!-- Passo 1: Drive + Cliente -->
-              <div id="db-passo-1">
-                <div style="display:flex;flex-direction:column;gap:12px;max-width:520px;">
-                  <label class="anu-label">Link da pasta do Google Drive
-                    <div style="display:flex;gap:8px;margin-top:4px;">
-                      <input type="text" id="db-drive-url" class="anu-input" placeholder="https://drive.google.com/drive/folders/..." style="flex:1">
-                      <button class="anu-btn-secondary" onclick="dbCarregarDrive()" id="db-btn-carregar" style="white-space:nowrap">Carregar</button>
-                    </div>
-                    <div id="db-drive-status" style="font-size:11px;color:rgba(176,190,197,.4);margin-top:4px;"></div>
-                  </label>
-
-                  <div id="db-drive-preview" style="display:none">
-                    <div style="font-size:12px;color:rgba(176,190,197,.5);margin-bottom:6px" id="db-drive-count"></div>
-                    <div id="db-drive-thumbs" style="display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow-y:auto;margin-bottom:12px;"></div>
-                  </div>
-
-                  <div id="db-cliente-section" style="display:none">
-                    <label class="anu-label">Modo
-                      <div style="display:flex;gap:12px;margin-top:4px;">
-                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-                          <input type="radio" name="db-mode" value="single" checked onchange="dbModoChange()"> Um cliente
-                        </label>
-                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-                          <input type="radio" name="db-mode" value="multi" onchange="dbModoChange()"> Vários clientes
-                        </label>
-                      </div>
-                    </label>
-
-                    <div id="db-single-cliente" style="margin-top:8px;">
-                      <label class="anu-label">Cliente
-                        <select id="db-cliente-select" class="anu-input" style="margin-top:4px;"></select>
-                      </label>
-                    </div>
-
-                    <div id="db-multi-clientes" style="display:none;margin-top:8px;">
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                        <span style="font-size:13px;font-weight:600">Selecione os clientes</span>
-                        <div style="display:flex;gap:6px;">
-                          <button class="anu-btn-secondary" style="font-size:11px" onclick="dbSelecionarAgencia('dentto')">Dentto</button>
-                          <button class="anu-btn-secondary" style="font-size:11px" onclick="dbSelecionarAgencia('piloti')">Piloti</button>
-                          <button class="anu-btn-secondary" style="font-size:11px" onclick="dbLimparClientes()">Limpar</button>
-                        </div>
-                      </div>
-                      <div id="db-lista-clientes" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;"></div>
-                    </div>
-                  </div>
-                </div>
-                <button class="anu-btn-primary" style="margin-top:16px" onclick="dbIrPasso(2)" id="db-btn-passo2" disabled>Próximo →</button>
-              </div>
-
-              <!-- Passo 2: Campanha + Conjuntos -->
-              <div id="db-passo-2" style="display:none">
-                <div style="display:flex;flex-direction:column;gap:12px;max-width:520px;">
-
-                  <label class="anu-label">Tipo de campanha
-                    <select id="db-camp-tipo" class="anu-input" style="margin-top:4px;" onchange="dbCampTipoChange()">
-                      <option value="MESSAGES">Mensagens (WhatsApp)</option>
-                      <option value="PURCHASE">Compra / Conversão</option>
-                      <option value="ENGAGEMENT">Engajamento</option>
-                    </select>
-                  </label>
-
-                  <div id="db-campanha-section">
-                    <label class="anu-label">Campanha
-                      <div style="display:flex;gap:12px;margin-top:4px;flex-wrap:wrap;">
-                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-                          <input type="radio" name="db-camp-tipo-sel" value="nova" checked onchange="dbCampSelChange()"> Nova campanha
-                        </label>
-                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;" id="db-existente-opt">
-                          <input type="radio" name="db-camp-tipo-sel" value="existente" onchange="dbCampSelChange()"> Campanha existente
-                        </label>
-                        <label id="db-salva-opt" style="display:none;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-                          <input type="radio" name="db-camp-tipo-sel" value="salva" onchange="dbCampSelChange()"> Usar campanha salva de cada cliente
-                        </label>
-                      </div>
-                    </label>
-
-                    <div id="db-camp-nova" style="margin-top:8px;">
-                      <input type="text" id="db-camp-nome" class="anu-input" placeholder="Nome da campanha">
-                    </div>
-
-                    <div id="db-camp-existente" style="display:none;margin-top:8px;">
-                      <button class="anu-btn-secondary" onclick="dbBuscarCampanhas()" style="font-size:12px">Buscar campanhas ativas</button>
-                      <div id="db-campanhas-lista" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto;"></div>
-                    </div>
-                  </div>
-
-                  <div style="display:flex;gap:12px;flex-wrap:wrap;">
-                    <label class="anu-label" style="flex:1;min-width:120px;">Nº de conjuntos
-                      <input type="number" id="db-num-conj" class="anu-input" placeholder="3" min="1" oninput="dbValidarConfig()" style="margin-top:4px;">
-                    </label>
-                    <label class="anu-label" style="flex:1;min-width:120px;">Criativos por conjunto
-                      <input type="number" id="db-criat-por" class="anu-input" placeholder="10" min="1" oninput="dbValidarConfig()" style="margin-top:4px;">
-                    </label>
-                    <label class="anu-label" style="flex:1;min-width:120px;">Orçamento por conjunto (R$)
-                      <input type="number" id="db-orcamento" class="anu-input" placeholder="10" min="1" step="0.01" style="margin-top:4px;">
-                    </label>
-                  </div>
-                  <div id="db-config-status" style="font-size:12px;color:rgba(176,190,197,.4);"></div>
-
-                  <!-- Público por conjunto -->
-                  <div id="db-publicos-conj" style="display:none;">
-                    <div class="anu-label" style="margin-bottom:8px;">Público por conjunto</div>
-                    <div id="db-publicos-rows"></div>
-                  </div>
-
-                </div>
-                <div style="display:flex;gap:8px;margin-top:16px;">
-                  <button class="anu-btn-secondary" onclick="dbIrPasso(1)">← Voltar</button>
-                  <button class="anu-btn-primary" onclick="dbIrPasso(3)" id="db-btn-passo3" disabled>Próximo →</button>
-                </div>
-              </div>
-
-              <!-- Passo 3: Gerar Copies -->
-              <div id="db-passo-3" style="display:none">
-                <div id="db-copies-idle">
-                  <p style="font-size:13px;color:rgba(176,190,197,.5);margin-bottom:12px;">O Jake vai analisar cada imagem e gerar título + texto automaticamente. Você pode editar antes de publicar.</p>
-                  <button class="anu-btn-primary" onclick="dbGerarCopies()" id="db-btn-gerar">Gerar Copies ✨</button>
-                </div>
-                <div id="db-copies-progresso" style="display:none;">
-                  <div style="font-size:13px;font-weight:600;margin-bottom:8px" id="db-copies-counter">Gerando 0/0...</div>
-                  <div style="width:100%;height:4px;background:rgba(176,190,197,.1);border-radius:2px;margin-bottom:16px;">
-                    <div id="db-copies-bar" style="height:100%;background:#00b4d8;border-radius:2px;width:0%;transition:width .3s;"></div>
-                  </div>
-                </div>
-                <div id="db-copies-grid" style="display:none;margin-top:12px;">
-                  <div id="db-copies-rows" style="display:flex;flex-direction:column;gap:12px;max-height:500px;overflow-y:auto;margin-bottom:16px;"></div>
-                  <div style="display:flex;gap:8px;">
-                    <button class="anu-btn-secondary" onclick="dbIrPasso(2)">← Voltar</button>
-                    <button class="anu-btn-primary" onclick="dbIrPasso(4)" id="db-btn-passo4">Revisar →</button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Passo 4: Revisar + Publicar -->
-              <div id="db-passo-4" style="display:none">
-                <div id="db-resumo" style="background:rgba(176,190,197,.05);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;"></div>
-                <div id="db-breakdown" style="font-size:12px;color:rgba(176,190,197,.5);margin-bottom:16px;"></div>
-                <div id="db-pub-progresso" style="display:none;margin-bottom:16px;">
-                  <div style="font-size:13px;font-weight:600;margin-bottom:8px">Publicando...</div>
-                  <div id="db-pub-lista" style="display:flex;flex-direction:column;gap:4px;font-size:12px;max-height:300px;overflow-y:auto;"></div>
-                </div>
-                <div id="db-expired-msg" style="display:none;padding:12px;background:rgba(255,100,100,.1);border-radius:8px;margin-bottom:12px;font-size:13px;color:#ff6464;">
-                  Arquivos expiraram (30 min). <button class="anu-btn-secondary" style="font-size:11px;margin-left:8px;" onclick="dbIrPasso(3);dbGerarCopies()">Regerar copies</button>
-                </div>
-                <div style="display:flex;gap:8px;">
-                  <button class="anu-btn-secondary" onclick="dbIrPasso(3)" id="db-btn-voltar4">← Voltar</button>
-                  <button class="anu-btn-primary" onclick="dbPublicar()" id="db-btn-publicar">Publicar Tudo 🚀</button>
-                </div>
-              </div>
-
-            </div><!-- /anu-tab-drive -->
-
-          </main>
-        </div>
-
-        <!-- Modal de confirmação -->
-        <div class="anu-modal-overlay hidden" id="anu-modal-overlay">
-          <div class="anu-modal">
-            <h3 class="anu-modal-title">⚠ Confirmar publicação</h3>
-            <p class="anu-modal-sub">O anúncio será criado na Meta com status <strong>PAUSADO</strong>.<br>Você ativa manualmente no Gerenciador após revisão.</p>
-            <div class="anu-modal-resumo" id="anu-modal-resumo"></div>
-            <div class="anu-modal-actions">
-              <button class="anu-btn-secondary" id="anu-modal-cancelar">Cancelar</button>
-              <button class="anu-btn-publicar-confirm" id="anu-modal-confirmar">Confirmar e Criar</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <!-- GESTOR IA ───────────────────────────────────── -->
       <section class="page" id="page-gestor">
         <div class="gestor-layout">
@@ -985,8 +402,10 @@
           <div class="gestor-tabs">
             <button class="gestor-tab-btn active" data-tab="timeline" onclick="gestorSwitchTab('timeline')">Timeline</button>
             <button class="gestor-tab-btn" data-tab="performance" onclick="gestorSwitchTab('performance')">Performance</button>
+            <button class="gestor-tab-btn" data-tab="anuncios" onclick="gestorSwitchTab('anuncios')">Subir Anúncios</button>
             <button class="gestor-tab-btn" data-tab="contas" onclick="gestorSwitchTab('contas')">Contas</button>
-            <button class="gestor-tab-btn" data-tab="relatorios" onclick="gestorSwitchTab('relatorios')">Relatórios</button>
+            <button class="gestor-tab-btn" data-tab="envio" onclick="gestorSwitchTab('envio')">Envio de Rel.</button>
+            <button class="gestor-tab-btn" data-tab="pdfs" onclick="gestorSwitchTab('pdfs')">PDFs</button>
             <button class="gestor-tab-btn" data-tab="planejador" onclick="gestorSwitchTab('planejador')">Planejador</button>
             <button class="gestor-tab-btn" data-tab="config" onclick="gestorSwitchTab('config')">Configuração</button>
           </div>
@@ -1020,14 +439,346 @@
             <div id="gestor-contas-grid" class="gestor-contas-grid"></div>
           </div>
 
-          <!-- Sub-aba: Relatórios -->
-          <div id="gestor-tab-relatorios" class="gestor-tab-content" style="display:none">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-              <span style="font-size:13px;font-weight:600">PDFs Gerados</span>
-              <button class="anu-btn-secondary" style="font-size:11px" onclick="gestorGerarRelatorio()">Gerar agora</button>
+          <!-- Sub-aba: Subir Anúncios -->
+          <div id="gestor-tab-anuncios" class="gestor-tab-content" style="display:none">
+            <div class="anu-layout">
+              <div class="anu-header-bar">
+                <div class="anu-header-cliente">
+                  <span class="anu-header-cliente-label">Cliente</span>
+                  <select id="anu-select-cliente" onchange="anuSelecionarPorSelect(this.value)">
+                    <option value="">— selecione —</option>
+                  </select>
+                </div>
+                <div class="anu-header-divider"></div>
+                <div class="anu-header-tabs">
+                  <button class="anu-btn-secondary anu-tab-btn active" data-tab="publicar" onclick="anuSwitchTab('publicar')" style="font-size:13px">Publicar</button>
+                  <button class="anu-btn-secondary anu-tab-btn" data-tab="publicos" onclick="anuSwitchTab('publicos')" style="font-size:13px">Públicos Salvos</button>
+                  <button class="anu-btn-secondary anu-tab-btn" data-tab="lote" onclick="anuSwitchTab('lote')" style="font-size:13px">Lote ⚡</button>
+                  <button class="anu-btn-secondary anu-tab-btn" data-tab="multi" onclick="anuSwitchTab('multi')" style="font-size:13px">Multi-Cliente</button>
+                  <button class="anu-btn-secondary anu-tab-btn" data-tab="drive" onclick="anuSwitchTab('drive')" style="font-size:13px">Drive 📂</button>
+                </div>
+                <div class="anu-header-actions">
+                  <button class="anu-btn-icon" id="anu-btn-refresh-clientes" title="Recarregar clientes">↺</button>
+                  <button class="anu-btn-novo-cliente" data-agencia="piloti" title="Novo cliente Piloti" style="font-size:.7rem;padding:0 8px;width:auto;border-radius:6px">+ Piloti</button>
+                  <button class="anu-btn-novo-cliente" data-agencia="dentto" title="Novo cliente Dentto" style="font-size:.7rem;padding:0 8px;width:auto;border-radius:6px">+ Dentto</button>
+                  <button class="anu-btn-novo-cliente" data-agencia="freelance" title="Novo cliente Freelance" style="font-size:.7rem;padding:0 8px;width:auto;border-radius:6px">+ Free</button>
+                </div>
+              </div>
+              <aside class="anu-sidebar" aria-hidden="true">
+                <ul class="anu-cliente-list" id="anu-lista-piloti"></ul>
+                <ul class="anu-cliente-list" id="anu-lista-dentto"></ul>
+                <ul class="anu-cliente-list" id="anu-lista-freelance"></ul>
+              </aside>
+              <main class="anu-main">
+                <div id="anu-tab-publicar">
+                  <div class="anu-empty-state" id="anu-empty">
+                    <div class="anu-empty-icon">◈</div>
+                    <p class="anu-empty-text">Selecione um cliente no menu acima<br>para começar</p>
+                  </div>
+                  <div class="anu-perfil-form hidden" id="anu-perfil-form">
+                    <div class="anu-bloco">
+                      <div class="anu-bloco-header">
+                        <span class="anu-bloco-num">✎</span>
+                        <h3 class="anu-bloco-title" id="anu-perfil-titulo">Novo Cliente</h3>
+                      </div>
+                      <div class="anu-perfil-grid">
+                        <label class="anu-label">Nome do cliente<input type="text" id="anu-pf-nome" class="anu-input" placeholder="Ex: Clínica Odonto"></label>
+                        <label class="anu-label">Agência<select id="anu-pf-agencia" class="anu-select"><option value="piloti">Piloti</option><option value="dentto">Dentto</option><option value="freelance">Freelance</option></select></label>
+                        <label class="anu-label">Account ID (Meta)<input type="text" id="anu-pf-account-id" class="anu-input" placeholder="act_XXXXXXXXX"></label>
+                        <label class="anu-label">Token<select id="anu-pf-token-key" class="anu-select"><option value="META_TOKEN_PILOTI">META_TOKEN_PILOTI</option><option value="META_TOKEN_DENTTO">META_TOKEN_DENTTO</option><option value="META_ACCESS_TOKEN">META_ACCESS_TOKEN</option><option value="META_TOKEN_VIELIFE">META_TOKEN_VIELIFE</option></select></label>
+                        <label class="anu-label">Business ID (BM)<input type="text" id="anu-pf-business-id" class="anu-input" placeholder="Ex: 1083321289184097"><span class="anu-hint">Necessário para buscar páginas de usuário de sistema</span></label>
+                        <label class="anu-label">Page ID (Facebook)
+                          <div style="display:flex;gap:8px;align-items:center;">
+                            <select id="anu-pf-page-id" class="anu-select" style="flex:1"><option value="">— selecione após buscar —</option></select>
+                            <button type="button" id="anu-btn-buscar-pages" class="anu-btn-sec" style="white-space:nowrap">🔍 Buscar Páginas</button>
+                          </div>
+                          <span class="anu-hint">⚠ Obrigatório — selecione o token acima e clique em Buscar</span>
+                        </label>
+                        <label class="anu-label">URL Landing Page<input type="text" id="anu-pf-link-url" class="anu-input" placeholder="https://site.com.br/pagina"><span class="anu-hint">Obrigatório para campanhas de conversão (PURCHASE)</span></label>
+                        <label class="anu-label">Meta de Desempenho (PURCHASE)<select id="anu-pf-optimization-goal" class="anu-select"><option value="LINK_CLICKS">Maximizar Cliques</option><option value="OFFSITE_CONVERSIONS">Maximizar Conversões (requer Pixel)</option></select></label>
+                        <label class="anu-label">Pixel ID (Meta)<input type="text" id="anu-pf-pixel-id" class="anu-input" placeholder="Ex: 1234567890"><span class="anu-hint">Necessário apenas para Maximizar Conversões</span></label>
+                        <label class="anu-label">WhatsApp<input type="text" id="anu-pf-whatsapp" class="anu-input" placeholder="+5554999999999"></label>
+                        <label class="anu-label">Segmento<input type="text" id="anu-pf-segmento" class="anu-input" placeholder="Ex: odontologia, advocacia"></label>
+                        <label class="anu-label">Tipo campanha padrão<select id="anu-pf-camp-tipo" class="anu-select"><option value="MESSAGES">Mensagem (WhatsApp)</option><option value="ENGAGEMENT">Engajamento</option><option value="PURCHASE">Conversão (Purchase/LP)</option></select></label>
+                        <label class="anu-label">Orçamento diário (R$)<input type="number" id="anu-pf-orcamento" class="anu-input" placeholder="30.00" step="0.01" min="1"></label>
+                        <label class="anu-label anu-label-full">Localização (JSON)<textarea id="anu-pf-localizacao" class="anu-textarea" rows="3" placeholder='{"paises": ["BR"], "cidades": [{"key": "1521902", "radius": 15, "distance_unit": "kilometer"}]}'></textarea><span class="anu-hint">⚠ Obrigatório — sem localização a publicação é bloqueada</span></label>
+                        <label class="anu-label anu-label-full">Público (JSON)<textarea id="anu-pf-publico" class="anu-textarea" rows="2" placeholder='{"idade_min": 25, "idade_max": 55, "genero": [1, 2]}'></textarea></label>
+                        <label class="anu-label">ID Público Salvo (Meta)<input type="text" id="anu-pf-publico-salvo-id" class="anu-input" placeholder="Ex: 23860123456789"><span class="anu-hint">⚠ Obrigatório para subir via WhatsApp — ID do Público Salvo no Gerenciador de Anúncios</span></label>
+                        <label class="anu-label">Nome do Público Salvo<input type="text" id="anu-pf-publico-salvo-nome" class="anu-input" placeholder="Ex: Jake_ODC_Cordeirópolis_5km"></label>
+                      </div>
+                      <div class="anu-perfil-actions">
+                        <button class="anu-btn-secondary" id="anu-perfil-cancelar">Cancelar</button>
+                        <button class="anu-btn-primary" id="anu-perfil-salvar">Salvar Perfil</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="anu-criacao hidden" id="anu-criacao">
+                    <div class="anu-cliente-header">
+                      <span class="anu-cliente-nome" id="anu-cliente-nome-display">—</span>
+                      <button class="anu-btn-icon" id="anu-btn-editar-cliente" title="Editar perfil">✎</button>
+                    </div>
+                    <div class="anu-bloco">
+                      <div class="anu-bloco-header"><span class="anu-bloco-num">①</span><h3 class="anu-bloco-title">Campanha</h3><span class="anu-bloco-status" id="anu-status-campanha">—</span></div>
+                      <div class="anu-toggle-row">
+                        <button class="anu-toggle-btn active" id="anu-camp-nova-btn" data-mode="nova">Nova campanha</button>
+                        <button class="anu-toggle-btn" id="anu-camp-exist-btn" data-mode="existente">Usar existente</button>
+                      </div>
+                      <div id="anu-camp-nova-form">
+                        <label class="anu-label">Nome da campanha<input type="text" id="anu-camp-nome" class="anu-input" placeholder="Campanha Março 2026"></label>
+                        <label class="anu-label">Objetivo<input type="text" id="anu-camp-objetivo" class="anu-input" readonly></label>
+                        <label class="anu-label">Orçamento diário (R$)<input type="number" id="anu-camp-orcamento" class="anu-input" step="0.01" min="1"></label>
+                      </div>
+                      <div id="anu-camp-exist-form" class="hidden">
+                        <label class="anu-label">Campanha existente<select id="anu-camp-select" class="anu-select"><option value="">Carregando...</option></select></label>
+                        <button class="anu-btn-secondary" id="anu-camp-carregar">↺ Carregar campanhas</button>
+                      </div>
+                    </div>
+                    <div class="anu-bloco">
+                      <div class="anu-bloco-header"><span class="anu-bloco-num">②</span><h3 class="anu-bloco-title">Criativo</h3><span class="anu-bloco-status" id="anu-status-criativo">—</span></div>
+                      <div class="anu-dropzone" id="anu-dropzone">
+                        <input type="file" id="anu-file-input" accept="image/jpeg,image/png,video/mp4" class="anu-file-hidden">
+                        <div class="anu-dropzone-inner" id="anu-dropzone-inner"><span class="anu-dropzone-icon">⬆</span><p>Arraste ou clique para selecionar<br><small>JPG, PNG ou MP4</small></p></div>
+                        <div class="anu-preview hidden" id="anu-preview"></div>
+                      </div>
+                      <div class="anu-upload-progress hidden" id="anu-upload-progress">
+                        <div class="anu-progress-bar"><div class="anu-progress-fill" id="anu-progress-fill"></div></div>
+                        <span id="anu-progress-msg">Enviando...</span>
+                      </div>
+                    </div>
+                    <div class="anu-bloco">
+                      <div class="anu-bloco-header"><span class="anu-bloco-num">③</span><h3 class="anu-bloco-title">Copy</h3><span class="anu-bloco-status" id="anu-status-copy">—</span></div>
+                      <div class="anu-copy-loading hidden" id="anu-copy-loading"><span class="anu-spinner"></span> Jake gerando copy...</div>
+                      <div id="anu-copy-form">
+                        <label class="anu-label">Título <small>(máx 40 caracteres)</small><input type="text" id="anu-copy-titulo" class="anu-input" maxlength="40"><span class="anu-char-count" id="anu-titulo-count">0/40</span></label>
+                        <label class="anu-label">Texto principal <small>(máx 125 caracteres)</small><textarea id="anu-copy-texto" class="anu-textarea" rows="3" maxlength="125"></textarea><span class="anu-char-count" id="anu-texto-count">0/125</span></label>
+                        <label class="anu-label">CTA<select id="anu-copy-cta" class="anu-select"><option value="SEND_MESSAGE">Enviar mensagem (WhatsApp)</option><option value="LEARN_MORE">Saiba mais</option><option value="SIGN_UP">Cadastre-se</option></select></label>
+                        <button class="anu-btn-secondary" id="anu-copy-regerar">↺ Regerar copy</button>
+                      </div>
+                    </div>
+                    <div class="anu-bloco anu-bloco-revisao">
+                      <div class="anu-bloco-header"><span class="anu-bloco-num">④</span><h3 class="anu-bloco-title">Revisão Final</h3></div>
+                      <div class="anu-revisao-grid" id="anu-revisao-grid"></div>
+                      <label class="anu-label" style="margin-bottom:12px">Público Salvo
+                        <div style="display:flex;gap:8px;align-items:center;">
+                          <select id="anu-pub-selector" class="anu-select" style="flex:1"><option value="">— padrão do cliente —</option></select>
+                          <button type="button" id="anu-btn-buscar-publicos" class="anu-btn-sec" style="white-space:nowrap">🔍 Buscar</button>
+                        </div>
+                        <span class="anu-hint" id="anu-pub-hint">Padrão: público salvo do perfil do cliente.</span>
+                      </label>
+                      <div class="anu-localizacao-alerta hidden" id="anu-localizacao-alerta">⚠ Localização não configurada — edite o perfil do cliente antes de publicar</div>
+                      <button class="anu-btn-publicar" id="anu-btn-publicar" disabled>🚀 Publicar Anúncio</button>
+                    </div>
+                  </div>
+                </div><!-- /anu-tab-publicar -->
+                <div id="anu-tab-publicos" style="display:none">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span style="font-weight:600">Públicos Salvos</span>
+                    <div style="display:flex;gap:8px;">
+                      <button class="anu-btn-secondary" id="anu-btn-importar-meta" style="font-size:13px">Importar do Meta</button>
+                      <button class="anu-btn-secondary" id="anu-btn-novo-publico" style="font-size:13px">+ Novo Público</button>
+                    </div>
+                  </div>
+                  <div id="anu-publicos-lista"></div>
+                  <div id="anu-publico-form" class="anu-bloco hidden" style="margin-top:12px">
+                    <div id="anu-publico-form-titulo" style="font-weight:600;margin-bottom:12px">Novo Público</div>
+                    <label class="anu-label">Nome<input type="text" id="anu-pub-nome" class="anu-input" placeholder="Ex: Mulheres BR 25-45"></label>
+                    <label class="anu-label">Cliente<select id="anu-pub-cliente" class="anu-select"></select></label>
+                    <label class="anu-label">Idade mínima<input type="number" id="anu-pub-age-min" class="anu-input" value="18" min="13" max="65"></label>
+                    <label class="anu-label">Idade máxima<input type="number" id="anu-pub-age-max" class="anu-input" value="65" min="13" max="65"></label>
+                    <label class="anu-label">Gênero<select id="anu-pub-genero" class="anu-select"><option value="">Todos</option><option value="1">Masculino</option><option value="2">Feminino</option></select></label>
+                    <label class="anu-label">País<input type="text" id="anu-pub-pais" class="anu-input" value="BR" placeholder="BR"></label>
+                    <div style="display:flex;gap:8px;margin-top:12px;">
+                      <button class="anu-btn-primary" id="anu-pub-salvar">Salvar</button>
+                      <button class="anu-btn-secondary" id="anu-pub-cancelar">Cancelar</button>
+                    </div>
+                  </div>
+                  <div id="anu-modal-importar" class="anu-bloco hidden" style="margin-top:12px">
+                    <div style="font-weight:600;margin-bottom:12px">Importar do Meta</div>
+                    <label class="anu-label">Cliente<select id="anu-imp-cliente" class="anu-select"></select></label>
+                    <div style="display:flex;gap:8px;margin-top:12px;">
+                      <button class="anu-btn-primary" id="anu-imp-confirmar">Importar</button>
+                      <button class="anu-btn-secondary" id="anu-imp-cancelar">Cancelar</button>
+                    </div>
+                    <div id="anu-imp-resultado" style="margin-top:8px;font-size:13px"></div>
+                  </div>
+                </div><!-- /anu-tab-publicos -->
+                <div id="anu-tab-lote" style="display:none">
+                  <div class="lote-topo">
+                    <div style="display:flex;gap:6px;margin-bottom:10px;">
+                      <button id="lote-btn-camp-nova" type="button" class="anu-btn-secondary active" style="font-size:12px" onclick="loteCampToggle('nova')">Nova campanha</button>
+                      <button id="lote-btn-camp-exist" type="button" class="anu-btn-secondary" style="font-size:12px" onclick="loteCampToggle('existente')">Campanha existente</button>
+                    </div>
+                    <div id="lote-camp-nova-form"><label class="anu-label">Nome da campanha<input type="text" id="lote-camp-nome" class="anu-input" placeholder="Campanha Maio 2026"></label></div>
+                    <div id="lote-camp-exist-form" style="display:none"><label class="anu-label">Selecionar campanha existente<select id="lote-camp-select" class="anu-select" disabled><option value="">Selecione o cliente primeiro</option></select></label></div>
+                    <label class="anu-label">Tipo de campanha<select id="lote-camp-tipo" class="anu-select"><option value="MESSAGES">Mensagem (WhatsApp)</option><option value="ENGAGEMENT">Engajamento</option><option value="PURCHASE">Conversão (Purchase)</option></select></label>
+                    <label class="anu-label">Orçamento total (R$/dia)<input type="number" id="lote-orcamento" class="anu-input" placeholder="50.00" step="0.01" min="1"></label>
+                    <div class="lote-contador" id="lote-contador">0 × 0 = 0 anúncios</div>
+                  </div>
+                  <div class="lote-colunas">
+                    <div class="lote-col">
+                      <div class="lote-col-header"><span>Conjuntos</span><button class="anu-btn-icon" id="lote-btn-add-conjunto" title="Adicionar conjunto">+</button></div>
+                      <div class="lote-col-body" id="lote-conjuntos-body"></div>
+                    </div>
+                    <div class="lote-col">
+                      <div id="lote-drive-toggle" style="display:none;gap:4px;padding:4px 6px;">
+                        <button id="lote-btn-criativo-upload" type="button" class="anu-btn-secondary active" style="font-size:11px" onclick="loteCriativoToggle('upload')">Upload</button>
+                        <button id="lote-btn-criativo-drive" type="button" class="anu-btn-secondary" style="font-size:11px" onclick="loteCriativoToggle('drive')">Link Drive</button>
+                      </div>
+                      <div id="lote-drive-form" style="display:none;padding:6px 0;gap:6px;flex-direction:column;">
+                        <input type="text" id="lote-drive-url" class="anu-input" placeholder="https://drive.google.com/file/d/..." style="font-size:12px">
+                        <button type="button" class="anu-btn-secondary" style="font-size:12px" onclick="loteDriveDownload()">⬇ Baixar e usar</button>
+                        <div id="lote-drive-status" style="font-size:11px;color:rgba(176,190,197,.4)"></div>
+                        <div id="lote-drive-preview" style="margin-top:4px;"></div>
+                      </div>
+                      <div class="lote-col-header"><span id="lote-criativos-header">Criativos</span><button class="anu-btn-icon" id="lote-btn-add-criativo" title="Adicionar criativo" style="display:none">+</button></div>
+                      <div class="lote-col-body" id="lote-criativos-body"><div class="anu-empty-state" style="height:auto;padding:2rem 0"><div class="anu-empty-text" style="font-size:.82rem">Selecione um conjunto</div></div></div>
+                    </div>
+                    <div class="lote-col">
+                      <div class="lote-col-header"><span id="lote-copy-header">Copy</span></div>
+                      <div class="lote-col-body" id="lote-copy-body"><div class="anu-empty-state" style="height:auto;padding:2rem 0"><div class="anu-empty-text" style="font-size:.82rem">Selecione um criativo</div></div></div>
+                    </div>
+                  </div>
+                  <div class="lote-rodape">
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <button class="lote-btn-gerar" id="lote-btn-gerar-copies">✦ Gerar todas as copies</button>
+                      <button class="anu-btn-secondary" style="font-size:.75rem;opacity:.6" onclick="if(confirm('Limpar tudo e apagar o rascunho salvo?')) loteLimparLocal()" title="Limpar rascunho salvo">🗑 Limpar</button>
+                    </div>
+                    <button class="lote-btn-publicar" id="lote-btn-publicar" disabled>🚀 Publicar Lote</button>
+                  </div>
+                  <div class="anu-modal-overlay hidden" id="lote-modal-progresso">
+                    <div class="anu-modal lote-progress-modal">
+                      <h3 class="lote-progress-title">Publicando lote...</h3>
+                      <div class="lote-progress-bar-wrap"><div class="lote-progress-bar"><div class="lote-progress-fill" id="lote-prog-fill" style="width:0%"></div></div><div class="lote-progress-stats" id="lote-prog-stats">Iniciando...</div></div>
+                      <div class="lote-progress-log" id="lote-prog-log"></div>
+                      <div class="anu-modal-actions" style="margin-top:1rem"><button class="anu-btn-secondary hidden" id="lote-prog-fechar">Fechar</button></div>
+                    </div>
+                  </div>
+                </div><!-- /anu-tab-lote -->
+                <div id="anu-tab-multi" style="display:none">
+                  <div class="mc-stepper">
+                    <div class="mc-step active" data-step="1"><span class="mc-step-num">1</span> Clientes</div>
+                    <div class="mc-step" data-step="2"><span class="mc-step-num">2</span> Criativo</div>
+                    <div class="mc-step" data-step="3"><span class="mc-step-num">3</span> Revisar</div>
+                  </div>
+                  <div id="mc-passo-1">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><span style="font-weight:600;font-size:14px">Selecione os clientes</span><div style="display:flex;gap:8px;"><button class="anu-btn-secondary" style="font-size:12px" onclick="mcSelecionarAgencia('dentto')">Todos Dentto</button><button class="anu-btn-secondary" style="font-size:12px" onclick="mcSelecionarAgencia('piloti')">Todos Piloti</button><button class="anu-btn-secondary" style="font-size:12px" onclick="mcLimparSelecao()">Limpar</button></div></div>
+                    <div id="mc-lista-clientes" style="display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;margin-bottom:16px;"></div>
+                    <button class="anu-btn-primary" onclick="mcIrPasso(2)" id="mc-btn-passo2" disabled>Próximo →</button>
+                  </div>
+                  <div id="mc-passo-2" style="display:none">
+                    <div style="display:flex;flex-direction:column;gap:12px;max-width:520px;">
+                      <label class="anu-label">Imagem do anúncio<div id="mc-dropzone" style="margin-top:4px;min-height:120px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px dashed rgba(176,190,197,.2);border-radius:8px;position:relative;"><input type="file" id="mc-file-input" accept="image/*,video/mp4" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;"><div id="mc-dropzone-placeholder" style="text-align:center;pointer-events:none;"><span style="font-size:24px">⬆</span><p style="margin:4px 0 0;font-size:12px;color:rgba(176,190,197,.4)">Clique ou arraste a imagem</p></div><img id="mc-preview-img" style="display:none;max-width:100%;max-height:200px;border-radius:6px;pointer-events:none;"></div><div id="mc-upload-status" style="font-size:11px;color:rgba(176,190,197,.4);margin-top:4px;"></div></label>
+                      <label class="anu-label">Nome da campanha<input type="text" id="mc-camp-nome" class="anu-input" placeholder="Campanha Maio 2026"></label>
+                      <label class="anu-label">Título do anúncio<input type="text" id="mc-copy-titulo" class="anu-input" placeholder="Título"></label>
+                      <label class="anu-label">Texto do anúncio<textarea id="mc-copy-texto" class="anu-input" rows="4" placeholder="Texto do anúncio..."></textarea></label>
+                      <label class="anu-label">Orçamento diário (R$)<input type="number" id="mc-orcamento" class="anu-input" placeholder="30" min="1"></label>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:16px;"><button class="anu-btn-secondary" onclick="mcIrPasso(1)">← Voltar</button><button class="anu-btn-primary" onclick="mcIrPasso(3)" id="mc-btn-passo3">Revisar →</button></div>
+                  </div>
+                  <div id="mc-passo-3" style="display:none">
+                    <p style="font-size:13px;color:rgba(176,190,197,.5);margin-bottom:12px;">Confirme o público de cada cliente antes de publicar.</p>
+                    <div id="mc-revisao-cards" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;max-height:400px;overflow-y:auto;"></div>
+                    <div id="mc-progresso" style="display:none;margin-bottom:16px;"><div style="font-size:13px;font-weight:600;margin-bottom:8px">Publicando...</div><div id="mc-prog-lista" style="display:flex;flex-direction:column;gap:4px;font-size:12px;"></div></div>
+                    <div style="display:flex;gap:8px;"><button class="anu-btn-secondary" onclick="mcIrPasso(2)" id="mc-btn-voltar3">← Voltar</button><button class="anu-btn-primary" onclick="mcPublicar()" id="mc-btn-publicar">Publicar Tudo</button></div>
+                  </div>
+                </div><!-- /anu-tab-multi -->
+                <div id="anu-tab-drive" style="display:none">
+                  <div class="mc-stepper">
+                    <div class="db-step active" data-step="1"><span class="mc-step-num">1</span> Drive</div>
+                    <div class="db-step" data-step="2"><span class="mc-step-num">2</span> Conjuntos</div>
+                    <div class="db-step" data-step="3"><span class="mc-step-num">3</span> Copies</div>
+                    <div class="db-step" data-step="4"><span class="mc-step-num">4</span> Publicar</div>
+                  </div>
+                  <div id="db-passo-1">
+                    <div style="display:flex;flex-direction:column;gap:12px;max-width:520px;">
+                      <label class="anu-label">Link da pasta do Google Drive<div style="display:flex;gap:8px;margin-top:4px;"><input type="text" id="db-drive-url" class="anu-input" placeholder="https://drive.google.com/drive/folders/..." style="flex:1"><button class="anu-btn-secondary" onclick="dbCarregarDrive()" id="db-btn-carregar" style="white-space:nowrap">Carregar</button></div><div id="db-drive-status" style="font-size:11px;color:rgba(176,190,197,.4);margin-top:4px;"></div></label>
+                      <div id="db-drive-preview" style="display:none"><div style="font-size:12px;color:rgba(176,190,197,.5);margin-bottom:6px" id="db-drive-count"></div><div id="db-drive-thumbs" style="display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow-y:auto;margin-bottom:12px;"></div></div>
+                      <div id="db-cliente-section" style="display:none">
+                        <label class="anu-label">Modo<div style="display:flex;gap:12px;margin-top:4px;"><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="db-mode" value="single" checked onchange="dbModoChange()"> Um cliente</label><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="db-mode" value="multi" onchange="dbModoChange()"> Vários clientes</label></div></label>
+                        <div id="db-single-cliente" style="margin-top:8px;"><label class="anu-label">Cliente<select id="db-cliente-select" class="anu-input" style="margin-top:4px;"></select></label></div>
+                        <div id="db-multi-clientes" style="display:none;margin-top:8px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:13px;font-weight:600">Selecione os clientes</span><div style="display:flex;gap:6px;"><button class="anu-btn-secondary" style="font-size:11px" onclick="dbSelecionarAgencia('dentto')">Dentto</button><button class="anu-btn-secondary" style="font-size:11px" onclick="dbSelecionarAgencia('piloti')">Piloti</button><button class="anu-btn-secondary" style="font-size:11px" onclick="dbLimparClientes()">Limpar</button></div></div><div id="db-lista-clientes" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;"></div></div>
+                      </div>
+                    </div>
+                    <button class="anu-btn-primary" style="margin-top:16px" onclick="dbIrPasso(2)" id="db-btn-passo2" disabled>Próximo →</button>
+                  </div>
+                  <div id="db-passo-2" style="display:none">
+                    <div style="display:flex;flex-direction:column;gap:12px;max-width:520px;">
+                      <label class="anu-label">Tipo de campanha<select id="db-camp-tipo" class="anu-input" style="margin-top:4px;" onchange="dbCampTipoChange()"><option value="MESSAGES">Mensagens (WhatsApp)</option><option value="PURCHASE">Compra / Conversão</option><option value="ENGAGEMENT">Engajamento</option></select></label>
+                      <div id="db-campanha-section">
+                        <label class="anu-label">Campanha<div style="display:flex;gap:12px;margin-top:4px;flex-wrap:wrap;"><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="db-camp-tipo-sel" value="nova" checked onchange="dbCampSelChange()"> Nova campanha</label><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;" id="db-existente-opt"><input type="radio" name="db-camp-tipo-sel" value="existente" onchange="dbCampSelChange()"> Campanha existente</label><label id="db-salva-opt" style="display:none;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="db-camp-tipo-sel" value="salva" onchange="dbCampSelChange()"> Usar campanha salva de cada cliente</label></div></label>
+                        <div id="db-camp-nova" style="margin-top:8px;"><input type="text" id="db-camp-nome" class="anu-input" placeholder="Nome da campanha"></div>
+                        <div id="db-camp-existente" style="display:none;margin-top:8px;"><button class="anu-btn-secondary" onclick="dbBuscarCampanhas()" style="font-size:12px">Buscar campanhas ativas</button><div id="db-campanhas-lista" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto;"></div></div>
+                      </div>
+                      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                        <label class="anu-label" style="flex:1;min-width:120px;">Nº de conjuntos<input type="number" id="db-num-conj" class="anu-input" placeholder="3" min="1" oninput="dbValidarConfig()" style="margin-top:4px;"></label>
+                        <label class="anu-label" style="flex:1;min-width:120px;">Criativos por conjunto<input type="number" id="db-criat-por" class="anu-input" placeholder="10" min="1" oninput="dbValidarConfig()" style="margin-top:4px;"></label>
+                        <label class="anu-label" style="flex:1;min-width:120px;">Orçamento por conjunto (R$)<input type="number" id="db-orcamento" class="anu-input" placeholder="10" min="1" step="0.01" style="margin-top:4px;"></label>
+                      </div>
+                      <div id="db-config-status" style="font-size:12px;color:rgba(176,190,197,.4);"></div>
+                      <div id="db-publicos-conj" style="display:none;"><div class="anu-label" style="margin-bottom:8px;">Público por conjunto</div><div id="db-publicos-rows"></div></div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:16px;"><button class="anu-btn-secondary" onclick="dbIrPasso(1)">← Voltar</button><button class="anu-btn-primary" onclick="dbIrPasso(3)" id="db-btn-passo3" disabled>Próximo →</button></div>
+                  </div>
+                  <div id="db-passo-3" style="display:none">
+                    <div id="db-copies-idle"><p style="font-size:13px;color:rgba(176,190,197,.5);margin-bottom:12px;">O Jake vai analisar cada imagem e gerar título + texto automaticamente.</p><button class="anu-btn-primary" onclick="dbGerarCopies()" id="db-btn-gerar">Gerar Copies ✨</button></div>
+                    <div id="db-copies-progresso" style="display:none;"><div style="font-size:13px;font-weight:600;margin-bottom:8px" id="db-copies-counter">Gerando 0/0...</div><div style="width:100%;height:4px;background:rgba(176,190,197,.1);border-radius:2px;margin-bottom:16px;"><div id="db-copies-bar" style="height:100%;background:#00b4d8;border-radius:2px;width:0%;transition:width .3s;"></div></div></div>
+                    <div id="db-copies-grid" style="display:none;margin-top:12px;"><div id="db-copies-rows" style="display:flex;flex-direction:column;gap:12px;max-height:500px;overflow-y:auto;margin-bottom:16px;"></div><div style="display:flex;gap:8px;"><button class="anu-btn-secondary" onclick="dbIrPasso(2)">← Voltar</button><button class="anu-btn-primary" onclick="dbIrPasso(4)" id="db-btn-passo4">Revisar →</button></div></div>
+                  </div>
+                  <div id="db-passo-4" style="display:none">
+                    <div id="db-resumo" style="background:rgba(176,190,197,.05);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;"></div>
+                    <div id="db-breakdown" style="font-size:12px;color:rgba(176,190,197,.5);margin-bottom:16px;"></div>
+                    <div id="db-pub-progresso" style="display:none;margin-bottom:16px;"><div style="font-size:13px;font-weight:600;margin-bottom:8px">Publicando...</div><div id="db-pub-lista" style="display:flex;flex-direction:column;gap:4px;font-size:12px;max-height:300px;overflow-y:auto;"></div></div>
+                    <div id="db-expired-msg" style="display:none;padding:12px;background:rgba(255,100,100,.1);border-radius:8px;margin-bottom:12px;font-size:13px;color:#ff6464;">Arquivos expiraram (30 min). <button class="anu-btn-secondary" style="font-size:11px;margin-left:8px;" onclick="dbIrPasso(3);dbGerarCopies()">Regerar copies</button></div>
+                    <div style="display:flex;gap:8px;"><button class="anu-btn-secondary" onclick="dbIrPasso(3)" id="db-btn-voltar4">← Voltar</button><button class="anu-btn-primary" onclick="dbPublicar()" id="db-btn-publicar">Publicar Tudo 🚀</button></div>
+                  </div>
+                </div><!-- /anu-tab-drive -->
+              </main>
+              <div class="anu-modal-overlay hidden" id="anu-modal-overlay">
+                <div class="anu-modal">
+                  <h3 class="anu-modal-title">⚠ Confirmar publicação</h3>
+                  <p class="anu-modal-sub">O anúncio será criado na Meta com status <strong>PAUSADO</strong>.<br>Você ativa manualmente no Gerenciador após revisão.</p>
+                  <div class="anu-modal-resumo" id="anu-modal-resumo"></div>
+                  <div class="anu-modal-actions">
+                    <button class="anu-btn-secondary" id="anu-modal-cancelar">Cancelar</button>
+                    <button class="anu-btn-publicar-confirm" id="anu-modal-confirmar">Confirmar e Criar</button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div id="gestor-relatorios-lista"></div>
           </div>
+
+          <!-- Sub-aba: Envio de Relatórios -->
+          <div id="gestor-tab-envio" class="gestor-tab-content" style="display:none">
+            <div class="rel-page">
+              <header class="rel-header">
+                <h2 class="rel-title">◉ Envio de <span class="cyan">Relatórios</span></h2>
+                <p class="rel-sub">Selecione a agência, copie e dispare os relatórios semanais.</p>
+              </header>
+              <div class="rel-tabs">
+                <button class="rel-tab active" data-agency="piloti">Piloti</button>
+                <button class="rel-tab" data-agency="dentto">Dentto</button>
+              </div>
+              <div class="rel-table-wrap">
+                <table class="rel-table">
+                  <thead>
+                    <tr>
+                      <th>Nome do Cliente</th>
+                      <th>Esta Semana</th>
+                      <th>Status</th>
+                      <th>Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rel-tbody"></tbody>
+                </table>
+              </div>
+              <div class="rel-toast" id="rel-toast">
+                <span class="rel-toast-icon">📋</span> Relatório copiado para a área de transferência!
+              </div>
+            </div>
+          </div>
+
+          <!-- Sub-aba: PDFs Gerados -->
+          <div id="gestor-tab-pdfs" class="gestor-tab-content" style="display:none">
 
           <!-- Sub-aba: Planejador (chat de campanhas) -->
           <div id="gestor-tab-planejador" class="gestor-tab-content" style="display:none">
@@ -1333,6 +1084,12 @@
 
       <!-- 4.1 FÁBRICA DE CRIATIVOS ────────────────────── -->
       <section class="page" id="page-criativos">
+        <!-- Tab bar: Criativos / Carrossel -->
+        <div class="gestor-tabs" style="border-bottom:1px solid rgba(176,190,197,.08);margin-bottom:0;flex-shrink:0;">
+          <button class="gestor-tab-btn active" id="cri-tab-btn-criativos" onclick="criativoSwitchTab('criativos')">Criativos</button>
+          <button class="gestor-tab-btn" id="cri-tab-btn-carrossel" onclick="criativoSwitchTab('carrossel')">Carrossel</button>
+        </div>
+        <div id="cri-tab-criativos" style="display:contents">
         <div class="cri-layout">
 
           <!-- ── Painel Esquerdo — Configuração ── -->
@@ -1493,51 +1250,10 @@
             </div>
           </div>
         </div>
+        </div><!-- /cri-tab-criativos -->
 
-      </section>
-
-      <!-- 5. ENVIO DE RELATÓRIOS ──────────────────────── -->
-      <section class="page" id="page-relatorios">
-        <div class="rel-page">
-
-          <header class="rel-header">
-            <h2 class="rel-title">◉ Envio de <span class="cyan">Relatórios</span></h2>
-            <p class="rel-sub">Selecione a agência, copie e dispare os relatórios semanais.</p>
-          </header>
-
-          <!-- Tabs de agência -->
-          <div class="rel-tabs">
-            <button class="rel-tab active" data-agency="piloti">Piloti</button>
-            <button class="rel-tab" data-agency="dentto">Dentto</button>
-          </div>
-
-          <!-- Tabela de clientes -->
-          <div class="rel-table-wrap">
-            <table class="rel-table">
-              <thead>
-                <tr>
-                  <th>Nome do Cliente</th>
-                  <th>Esta Semana</th>
-                  <th>Status</th>
-                  <th>Ação</th>
-                </tr>
-              </thead>
-              <tbody id="rel-tbody">
-                <!-- populado por relatorios.js -->
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Toast de feedback -->
-          <div class="rel-toast" id="rel-toast">
-            <span class="rel-toast-icon">📋</span> Relatório copiado para a área de transferência!
-          </div>
-
-        </div>
-      </section>
-
-      <!-- 6. GERADOR DE CARROSSEL ─────────────────────── -->
-      <section class="page" id="page-carrossel">
+        <!-- Tab: Carrossel (dentro da Fábrica de Criativos) -->
+        <div id="cri-tab-carrossel" style="display:none;flex:1;overflow:hidden;">
         <div class="cs-layout">
 
           <!-- ── Sidebar de controles ──────────────────── -->
@@ -1819,10 +1535,11 @@
           </div><!-- /.cs-canvas -->
 
         </div><!-- /.cs-layout -->
+        </div><!-- /cri-tab-carrossel -->
+
       </section>
 
-      <!-- 7. GERADOR DE PROMPTS ──────────────────────── -->
-      <!-- 8. FINANCEIRO PESSOAL ─────────────────────── -->
+      <!-- FINANCEIRO PESSOAL ─────────────────────── -->
       <section class="page" id="page-financeiro">
         <div class="fin-layout">
 
@@ -2219,48 +1936,6 @@
           </div><!-- /#fin-pane-milhao -->
 
         </div><!-- /.fin-layout -->
-      </section>
-
-      <!-- ENGENHEIRO DE PROMPTS ──────────────────────────── -->
-      <section class="page" id="page-prompts">
-        <div class="pe-layout">
-
-          <!-- Sidebar de sessões -->
-          <aside class="pe-sidebar" id="peSidebar">
-            <div class="pe-sidebar-header">
-              <span class="pe-sidebar-title">🧠 Conversas</span>
-              <button class="pe-new-btn" id="peNewBtn" title="Nova conversa">＋</button>
-            </div>
-            <div class="pe-session-list" id="peSessionList">
-              <!-- preenchido por JS -->
-            </div>
-          </aside>
-
-          <!-- Área de chat -->
-          <div class="pe-chat-wrap">
-
-            <!-- Toggle sidebar mobile -->
-            <button class="pe-sidebar-toggle" id="peSidebarToggle" title="Sessões">☰</button>
-
-            <!-- Mensagens -->
-            <div class="pe-chat-area" id="peChatArea">
-              <!-- preenchido por JS -->
-            </div>
-
-            <!-- Input -->
-            <div class="pe-input-area">
-              <textarea
-                id="peInput"
-                class="pe-textarea"
-                placeholder="Descreva sua ideia ou projeto..."
-                rows="1"
-              ></textarea>
-              <button class="pe-send-btn" id="peSendBtn">➤</button>
-            </div>
-            <p class="pe-hint">Enter para enviar · Shift+Enter para nova linha</p>
-
-          </div><!-- /.pe-chat-wrap -->
-        </div><!-- /.pe-layout -->
       </section>
 
       <!-- ========== SOCIAL BRIEF ========== -->

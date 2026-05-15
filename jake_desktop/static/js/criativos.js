@@ -629,3 +629,15 @@
   }
 
 })();
+
+// Alternância de abas dentro da Fábrica de Criativos (Criativos / Carrossel)
+window.criativoSwitchTab = function (tab) {
+  var tabCri = document.getElementById('cri-tab-criativos');
+  var tabCar = document.getElementById('cri-tab-carrossel');
+  var btnCri = document.getElementById('cri-tab-btn-criativos');
+  var btnCar = document.getElementById('cri-tab-btn-carrossel');
+  if (tabCri) tabCri.style.display = (tab === 'criativos') ? 'contents' : 'none';
+  if (tabCar) tabCar.style.display = (tab === 'carrossel') ? '' : 'none';
+  if (btnCri) btnCri.classList.toggle('active', tab === 'criativos');
+  if (btnCar) btnCar.classList.toggle('active', tab === 'carrossel');
+};

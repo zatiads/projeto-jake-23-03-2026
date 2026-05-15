@@ -257,15 +257,16 @@
 
   // ── Sub-abas ──────────────────────────────────────────────────────────────
   window.gestorSwitchTab = function (tab) {
-    ['timeline', 'performance', 'contas', 'relatorios', 'planejador', 'config'].forEach(function (t) {
+    ['timeline', 'performance', 'anuncios', 'contas', 'envio', 'pdfs', 'planejador', 'config'].forEach(function (t) {
       var el = document.getElementById('gestor-tab-' + t);
       if (el) el.style.display = (t === tab) ? '' : 'none';
       var btn = document.querySelector('.gestor-tab-btn[data-tab="' + t + '"]');
       if (btn) btn.classList.toggle('active', t === tab);
     });
     if (tab === 'performance') window.perfInit && window.perfInit();
+    if (tab === 'anuncios') window.anuInit && window.anuInit();
     if (tab === 'contas') _carregarContas();
-    if (tab === 'relatorios') _carregarRelatorios();
+    if (tab === 'pdfs') _carregarRelatorios();
     if (tab === 'config') _carregarExecucoes();
   };
 
