@@ -174,16 +174,22 @@
     }
     list.forEach(function(c) { tbody.appendChild(buildRow(c)); });
 
-    // Fetch paralelo: insights + saldo
+    // Fetch paralelo real: insights e saldo simultaneamente por cliente
     list.forEach(function(c) {
-      _rowData[c.id] = {};
-      fetchInsights(agency, c.id, function(err, ins) {
-        _rowData[c.id].insights = err ? null : ins;
-        fetchSaldo(agency, c.id, function(errS, sal) {
-          _rowData[c.id].saldo = errS ? {error: errS} : sal;
+      _rowData[c.id] = {insights: undefined, saldo: undefined};
+      function _tryUpdate() {
+        if (_rowData[c.id].insights !== undefined && _rowData[c.id].saldo !== undefined) {
           updateRow(agency, c, _rowData[c.id].insights, _rowData[c.id].saldo);
           updateGlobalCards(agency);
-        });
+        }
+      }
+      fetchInsights(agency, c.id, function(err, ins) {
+        _rowData[c.id].insights = err ? null : ins;
+        _tryUpdate();
+      });
+      fetchSaldo(agency, c.id, function(errS, sal) {
+        _rowData[c.id].saldo = errS ? {error: errS} : sal;
+        _tryUpdate();
       });
     });
   }

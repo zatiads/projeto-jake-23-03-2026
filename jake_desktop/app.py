@@ -1329,7 +1329,7 @@ def api_performance_saldo(agency, account_id):
             "spend_cap":    round(spend_cap, 2),
             "remaining":    round(remaining, 2),
             "currency":     data.get("currency", "BRL"),
-            "alerta":       remaining < 150.0,
+            "alerta":       remaining < 200.0,
         }
         _perf_saldo_cache[cache_key] = {"ts": now, "data": result}
         return jsonify(result)
@@ -4475,7 +4475,7 @@ def gestor_contas():
                 ORDER BY executado_em DESC LIMIT 1
             """, (c["id"],))
             ultima = cur.fetchone()
-            if ultima and ultima["tipo"] == "alerta_saldo":
+            if ultima and ultima["tipo"].startswith("alerta_"):
                 c["saude"] = "alerta"
             elif ultima and ultima["status"] == "sucesso" and not ultima.get("revertido"):
                 c["saude"] = "otimizada"

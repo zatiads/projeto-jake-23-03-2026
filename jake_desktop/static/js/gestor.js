@@ -278,19 +278,33 @@
         _contas = data.contas || [];
         var el = document.getElementById('gestor-contas-grid');
         if (!el) return;
-        el.innerHTML = _contas.map(function (c) {
+
+        function _cardHtml(c) {
+          var saude = c.saude || 'saudavel';
           return '<div class="gs-conta-card" onclick="gestorAbrirContaModal(' + c.id + ')">' +
             '<div class="gs-conta-nome">' + _esc(c.nome) + '</div>' +
-            '<div class="gs-conta-agencia">' + _esc(c.agencia) + '</div>' +
-            '<div class="gs-conta-saude ' + (c.saude || 'saudavel') + '">' +
-              (c.saude === 'alerta' ? '⚠ Alerta' : c.saude === 'otimizada' ? '⚡ Otimizada' : '● Saudável') +
+            '<div class="gs-conta-saude ' + saude + '">' +
+              (saude === 'alerta' ? '⚠ Alerta' : saude === 'otimizada' ? '⚡ Otimizada' : '● Saudável') +
             '</div>' +
             '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;" onclick="event.stopPropagation()">' +
               '<label style="font-size:9px;color:rgba(176,190,197,.4)">Gestor ativo</label>' +
               '<input type="checkbox" ' + (c.gestor_ativo ? 'checked' : '') + ' onchange="gestorToggleConta(' + c.id + ',this.checked)">' +
             '</div>' +
           '</div>';
-        }).join('');
+        }
+
+        var piloti = _contas.filter(function(c){ return c.agencia === 'piloti'; });
+        var dentto = _contas.filter(function(c){ return c.agencia === 'dentto'; });
+
+        el.innerHTML =
+          '<div class="gs-contas-col">' +
+            '<div class="gs-contas-col-header">Piloti <span class="gs-contas-col-count">(' + piloti.length + ')</span></div>' +
+            piloti.map(_cardHtml).join('') +
+          '</div>' +
+          '<div class="gs-contas-col">' +
+            '<div class="gs-contas-col-header">Dentto <span class="gs-contas-col-count">(' + dentto.length + ')</span></div>' +
+            dentto.map(_cardHtml).join('') +
+          '</div>';
       });
   }
 

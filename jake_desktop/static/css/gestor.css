@@ -238,13 +238,30 @@
 .gs-metrica-valor { font-size: 13px; color: rgba(176,190,197,.8); font-weight: 600; margin: 2px 0; }
 .gs-metrica-sub { font-size: 8px; color: rgba(176,190,197,.3); }
 
-/* Grid de contas */
+/* Grid de contas — duas colunas por agência */
 .gestor-contas-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
   padding: 4px;
+  align-items: start;
 }
+.gs-contas-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.gs-contas-col-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: rgba(176,190,197,.5);
+  text-transform: uppercase;
+  padding: 4px 2px 8px;
+  border-bottom: 1px solid rgba(176,190,197,.08);
+  margin-bottom: 4px;
+}
+.gs-contas-col-count { font-weight: 400; opacity: .6; }
 .gs-conta-card {
   background: rgba(176,190,197,.04);
   border-radius: 6px;
@@ -255,7 +272,6 @@
 }
 .gs-conta-card:hover { border-color: rgba(176,190,197,.15); }
 .gs-conta-nome { font-size: 11px; font-weight: 600; color: rgba(176,190,197,.85); }
-.gs-conta-agencia { font-size: 9px; color: rgba(176,190,197,.35); }
 .gs-conta-saude {
   display: inline-block; margin-top: 6px;
   font-size: 9px; padding: 1px 6px; border-radius: 10px;
