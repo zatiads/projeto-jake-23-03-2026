@@ -1074,10 +1074,96 @@ def processar_midia(sender_jid: str, msg_key: dict, message: dict, tipo_midia: s
 
 # ── Handler de mensagem ────────────────────────────────────────────────────────
 
+import re as _re_slash
+_APROVACAO_RE = _re_slash.compile(r'^(ok|cancela\s+\d+)$', _re_slash.IGNORECASE)
+
+
+def _processar_slash_cmd(sender_jid: str, texto: str) -> bool:
+    """
+    Processa slash-commands (/gestor, /saldo, etc.).
+    Retorna True se processou, False se não era slash-command.
+    """
+    from bot.whatsapp_handlers import (
+        cmd_saldo, cmd_historico, cmd_status_cliente, cmd_relatorio,
+        _verificar_varredura_pendente, enviar_resumo_gestor,
+    )
+    destino = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
+    texto_limpo = texto.strip()
+
+    if not texto_limpo.startswith("/"):
+        return False
+
+    partes = texto_limpo.split(None, 1)
+    cmd = partes[0].lower()
+    args = partes[1] if len(partes) > 1 else ""
+
+    if cmd == "/saldo":
+        cmd_saldo(destino)
+
+    elif cmd == "/historico":
+        cmd_historico(destino)
+
+    elif cmd == "/relatorio":
+        cmd_relatorio(destino)
+
+    elif cmd == "/status":
+        if args:
+            cmd_status_cliente(destino, args)
+        else:
+            send_text(destino, "Uso: /status [nome do cliente]")
+
+    elif cmd == "/gestor":
+        estado = _verificar_varredura_pendente()
+        if estado:
+            send_text(destino, f"Ha acoes pendentes de aprovacao (varredura #{estado['varredura_id']}). Responda 'ok' ou 'cancela N' primeiro.")
+        else:
+            send_text(destino, "Iniciando varredura manual...")
+            import threading
+            def _run():
+                try:
+                    from meta.gestor_agente import main
+                    main()
+                except Exception as e:
+                    logger.error(f"[/gestor] erro: {e}")
+                    send_text(destino, f"Erro na varredura: {e}")
+            threading.Thread(target=_run, daemon=True).start()
+
+    elif cmd == "/pausa":
+        if args:
+            _processar_gestor_cmd(sender_jid, f"pausa {args}")
+        else:
+            send_text(destino, "Uso: /pausa [nome do cliente]")
+
+    elif cmd == "/ativa":
+        if args:
+            _processar_gestor_cmd(sender_jid, f"ativa {args}")
+        else:
+            send_text(destino, "Uso: /ativa [nome do cliente]")
+
+    else:
+        send_text(destino, f"Comando '{cmd}' nao reconhecido. Disponiveis: /gestor /saldo /status /relatorio /pausa /ativa /historico")
+
+    return True
+
+
 def processar_mensagem(sender_jid: str, texto: str):
     """Processa mensagem do Bruno e envia resposta."""
     chat_id = jid_to_chat_id(sender_jid)
     historico = carregar_historico(chat_id)
+
+    # 1. Slash-commands (ANTES de qualquer outra verificação)
+    if _processar_slash_cmd(sender_jid, texto):
+        return
+
+    # 2. Aprovação do gestor (sem sessão ativa E padrão ok/cancela)
+    if _APROVACAO_RE.match(texto.strip()):
+        sessao_check = _get_sessao(sender_jid)
+        if not sessao_check:
+            from bot.whatsapp_handlers import _verificar_varredura_pendente, processar_aprovacao
+            if _verificar_varredura_pendente():
+                destino_ap = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
+                processar_aprovacao(texto.strip(), destino_ap)
+                return
 
     # Verificar sessão ativa (confirmação pendente)
     sessao = _get_sessao(sender_jid)
@@ -1271,6 +1357,35 @@ def _limpar_tmp_midia():
         logger.info(f"_limpar_tmp_midia: {removidos} arquivo(s) removido(s)")
 
 
+def _expirar_pendentes():
+    """Expira ações pendentes com mais de 4h sem aprovação."""
+    try:
+        import psycopg2, psycopg2.extras
+        conn = psycopg2.connect(os.environ["DATABASE_URL"],
+                                cursor_factory=psycopg2.extras.RealDictCursor)
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE gestor_acoes
+            SET status='expirado', expirado_em=NOW()
+            WHERE status='pendente'
+              AND executado_em < NOW() - INTERVAL '4 hours'
+        """)
+        n_acoes = cur.rowcount
+        cur.execute("""
+            UPDATE gestor_estado
+            SET status='expirado', resolvido_em=NOW()
+            WHERE status='aguardando'
+              AND criado_em < NOW() - INTERVAL '4 hours'
+        """)
+        n_estados = cur.rowcount
+        conn.commit()
+        conn.close()
+        if n_acoes or n_estados:
+            logger.info(f"_expirar_pendentes: {n_acoes} acoes e {n_estados} estados expirados")
+    except Exception as e:
+        logger.error(f"_expirar_pendentes error: {e}")
+
+
 def _configurar_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone=SP_TZ)
 
@@ -1282,11 +1397,11 @@ def _configurar_scheduler() -> BackgroundScheduler:
         replace_existing=True,
     )
 
-    # Resumo Gestor as 17h todos os dias
+    # Expirar pendentes a cada 30min
     scheduler.add_job(
-        _enviar_resumo_gestor,
-        CronTrigger(hour=17, minute=0, timezone=SP_TZ),
-        id="resumo_gestor",
+        _expirar_pendentes,
+        "interval", minutes=30,
+        id="expirar_pendentes",
         replace_existing=True,
     )
 
