@@ -3,11 +3,10 @@
   'use strict';
 
   // ── State ─────────────────────────────────────────────────────────────────
-  var _acoes     = [];
-  var _contas    = [];
-  var _filtro    = 'tudo';
-  var _acoesMap  = {};   // id → acao
-  var _eventoSel = null; // acao_id selecionado
+  var _contas       = [];
+  var _varreduras   = [];
+  var _varSel       = null;  // varredura_id selecionada
+  var _semanaOffset = 0;     // 0 = semana atual, -1 = anterior, etc.
 
   // ── Init ──────────────────────────────────────────────────────────────────
   window.gestorInit = function () {
@@ -41,18 +40,37 @@
       });
   }
 
+  // ── Navegação semana ──────────────────────────────────────────────────────
+  window.gestorSemanaAnterior = function () { _semanaOffset--; _carregarTimeline(); };
+  window.gestorSemanaProxima  = function () { if (_semanaOffset < 0) { _semanaOffset++; _carregarTimeline(); } };
+
+  function _semanaLabel() {
+    var hoje  = new Date();
+    var ini   = new Date(hoje); ini.setDate(hoje.getDate() - hoje.getDay() + 1 + _semanaOffset * 7);
+    var fim   = new Date(ini);  fim.setDate(ini.getDate() + 6);
+    var fmt   = function(d) { return d.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}); };
+    return fmt(ini) + ' — ' + fmt(fim);
+  }
+
+  function _semanaRange() {
+    var hoje = new Date();
+    var ini  = new Date(hoje); ini.setDate(hoje.getDate() - hoje.getDay() + 1 + _semanaOffset * 7); ini.setHours(0,0,0,0);
+    var fim  = new Date(ini);  fim.setDate(ini.getDate() + 6); fim.setHours(23,59,59,999);
+    return { ini: ini, fim: fim };
+  }
+
   // ── Timeline ──────────────────────────────────────────────────────────────
   function _carregarTimeline() {
-    var url = '/api/gestor/acoes?limit=200';
-    if (_filtro === 'piloti' || _filtro === 'dentto') url += '&agencia=' + _filtro;
-    if (_filtro === 'alertas') url += '&tipo=alerta_saldo';
+    // Atualiza label da semana
+    var navEl = document.getElementById('gs-semana-label');
+    if (navEl) navEl.textContent = _semanaLabel();
+    var btnProx = document.getElementById('gs-semana-prox');
+    if (btnProx) btnProx.disabled = _semanaOffset >= 0;
 
-    fetch(url)
+    fetch('/api/gestor/varreduras')
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        _acoes = data.acoes || [];
-        _acoesMap = {};
-        _acoes.forEach(function(a){ _acoesMap[a.id] = a; });
+        _varreduras = data.varreduras || [];
         _renderizarTimeline();
       });
   }
@@ -61,108 +79,142 @@
     var el = document.getElementById('gestor-timeline');
     if (!el) return;
 
-    // Agrupar por data
-    var grupos = {};
-    _acoes.forEach(function (a) {
-      var dt = new Date(a.executado_em);
-      var key = dt.toLocaleDateString('pt-BR');
-      if (!grupos[key]) grupos[key] = [];
-      grupos[key].push(a);
+    var range = _semanaRange();
+    var varsSemana = _varreduras.filter(function(v) {
+      var d = new Date(v.executado_em);
+      return d >= range.ini && d <= range.fim;
     });
 
-    var html = '';
-    Object.keys(grupos).forEach(function (data) {
-      html += '<div class="gs-data-header">' + data.toUpperCase() + '</div>';
-      grupos[data].forEach(function (a) {
-        html += _htmlEvento(a);
-      });
-    });
+    if (!varsSemana.length) {
+      el.innerHTML = '<div style="font-size:11px;color:rgba(176,190,197,.3);padding:20px 12px;text-align:center;">Nenhuma varredura nesta semana.</div>';
+      return;
+    }
 
-    el.innerHTML = html || '<div style="font-size:11px;color:rgba(176,190,197,.3);padding:12px;">Nenhuma ação registrada.</div>';
+    el.innerHTML = varsSemana.map(function(v) {
+      return _htmlVarreduraCard(v);
+    }).join('');
   }
 
-  function _htmlEvento(a) {
-    var cores = {
-      'pausar_ad': '#ff6464', 'pausar_conta': '#ff6464',
-      'escalar_orcamento': '#4caf50',
-      'alerta_saldo': '#ffb74d',
-    };
-    var tipos = {
-      'pausar_ad': 'PAUSA AD', 'pausar_conta': 'PAUSA CONTA',
-      'escalar_orcamento': 'ESCALA', 'alerta_saldo': 'ALERTA SALDO',
-    };
-    var cor   = cores[a.tipo]  || 'rgba(176,190,197,.5)';
-    var label = tipos[a.tipo]  || a.tipo.toUpperCase();
-    var hora  = new Date(a.executado_em).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
-    var sel   = (_eventoSel === a.id) ? ' selected' : '';
+  var _STATUS_ACAO = {
+    'sucesso':   { icon: '✅', cor: '#4caf50', label: 'Executado' },
+    'pendente':  { icon: '⏳', cor: '#ffb74d', label: 'Pendente' },
+    'cancelado': { icon: '❌', cor: '#ff6464', label: 'Cancelado' },
+    'expirado':  { icon: '💀', cor: 'rgba(176,190,197,.3)', label: 'Expirado' },
+    'erro':      { icon: '⚠️', cor: '#ff6464', label: 'Erro' },
+  };
 
-    return '<div class="gs-evento' + sel + '" onclick="gestorSelecionarEvento(' + a.id + ')">' +
+  var _TIPO_ICON = {
+    'pausar_ad': '⏸',
+    'reativar_ad': '▶',
+    'escalar_orcamento': '📈',
+    'reduzir_orcamento': '📉',
+    'pausar_conta': '🛑',
+    'duplicar_ad': '📋',
+  };
+
+  function _htmlVarreduraCard(v) {
+    var d    = new Date(v.executado_em);
+    var data = d.toLocaleDateString('pt-BR', {weekday:'short', day:'2-digit', month:'2-digit'}).toUpperCase();
+    var hora = d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    var sel  = (_varSel === v.id) ? ' style="border-color:rgba(100,181,246,.4);background:rgba(100,181,246,.04)"' : '';
+    var nAcoes = v.contas_acao || 0;
+    var badge  = nAcoes > 0
+      ? '<span style="background:rgba(255,183,77,.15);color:#ffb74d;font-size:9px;padding:2px 7px;border-radius:10px;font-weight:700">' + nAcoes + ' ação' + (nAcoes > 1 ? 'ões' : '') + '</span>'
+      : '<span style="font-size:9px;color:rgba(176,190,197,.3)">sem ações</span>';
+
+    return '<div class="gs-evento"' + sel + ' onclick="gestorSelecionarVarredura(' + v.id + ')" style="cursor:pointer;margin-bottom:6px">' +
       '<div class="gs-evento-header">' +
-        '<div class="gs-evento-dot" style="background:' + cor + '"></div>' +
-        '<div class="gs-evento-tipo" style="color:' + cor + '">' + label + '</div>' +
-        '<div class="gs-evento-hora">' + hora + '</div>' +
+        '<div style="font-size:10px;font-weight:700;color:rgba(176,190,197,.85);flex:1">' + data + ' · ' + hora + '</div>' +
+        badge +
       '</div>' +
-      '<div class="gs-evento-conta">' + _esc(a.cliente_nome) + '</div>' +
-      '<div class="gs-evento-resumo">' + _esc(a.entidade_nome || '') + '</div>' +
+      '<div style="font-size:10px;color:rgba(176,190,197,.45);margin-top:3px">' +
+        v.contas_total + ' contas analisadas' +
+      '</div>' +
     '</div>';
   }
 
-  window.gestorSelecionarEvento = function (acoId) {
-    _eventoSel = acoId;
+  window.gestorSelecionarVarredura = function (varId) {
+    _varSel = varId;
     _renderizarTimeline();
-    _renderizarDetalhe(_acoesMap[acoId]);
+
+    var el = document.getElementById('gestor-detalhe');
+    if (el) el.innerHTML = '<div style="font-size:11px;color:rgba(176,190,197,.3);padding:20px;text-align:center">Carregando...</div>';
+
+    fetch('/api/gestor/varreduras/' + varId + '/resumo')
+      .then(function(r) { return r.json(); })
+      .then(function(data) { _renderizarDetalheVarredura(data); });
   };
 
-  // ── Painel detalhe ────────────────────────────────────────────────────────
-  function _renderizarDetalhe(acao) {
+  // ── Painel detalhe (por varredura) ────────────────────────────────────────
+  function _renderizarDetalheVarredura(data) {
     var el = document.getElementById('gestor-detalhe');
-    if (!el || !acao) return;
+    if (!el) return;
 
-    var cores = {
-      'pausar_ad': '#ff6464', 'pausar_conta': '#ff6464',
-      'escalar_orcamento': '#4caf50', 'alerta_saldo': '#ffb74d',
-    };
-    var cor = cores[acao.tipo] || 'rgba(176,190,197,.5)';
-    var hora = new Date(acao.executado_em).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+    var v       = data.varredura || {};
+    var acoes   = data.acoes    || [];
+    var alertas = data.alertas  || [];
 
-    // Buscar todas as ações da mesma varredura e mesmo cliente
-    var acoesConta = _acoes.filter(function(a){
-      return a.varredura_id === acao.varredura_id && a.cliente_id === acao.cliente_id && a.tipo !== 'alerta_saldo';
-    });
+    var d    = new Date(v.executado_em);
+    var data_str = d.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long'});
+    var hora = d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
 
-    var linhasAcoes = acoesConta.map(function (a) {
-      var iconeClass = (a.tipo === 'escalar_orcamento') ? 'escalar' : 'pausar';
-      var icone = (a.tipo === 'escalar_orcamento') ? '↑' : '⏸';
-      var disabled = a.revertido ? ' disabled' : '';
-      var label = a.revertido ? 'Revertido' : 'Reverter';
-      return '<div class="gs-acao-row">' +
-        '<div class="gs-acao-icone ' + iconeClass + '">' + icone + '</div>' +
-        '<div style="flex:1">' +
-          '<div class="gs-acao-titulo">' + _esc(a.tipo.replace(/_/g,' ')) + ': ' + _esc(a.entidade_nome || '') + '</div>' +
-          '<div class="gs-acao-sub">' + _esc(a.motivo || '') + '</div>' +
-        '</div>' +
-        '<button class="gs-acao-rev"' + disabled + ' onclick="gestorReverterAcao(' + a.id + ')">' + label + '</button>' +
-      '</div>';
-    }).join('');
+    // Cabeçalho
+    var html = '<div class="gestor-detalhe-header" style="flex-direction:column;align-items:flex-start;gap:4px">' +
+      '<div style="font-size:13px;font-weight:700;color:rgba(176,190,197,.9);text-transform:capitalize">' + data_str + '</div>' +
+      '<div style="font-size:10px;color:rgba(176,190,197,.4)">' + hora + ' · ' + (v.contas_total || 0) + ' contas analisadas</div>' +
+      (acoes.length ? '<button class="anu-btn-secondary" style="font-size:10px;color:#ff6464;border-color:rgba(255,100,100,.3);margin-top:8px" onclick="gestorReverterEvento(' + v.id + ')">↩ Reverter tudo</button>' : '') +
+    '</div>';
 
-    var temAcoes = acoesConta.length > 0;
-
-    el.innerHTML =
-      '<div class="gestor-detalhe-header">' +
-        '<div>' +
-          '<div class="gs-detalhe-tipo" style="color:' + cor + '">' +
-            acao.tipo.replace(/_/g,' ').toUpperCase() + ' · ' + hora +
+    // Ações
+    if (acoes.length) {
+      html += '<div style="font-size:9px;color:rgba(176,190,197,.35);letter-spacing:.05em;margin:12px 0 6px">AÇÕES (' + acoes.length + ')</div>';
+      html += '<div class="gs-acoes-lista">';
+      acoes.forEach(function(a) {
+        var st     = _STATUS_ACAO[a.status] || { icon: '?', cor: 'rgba(176,190,197,.4)', label: a.status };
+        var icone  = _TIPO_ICON[a.tipo] || '●';
+        var rev    = a.revertido;
+        var podRev = a.status === 'sucesso' && !rev;
+        html += '<div class="gs-acao-row" style="align-items:flex-start">' +
+          '<div class="gs-acao-icone" style="color:' + st.cor + ';font-size:13px;min-width:22px;text-align:center">' + icone + '</div>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div class="gs-acao-titulo">' + _esc(a.tipo.replace(/_/g,' ').toUpperCase()) +
+              ' <span style="font-weight:400;color:rgba(176,190,197,.5)">— ' + _esc(a.cliente_nome) + '</span></div>' +
+            '<div class="gs-acao-sub">' + _esc(a.motivo || '') + '</div>' +
+            (a.entidade_nome ? '<div class="gs-acao-sub" style="color:rgba(176,190,197,.35)">' + _esc(a.entidade_nome) + '</div>' : '') +
+            (rev ? '<div style="font-size:9px;color:#ffb74d;margin-top:2px">↩ Revertido</div>' : '') +
           '</div>' +
-          '<div class="gs-detalhe-conta">' + _esc(acao.cliente_nome) + '</div>' +
-          '<div class="gs-detalhe-sub">' + _esc(acao.agencia) + ' · ' + _esc(acao.account_id) + '</div>' +
-        '</div>' +
-        (temAcoes ? '<button class="anu-btn-secondary" style="font-size:10px;color:#ff6464;border-color:rgba(255,100,100,.3)" onclick="gestorReverterEvento(' + acao.varredura_id + ')">↩ Reverter tudo</button>' : '') +
-      '</div>' +
-      '<div class="gs-analise-box">' +
-        '<div class="gs-analise-label">ANÁLISE DO AGENTE</div>' +
-        '<div class="gs-analise-texto">' + _esc(acao.motivo || 'Sem detalhes disponíveis.') + '</div>' +
-      '</div>' +
-      (temAcoes ? '<div style="font-size:9px;color:rgba(176,190,197,.4);margin-bottom:8px;">AÇÕES DESTA VARREDURA</div><div class="gs-acoes-lista">' + linhasAcoes + '</div>' : '');
+          '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">' +
+            '<span style="font-size:9px;color:' + st.cor + '">' + st.icon + ' ' + st.label + '</span>' +
+            (podRev ? '<button class="gs-acao-rev" onclick="gestorReverterAcao(' + a.id + ')">Reverter</button>' : '') +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    // Alertas
+    if (alertas.length) {
+      var _AL_EMOJI = { 'alerta_saldo_critico':'💰','alerta_zero_conv':'❌','alerta_freq_alta':'🔄','alerta_sem_veiculacao':'😴','alerta_learning_travado':'🔒','alerta_cpl_semanal':'📊' };
+      html += '<div style="font-size:9px;color:rgba(176,190,197,.35);letter-spacing:.05em;margin:14px 0 6px">ALERTAS (' + alertas.length + ')</div>';
+      html += '<div style="display:flex;flex-direction:column;gap:6px">';
+      alertas.forEach(function(al) {
+        var emoji = _AL_EMOJI[al.tipo] || '⚠️';
+        html += '<div style="display:flex;gap:8px;padding:8px;background:rgba(255,183,77,.04);border-radius:6px;border-left:2px solid rgba(255,183,77,.2)">' +
+          '<span style="font-size:12px">' + emoji + '</span>' +
+          '<div>' +
+            '<div style="font-size:10px;font-weight:600;color:rgba(176,190,197,.7)">' + _esc(al.cliente_nome) + '</div>' +
+            '<div style="font-size:10px;color:rgba(176,190,197,.45)">' + _esc(al.motivo) + '</div>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    if (!acoes.length && !alertas.length) {
+      html += '<div style="font-size:11px;color:rgba(176,190,197,.3);padding:20px;text-align:center">✅ Nenhuma ação ou alerta nesta varredura.</div>';
+    }
+
+    el.innerHTML = html;
   }
 
   // ── Rollback ──────────────────────────────────────────────────────────────

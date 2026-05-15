@@ -36,6 +36,14 @@ COMPONENTES = [
         "tags": ["jake", "bot", "telegram", "viagem"],
     },
     {
+        "arquivo": "Jake OS/Bots/jake-whatsapp.md",
+        "nome": "Jake WhatsApp",
+        "tipo": "bot",
+        "caminho": "/root/bot/jake_whatsapp.py + /root/bot/gestor_whatsapp.py",
+        "arquivos": ["/root/bot/jake_whatsapp.py", "/root/bot/gestor_whatsapp.py"],
+        "tags": ["jake", "bot", "whatsapp", "meta-ads", "anuncios"],
+    },
+    {
         "arquivo": "Jake OS/Bots/gerar-agente.md",
         "nome": "Gerador de Agentes",
         "tipo": "bot",

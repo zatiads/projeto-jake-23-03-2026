@@ -1065,12 +1065,10 @@
 
               <!-- Painel esquerdo: Timeline -->
               <div class="gestor-painel-left">
-                <div class="gestor-filtros">
-                  <span style="font-size:9px;color:rgba(176,190,197,.4)">FILTRAR:</span>
-                  <button class="gs-filtro active" onclick="gestorFiltrar('tudo')">Tudo</button>
-                  <button class="gs-filtro" onclick="gestorFiltrar('piloti')">Piloti</button>
-                  <button class="gs-filtro" onclick="gestorFiltrar('dentto')">Dentto</button>
-                  <button class="gs-filtro" onclick="gestorFiltrar('alertas')">Alertas</button>
+                <div class="gs-nav-semana">
+                  <button onclick="gestorSemanaAnterior()">&#8249;</button>
+                  <span id="gs-semana-label">—</span>
+                  <button id="gs-semana-prox" onclick="gestorSemanaProxima()">&#8250;</button>
                 </div>
                 <div id="gestor-timeline" class="gestor-timeline"></div>
               </div>

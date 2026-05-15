@@ -4222,6 +4222,62 @@ def gestor_varreduras():
         except Exception: pass
 
 
+@app.route("/api/gestor/varreduras/<int:varredura_id>/resumo")
+@login_required
+def gestor_varredura_resumo(varredura_id):
+    """Retorna resumo completo de uma varredura: cabeçalho + ações + alertas agrupados por conta."""
+    conn = None
+    try:
+        conn = _gestor_db(); cur = conn.cursor()
+
+        # Cabeçalho da varredura
+        cur.execute("""
+            SELECT id, executado_em, contas_total, contas_ok, contas_acao, contas_erro, duracao_seg, status
+            FROM gestor_varreduras WHERE id = %s
+        """, (varredura_id,))
+        var = dict(cur.fetchone() or {})
+        if not var:
+            return jsonify({"error": "Varredura não encontrada"}), 404
+        if var.get("executado_em"):
+            var["executado_em"] = var["executado_em"].isoformat()
+
+        # Ações (com número na varredura = aprovação pendente ou executada)
+        cur.execute("""
+            SELECT ga.id, ga.tipo, ga.entidade_nome, ga.motivo, ga.status,
+                   ga.numero_na_varredura, ga.valor_antes, ga.valor_depois,
+                   ga.aprovado_em, ga.cancelado_em, ga.expirado_em,
+                   ga.revertido, ga.revertido_em,
+                   acp.nome as cliente_nome, acp.agencia
+            FROM gestor_acoes ga
+            JOIN ad_client_profiles acp ON acp.id = ga.cliente_id
+            WHERE ga.varredura_id = %s AND ga.numero_na_varredura IS NOT NULL
+            ORDER BY ga.numero_na_varredura
+        """, (varredura_id,))
+        acoes = []
+        for r in cur.fetchall():
+            row = dict(r)
+            for k in ("aprovado_em", "cancelado_em", "expirado_em", "revertido_em"):
+                if row.get(k): row[k] = row[k].isoformat()
+            acoes.append(row)
+
+        # Alertas (sem número — apenas informativos)
+        cur.execute("""
+            SELECT ga.tipo, ga.entidade_nome, ga.motivo, acp.nome as cliente_nome, acp.agencia
+            FROM gestor_acoes ga
+            JOIN ad_client_profiles acp ON acp.id = ga.cliente_id
+            WHERE ga.varredura_id = %s AND ga.numero_na_varredura IS NULL AND ga.tipo LIKE 'alerta%%'
+            ORDER BY acp.agencia, acp.nome
+        """, (varredura_id,))
+        alertas = [dict(r) for r in cur.fetchall()]
+
+        return jsonify({"varredura": var, "acoes": acoes, "alertas": alertas})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+
 @app.route("/api/gestor/acoes")
 @login_required
 def gestor_acoes():

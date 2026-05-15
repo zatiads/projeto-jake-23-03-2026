@@ -87,28 +87,45 @@
   padding: 16px;
 }
 
-/* Filtros */
-.gestor-filtros {
+/* Navegação semana */
+.gs-nav-semana {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 8px;
   padding: 8px 12px;
   border-bottom: 1px solid rgba(176,190,197,.06);
   flex-shrink: 0;
 }
-
-.gs-filtro {
+.gs-nav-semana button {
   background: none;
-  border: none;
-  color: rgba(176,190,197,.35);
-  font-size: 9px;
-  padding: 2px 8px;
-  border-radius: 20px;
+  border: 1px solid rgba(176,190,197,.15);
+  color: rgba(176,190,197,.6);
+  font-size: 16px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color .15s, border-color .15s;
 }
-.gs-filtro.active {
-  background: rgba(0,180,216,.15);
+.gs-nav-semana button:hover:not(:disabled) {
   color: #00b4d8;
+  border-color: #00b4d8;
+}
+.gs-nav-semana button:disabled {
+  opacity: .25;
+  cursor: default;
+}
+.gs-nav-semana span {
+  font-size: 11px;
+  color: rgba(176,190,197,.7);
+  font-weight: 500;
+  letter-spacing: .03em;
+  text-align: center;
+  flex: 1;
 }
 
 /* Timeline */
