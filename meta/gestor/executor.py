@@ -66,12 +66,14 @@ def executar(
 
             # Registrar alertas (sem ação no Meta)
             for alerta in decisao.get("alertas", []):
+                _prefixos = ("FREQ_ALTA", "ZERO_CONV", "LEARNING_TRAVADO", "SALDO_CRITICO", "SEM_VEICULACAO", "CPL_SEMANAL")
+                tipo_alerta = next((f"alerta_{p.lower()}" for p in _prefixos if alerta.startswith(p)), "alerta_saldo")
                 cur.execute("""
                     INSERT INTO gestor_acoes
                         (varredura_id, cliente_id, account_id, tipo, entidade_id,
                          entidade_nome, motivo, status)
-                    VALUES (%s,%s,%s,'alerta_saldo',%s,%s,%s,'sucesso')
-                """, (varredura_id, cid, account_id, account_id, decisao["conta"], alerta))
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,'sucesso')
+                """, (varredura_id, cid, account_id, tipo_alerta, account_id, decisao["conta"], alerta))
                 contadores["alertas"] += 1
 
             # Executar ações
@@ -170,12 +172,14 @@ def salvar_pendentes(
 
             # Alertas — sem numero_na_varredura, status sucesso (informativo)
             for alerta in decisao.get("alertas", []):
+                _prefixos = ("FREQ_ALTA", "ZERO_CONV", "LEARNING_TRAVADO", "SALDO_CRITICO", "SEM_VEICULACAO", "CPL_SEMANAL")
+                tipo_alerta = next((f"alerta_{p.lower()}" for p in _prefixos if alerta.startswith(p)), "alerta_saldo")
                 cur.execute("""
                     INSERT INTO gestor_acoes
                         (varredura_id, cliente_id, account_id, tipo, entidade_id,
                          entidade_nome, motivo, status)
-                    VALUES (%s,%s,%s,'alerta_saldo',%s,%s,%s,'sucesso')
-                """, (varredura_id, cid, account_id, account_id, decisao["conta"], alerta))
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,'sucesso')
+                """, (varredura_id, cid, account_id, tipo_alerta, account_id, decisao["conta"], alerta))
 
             # Ações — com numero_na_varredura, status=pendente
             for acao in decisao.get("acoes", []):

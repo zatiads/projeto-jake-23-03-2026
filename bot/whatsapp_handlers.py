@@ -385,8 +385,8 @@ def enviar_resumo_gestor(varredura_id: int):
         try:
             cur = conn.cursor()
             cur2 = conn.cursor()
-            cur2.execute("SELECT COUNT(*) FROM ad_client_profiles WHERE gestor_ativo=TRUE")
-            total_contas = cur2.fetchone()[0]
+            cur2.execute("SELECT COUNT(*) AS total FROM ad_client_profiles WHERE gestor_ativo=TRUE")
+            total_contas = cur2.fetchone()["total"]
 
             cur.execute("""
                 SELECT ga.numero_na_varredura, ga.tipo, ga.entidade_nome,
