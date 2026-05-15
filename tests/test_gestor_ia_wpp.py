@@ -166,3 +166,94 @@ def test_duplicar_ad_cria_adset_e_anuncio():
     assert novo_id == "ad_novo_111"
     mock_cs.assert_called_once()
     mock_ca.assert_called_once()
+
+
+# ─── formatar_resumo_gestor ───────────────────────────────────────────────────
+
+def test_formatar_resumo_gestor_com_acoes_e_alertas():
+    """formatar_resumo_gestor() deve formatar ações numeradas + alertas separados."""
+    from bot.whatsapp_handlers import formatar_resumo_gestor
+
+    acoes = [
+        {"numero_na_varredura": 1, "tipo": "pausar_ad", "entidade_nome": "Criativo X",
+         "cliente_nome": "Vielife", "motivo": "CPL R$87 (media R$52)"},
+        {"numero_na_varredura": 2, "tipo": "escalar_orcamento", "entidade_nome": "Adset Y",
+         "cliente_nome": "Castaldi", "motivo": "CPL R$18 otimo"},
+    ]
+    alertas = [
+        {"tipo": "alerta_saldo", "entidade_nome": "ODC",
+         "cliente_nome": "ODC Massaranduba", "motivo": "freq 2.7"},
+    ]
+
+    msg = formatar_resumo_gestor(acoes, alertas, total_contas=23, varredura_id=42)
+
+    assert msg is not None
+    assert "23 contas" in msg
+    assert "1." in msg
+    assert "PAUSAR AD" in msg.upper()
+    assert "2." in msg
+    assert "Alertas" in msg
+    assert "freq 2.7" in msg
+    assert "ok" in msg.lower()
+    assert "cancela" in msg.lower()
+    assert "4h" in msg
+
+
+def test_formatar_resumo_gestor_silencio_sem_acoes_alertas():
+    """Se não há ações nem alertas, retorna None."""
+    from bot.whatsapp_handlers import formatar_resumo_gestor
+    assert formatar_resumo_gestor([], [], total_contas=23, varredura_id=1) is None
+
+
+def test_formatar_resumo_gestor_so_alertas_sem_bloco_aprovacao():
+    """Só alertas: mensagem não pede ok/cancela."""
+    from bot.whatsapp_handlers import formatar_resumo_gestor
+
+    alertas = [{"tipo": "alerta_frequencia", "entidade_nome": "X",
+                "cliente_nome": "Vielife", "motivo": "freq 2.7"}]
+    msg = formatar_resumo_gestor([], alertas, total_contas=23, varredura_id=1)
+
+    assert msg is not None
+    assert "freq 2.7" in msg
+    assert "cancela" not in msg.lower()
+
+
+# ─── processar_aprovacao ──────────────────────────────────────────────────────
+
+def test_processar_aprovacao_ok_executa_tudo():
+    """'ok' deve chamar executar_aprovadas com canceladas=[]."""
+    from bot.whatsapp_handlers import processar_aprovacao
+
+    with patch("bot.whatsapp_handlers._verificar_varredura_pendente",
+               return_value={"varredura_id": 42, "id": 1}):
+        with patch("bot.whatsapp_handlers.executar_aprovadas",
+                   return_value={"ok": 2, "erro": 0, "canceladas": 0}) as mock_exec:
+            with patch("bot.whatsapp_handlers.send_text"):
+                with patch("bot.whatsapp_handlers._marcar_estado_resolvido"):
+                    processar_aprovacao("ok", "5535988550954")
+
+    mock_exec.assert_called_once_with(varredura_id=42, canceladas=[])
+
+
+def test_processar_aprovacao_cancela_n():
+    """'cancela 2' deve chamar executar_aprovadas com canceladas=[2]."""
+    from bot.whatsapp_handlers import processar_aprovacao
+
+    with patch("bot.whatsapp_handlers._verificar_varredura_pendente",
+               return_value={"varredura_id": 42, "id": 1}):
+        with patch("bot.whatsapp_handlers._db") as mock_db:
+            mock_conn = MagicMock()
+            mock_cur = MagicMock()
+            mock_conn.cursor.return_value = mock_cur
+            mock_cur.fetchone.side_effect = [
+                (1,),   # existe=True
+                (3,),   # total=3
+            ]
+            mock_db.return_value = mock_conn
+            with patch("bot.whatsapp_handlers.executar_aprovadas",
+                       return_value={"ok": 2, "erro": 0, "canceladas": 1}) as mock_exec:
+                with patch("bot.whatsapp_handlers.send_text"):
+                    with patch("bot.whatsapp_handlers._marcar_estado_resolvido"):
+                        processar_aprovacao("cancela 2", "5535988550954")
+
+    mock_exec.assert_called_once_with(varredura_id=42, canceladas=[2])
