@@ -747,8 +747,9 @@ ads_em_learning = [r for r in rows if r.get("effective_status") == "LEARNING"]
 
 # CPL semana anterior (do banco)
 cpl_semana_anterior = _buscar_cpl_semana_anterior(conta["id"], objetivo)
-# Nota: _buscar_cpl_semana_anterior abre sua própria conexão porque db_conn é fechado
-# logo após buscar a lista de contas (bloco finally do início de coletar())
+# Nota: _buscar_cpl_semana_anterior abre sua própria conexão internamente.
+# Isso é necessário porque em coletar(), o db_conn é fechado no bloco finally
+# logo após buscar a lista de contas — antes do loop de coleta iniciar.
 
 metricas["gasto_ontem"] = gasto_ontem
 metricas["dias_sem_conversao"] = dias_sem_conversao
@@ -1489,14 +1490,14 @@ def main():
             db_conn.close()
 ```
 
-- [ ] **Step 3: Verificar sintaxe**
+- [ ] **Step 4: Verificar sintaxe**
 
 ```bash
 cd /root && /root/venv/bin/python3 -c "import meta.gestor_agente; print('OK')"
 ```
 Esperado: `OK`
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add meta/gestor_agente.py
