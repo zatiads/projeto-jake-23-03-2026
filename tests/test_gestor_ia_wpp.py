@@ -127,3 +127,42 @@ def test_reverter_rejeita_status_pendente():
     with patch("meta.gestor.executor._get_db", return_value=mock_conn):
         with pytest.raises(Exception, match="não foi executada"):
             reverter(5, db_conn=mock_conn)
+
+
+# ─── duplicar_ad ──────────────────────────────────────────────────────────────
+
+def test_duplicar_ad_cria_adset_e_anuncio():
+    """duplicar_ad() deve criar novo adset e novo ad baseado no original."""
+    from meta.meta_api import duplicar_ad
+    from unittest.mock import patch
+
+    ad_original = {
+        "id": "ad_111",
+        "name": "Criativo X",
+        "adset_id": "adset_999",
+        "creative": {"id": "creative_55"},
+        "status": "ACTIVE",
+    }
+    adset_original = {
+        "id": "adset_999",
+        "name": "Conjunto Original",
+        "campaign_id": "camp_1",
+        "daily_budget": "3000",
+        "targeting": {"age_min": 18},
+        "optimization_goal": "LEAD_GENERATION",
+        "billing_event": "IMPRESSIONS",
+    }
+
+    with patch("meta.meta_api.get_ad", return_value=ad_original):
+        with patch("meta.meta_api.get_adset", return_value=adset_original):
+            with patch("meta.meta_api.criar_conjunto", return_value="adset_novo_999") as mock_cs:
+                with patch("meta.meta_api.criar_anuncio", return_value="ad_novo_111") as mock_ca:
+                    # Mock da chamada requests para buscar page_id do creative
+                    mock_resp = MagicMock()
+                    mock_resp.json.return_value = {"object_story_spec": {"page_id": "pg_1"}}
+                    with patch("meta.meta_api.requests.get", return_value=mock_resp):
+                        novo_id = duplicar_ad("tok", "act_123", "ad_111")
+
+    assert novo_id == "ad_novo_111"
+    mock_cs.assert_called_once()
+    mock_ca.assert_called_once()

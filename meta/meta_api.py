@@ -622,3 +622,66 @@ def atualizar_orcamento_conjunto(token: str, adset_id: str, daily_budget_cents: 
     data = _safe_json(resp)
     if "error" in data:
         raise Exception(data["error"].get("message", f"Erro ao atualizar orçamento do adset {adset_id}"))
+
+
+def duplicar_ad(token: str, account_id: str, ad_id: str) -> str:
+    """
+    Duplica um ad existente: cria novo adset baseado no original e novo ad nele.
+    Retorna o ID do novo ad criado.
+    O ad duplicado começa PAUSED — aprovação necessária para ativar.
+    """
+    # 1. Buscar dados do ad e do adset originais
+    ad = get_ad(token, ad_id)
+    adset_id = ad.get("adset_id") or (ad.get("adset") or {}).get("id")
+    if not adset_id:
+        raise ValueError(f"Ad {ad_id} nao tem adset_id")
+
+    adset = get_adset(token, adset_id)
+    creative_id = (ad.get("creative") or {}).get("id")
+    if not creative_id:
+        raise ValueError(f"Ad {ad_id} nao tem creative_id")
+
+    # 2. Criar novo adset (cópia do original com prefixo "COPY_")
+    novo_nome_adset = f"COPY_{adset.get('name', adset_id)}"
+    novo_adset_id = criar_conjunto(
+        token=token,
+        account_id=account_id,
+        campaign_id=adset["campaign_id"],
+        nome=novo_nome_adset,
+        orcamento_diario_cents=int(adset.get("daily_budget") or 0),
+        publico_id=None,
+        targeting=adset.get("targeting"),
+        optimization_goal=adset.get("optimization_goal", "LEAD_GENERATION"),
+        billing_event=adset.get("billing_event", "IMPRESSIONS"),
+        status="PAUSED",
+    )
+
+    # 3. Buscar page_id do creative original
+    page_id = None
+    try:
+        resp = requests.get(
+            f"{GRAPH_URL}/{creative_id}",
+            params={"fields": "object_story_spec", "access_token": token},
+            timeout=15,
+        )
+        spec = resp.json().get("object_story_spec", {})
+        page_id = spec.get("page_id") or next(
+            (v.get("page_id") for v in spec.values() if isinstance(v, dict) and v.get("page_id")),
+            None,
+        )
+    except Exception:
+        pass
+
+    # 4. Criar novo ad no novo adset usando o mesmo creative
+    novo_nome_ad = f"COPY_{ad.get('name', ad_id)}"
+    novo_ad_id = criar_anuncio(
+        token=token,
+        account_id=account_id,
+        adset_id=novo_adset_id,
+        page_id=page_id or "",
+        nome=novo_nome_ad,
+        creative_id=creative_id,
+        status="PAUSED",
+    )
+
+    return novo_ad_id
