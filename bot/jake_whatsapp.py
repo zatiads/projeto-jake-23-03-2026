@@ -278,6 +278,10 @@ _TTL_SESSAO = 600  # 10 minutos
 _sessoes_lock = __import__("threading").Lock()
 _SESSOES_FILE = "/tmp/jake_wa_sessoes.json"
 
+# Contexto recente após upload — persiste 30min para "ativa ela" funcionar sem reperguntar cliente
+_ultimo_contexto: dict = {}  # jid -> {clientes, campanha_id, campanha_nome, ts}
+_TTL_CONTEXTO = 1800
+
 
 def _salvar_sessoes():
     """Persiste sessões em disco para sobreviver a restarts."""
@@ -607,13 +611,22 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
     elif intencao in ("pausar_campanha", "ativar_campanha"):
         from bot.gestor_whatsapp import get_gestor
         acao = "pausar" if intencao == "pausar_campanha" else "ativar"
+        campanha_id_ctx = cmd.get("_campanha_id_ctx", "")
+        campanha_nome_ctx = cmd.get("_campanha_nome_ctx", "")
         try:
             gestor = get_gestor()
             todas_campanhas = []
             for c in clientes:
                 camps = gestor.listar_campanhas(c["account_id"], c["token_key"])
-                status_filtro = "ACTIVE" if acao == "pausar" else "PAUSED"
-                camps_filtradas = [cp for cp in camps if cp.get("status") == status_filtro or cp.get("effective_status") == status_filtro]
+                # Se temos campanha_id do contexto, filtra só essa — não lista todas
+                if campanha_id_ctx:
+                    camps_filtradas = [cp for cp in camps if cp["id"] == campanha_id_ctx]
+                    # Se não achou por ID (ex: status mudou), tenta pelo nome
+                    if not camps_filtradas and campanha_nome_ctx:
+                        camps_filtradas = [cp for cp in camps if cp.get("name", "") == campanha_nome_ctx]
+                else:
+                    status_filtro = "ACTIVE" if acao == "pausar" else "PAUSED"
+                    camps_filtradas = [cp for cp in camps if cp.get("status") == status_filtro or cp.get("effective_status") == status_filtro]
                 for cp in camps_filtradas:
                     cp["_cliente"] = c
                 todas_campanhas.extend(camps_filtradas)
@@ -658,10 +671,18 @@ def _processar_gestor_cmd(sender_jid: str, texto: str):
 
     nomes = cmd.get("clientes") or []
     if not nomes:
-        # Intenção identificada mas sem clientes — pergunta
-        _set_sessao(sender_jid, "aguardando_cliente", {"cmd": cmd})
-        send_text(destino, "Pra qual cliente? Me passa o nome.")
-        return
+        # Para ativar/pausar: tenta usar contexto recente do último upload
+        if intencao in ("pausar_campanha", "ativar_campanha"):
+            ctx = _ultimo_contexto.get(sender_jid)
+            if ctx and _time.time() - ctx["ts"] < _TTL_CONTEXTO:
+                cmd["_campanha_id_ctx"] = ctx["campanha_id"]
+                cmd["_campanha_nome_ctx"] = ctx["campanha_nome"]
+                nomes = [c["nome"] for c in ctx["clientes"]]
+        if not nomes:
+            # Intenção identificada mas sem clientes — pergunta
+            _set_sessao(sender_jid, "aguardando_cliente", {"cmd": cmd})
+            send_text(destino, "Pra qual cliente? Me passa o nome.")
+            return
 
     resolucao = resolver_clientes(nomes)
 
@@ -934,6 +955,15 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
                 eventos = gestor.consumir_stream(mc_token)
                 resultado = _formatar_resultado_stream(eventos, len(payload["clientes"]))
                 send_text(destino, resultado)
+                # Salva contexto recente para "ativa ela" funcionar sem reperguntar cliente
+                ok_eventos = [e for e in eventos if e.get("tipo") == "concluido" or e.get("status") == "ok"]
+                if ok_eventos:
+                    _ultimo_contexto[sender_jid] = {
+                        "clientes": payload["clientes"],
+                        "campanha_id": ok_eventos[0].get("campanha_id", ""),
+                        "campanha_nome": payload.get("campanha_nome", ""),
+                        "ts": _time.time(),
+                    }
             except Exception as e:
                 send_text(destino, f"Erro ao subir anúncios: {e}")
             finally:
