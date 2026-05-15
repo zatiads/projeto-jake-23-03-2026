@@ -47,7 +47,7 @@ def _buscar_insights_ads(token: str, account_id: str, days: int = 30) -> list:
     params = {
         "access_token": token,
         "level": "ad",
-        "fields": "ad_id,ad_name,spend,impressions,clicks,actions,frequency,cpm,ctr",
+        "fields": "ad_id,ad_name,spend,impressions,clicks,actions,frequency,cpm,ctr,effective_status",
         "time_range": json.dumps({"since": str(inicio), "until": str(hoje)}),
         "limit": 200,
     }
@@ -57,6 +57,58 @@ def _buscar_insights_ads(token: str, account_id: str, days: int = 30) -> list:
         return resp.json().get("data", [])
     except Exception:
         return []
+
+
+def _buscar_insights_diarios(token: str, account_id: str, days: int = 7) -> list:
+    """
+    Busca gasto diário da conta nos últimos N dias (level=account).
+    Retorna lista de {"date_start": "YYYY-MM-DD", "spend": float, "actions": list}.
+    """
+    hoje = date.today()
+    inicio = hoje - timedelta(days=days)
+    url = f"{GRAPH_URL}/{account_id}/insights"
+    params = {
+        "access_token": token,
+        "level": "account",
+        "fields": "spend,date_start,actions",
+        "time_range": json.dumps({"since": str(inicio), "until": str(hoje)}),
+        "time_increment": 1,
+        "limit": 10,
+    }
+    try:
+        resp = requests.get(url, params=params, timeout=30)
+        resp.raise_for_status()
+        return resp.json().get("data", [])
+    except Exception:
+        return []
+
+
+def _buscar_cpl_semana_anterior(cliente_id: int, objetivo: str) -> float | None:
+    """
+    Lê do banco o CPL médio da semana anterior.
+    Abre sua própria conexão (o db_conn de coletar() é fechado antes do loop).
+    Retorna None por ora (será expandido quando gestor gravar CPL por conta).
+    """
+    try:
+        conn = _get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT gv.resumo_json
+                FROM gestor_varreduras gv
+                WHERE gv.executado_em < NOW() - INTERVAL '6 days'
+                  AND gv.status = 'sucesso'
+                ORDER BY gv.executado_em DESC
+                LIMIT 1
+            """)
+            row = cur.fetchone()
+            if not row or not row["resumo_json"]:
+                return None
+            return None  # expandir futuramente quando gestor gravar CPL por conta
+        finally:
+            conn.close()
+    except Exception:
+        return None
 
 
 def _buscar_saldo(token: str, account_id: str) -> dict:
@@ -166,6 +218,33 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
         rows     = _buscar_insights_ads(token, conta["account_id"])
         saldo    = _buscar_saldo(token, conta["account_id"])
         metricas = _agregar_conta(rows, objetivo)
+
+        # Dados diários para alertas
+        dados_diarios = _buscar_insights_diarios(token, conta["account_id"], days=7)
+        gasto_ontem = 0.0
+        dias_sem_conversao = 0
+        if dados_diarios:
+            ultimo_dia = dados_diarios[-1]
+            gasto_ontem = float(ultimo_dia.get("spend") or 0)
+            # Contar dias consecutivos com gasto mas sem conversão
+            for dia in reversed(dados_diarios):
+                spend_dia = float(dia.get("spend") or 0)
+                conv_dia = _extrair_conversoes(dia.get("actions") or [], objetivo)
+                if spend_dia > 0 and conv_dia == 0:
+                    dias_sem_conversao += 1
+                elif spend_dia > 0:
+                    break
+
+        # Ads em aprendizado (effective_status = LEARNING)
+        ads_em_learning = sum(1 for r in rows if r.get("effective_status") == "LEARNING")
+
+        # CPL semana anterior (do banco)
+        cpl_semana_anterior = _buscar_cpl_semana_anterior(conta["id"], objetivo)
+
+        metricas["gasto_ontem"] = gasto_ontem
+        metricas["dias_sem_conversao"] = dias_sem_conversao
+        metricas["ads_em_learning"] = ads_em_learning
+        metricas["cpl_semana_anterior"] = cpl_semana_anterior
 
         perfis.append({
             "cliente_id":    conta["id"],
