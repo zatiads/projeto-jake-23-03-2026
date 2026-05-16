@@ -1164,6 +1164,122 @@ import re as _re_slash
 _APROVACAO_RE = _re_slash.compile(r'^(ok|cancela\s+\d+)$', _re_slash.IGNORECASE)
 
 
+def _rotina_segunda():
+    """
+    Rotina automática toda segunda às 7h30.
+    Envia: resumo Meta da semana anterior + notícias de IA + situação financeira.
+    """
+    if not AUTHORIZED_NUMBER:
+        return
+
+    import urllib.request
+    import xml.etree.ElementTree as ET
+
+    destino = AUTHORIZED_NUMBER
+
+    # 1. Performance Meta da semana anterior
+    try:
+        import psycopg2, psycopg2.extras
+        conn = psycopg2.connect(os.environ["DATABASE_URL"],
+                                cursor_factory=psycopg2.extras.RealDictCursor)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT acp.nome, ga.tipo, COUNT(*) as n
+            FROM gestor_acoes ga
+            JOIN ad_client_profiles acp ON acp.id = ga.cliente_id
+            WHERE ga.executado_em >= NOW() - INTERVAL '7 days'
+              AND ga.status = 'sucesso'
+              AND ga.tipo NOT LIKE 'alerta%%'
+            GROUP BY acp.nome, ga.tipo
+            ORDER BY acp.nome
+        """)
+        acoes_semana = cur.fetchall()
+
+        cur.execute("""
+            SELECT contas_total, contas_ok, contas_acao, contas_erro
+            FROM gestor_varreduras
+            WHERE executado_em >= NOW() - INTERVAL '7 days'
+              AND status = 'sucesso'
+            ORDER BY executado_em DESC LIMIT 1
+        """)
+        ultima_varredura = cur.fetchone()
+        conn.close()
+    except Exception as e:
+        logger.error(f"_rotina_segunda: erro ao buscar Meta: {e}")
+        acoes_semana = []
+        ultima_varredura = None
+
+    linhas_meta = ["*Resumo Meta — semana anterior:*"]
+    if ultima_varredura:
+        linhas_meta.append(
+            f"{ultima_varredura['contas_ok']}/{ultima_varredura['contas_total']} contas OK | "
+            f"{ultima_varredura['contas_acao']} acoes tomadas"
+        )
+    if acoes_semana:
+        por_cliente: dict = {}
+        for a in acoes_semana:
+            por_cliente.setdefault(a["nome"], []).append(f"{a['tipo']}({a['n']})")
+        for nome, tipos in list(por_cliente.items())[:5]:
+            linhas_meta.append(f"  • {nome}: {', '.join(tipos)}")
+    else:
+        linhas_meta.append("Nenhuma acao executada na semana.")
+
+    # 2. Notícias de IA (RSS)
+    noticias = []
+    feeds = [
+        "https://techcrunch.com/tag/artificial-intelligence/feed/",
+        "https://www.artificialintelligence-news.com/feed/",
+    ]
+    for feed_url in feeds:
+        try:
+            req = urllib.request.Request(feed_url, headers={"User-Agent": "Jake-IA/1.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                xml_data = resp.read()
+            root = ET.fromstring(xml_data)
+            for item in root.findall(".//item")[:3]:
+                titulo = item.findtext("title", "").strip()
+                if titulo:
+                    noticias.append(titulo)
+        except Exception:
+            pass
+        if len(noticias) >= 5:
+            break
+
+    if noticias:
+        prompt_noticias = (
+            "Você é Jake, assistente de tráfego pago do Bruno.\n"
+            "Filtre e resuma em 3-4 frases curtas (português) as notícias de IA abaixo "
+            "focando no que é relevante para um gestor de tráfego Meta Ads:\n\n"
+            + "\n".join(f"- {n}" for n in noticias)
+        )
+        try:
+            resumo_ia = chamar_claude(prompt_noticias, "Resumo para gestor de tráfego:")
+        except Exception:
+            resumo_ia = "\n".join(f"• {n}" for n in noticias[:3])
+    else:
+        resumo_ia = "Nao consegui buscar noticias desta semana."
+
+    # 3. Financeiro
+    try:
+        from bot.whatsapp_handlers import resumo_financeiro_wa
+        fin_linha = resumo_financeiro_wa()
+    except Exception as e:
+        fin_linha = f"(erro ao carregar financeiro: {e})"
+
+    # Montar mensagem final
+    from datetime import date as _date
+    hoje = _date.today().strftime("%d/%m")
+    msg = (
+        f"Bom dia, Patrao! Segunda-feira {hoje} — aqui esta o seu briefing:\n\n"
+        + "\n".join(linhas_meta)
+        + f"\n\n*IA & Trafego — novidades:*\n{resumo_ia}"
+        + f"\n\n{fin_linha}"
+        + "\n\nBoa semana!"
+    )
+    send_text(destino, msg)
+    logger.info("_rotina_segunda: briefing enviado")
+
+
 def _processar_slash_cmd(sender_jid: str, texto: str) -> bool:
     """
     Processa slash-commands (/gestor, /saldo, etc.).
@@ -1171,6 +1287,7 @@ def _processar_slash_cmd(sender_jid: str, texto: str) -> bool:
     """
     from bot.whatsapp_handlers import (
         cmd_saldo, cmd_historico, cmd_status_cliente, cmd_relatorio,
+        cmd_lancamento, cmd_financeiro,
         _verificar_varredura_pendente, enviar_resumo_gestor,
     )
     destino = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
@@ -1214,6 +1331,15 @@ def _processar_slash_cmd(sender_jid: str, texto: str) -> bool:
                     send_text(destino, f"Erro na varredura: {e}")
             threading.Thread(target=_run, daemon=True).start()
 
+    elif cmd == "/lancamento":
+        if args:
+            cmd_lancamento(destino, args)
+        else:
+            send_text(destino, "Uso: /lancamento +150 Piloti  ou  /lancamento -200 mercado")
+
+    elif cmd in ("/fin", "/financeiro"):
+        cmd_financeiro(destino)
+
     elif cmd == "/pausa":
         if args:
             _processar_gestor_cmd(sender_jid, f"pausa {args}")
@@ -1227,7 +1353,7 @@ def _processar_slash_cmd(sender_jid: str, texto: str) -> bool:
             send_text(destino, "Uso: /ativa [nome do cliente]")
 
     else:
-        send_text(destino, f"Comando '{cmd}' nao reconhecido. Disponiveis: /gestor /saldo /status /relatorio /pausa /ativa /historico")
+        send_text(destino, f"Comando '{cmd}' nao reconhecido. Disponiveis: /gestor /saldo /fin /lancamento /status /relatorio /pausa /ativa /historico")
 
     return True
 
@@ -1495,6 +1621,33 @@ def _configurar_scheduler() -> BackgroundScheduler:
         id="expirar_pendentes",
         replace_existing=True,
     )
+
+    # Rotina de segunda-feira: briefing semanal às 7h30
+    scheduler.add_job(
+        _rotina_segunda,
+        CronTrigger(day_of_week="mon", hour=7, minute=30, timezone=SP_TZ),
+        id="rotina_segunda",
+        replace_existing=True,
+    )
+    logger.info("Agendado: briefing de segunda as 07:30")
+
+    # Auto-importar recorrentes no dia 1 de cada mês às 6h
+    def _auto_import_recorrentes():
+        try:
+            from core.sync_financeiro import auto_importar_recorrentes
+            n = auto_importar_recorrentes()
+            if n:
+                logger.info(f"auto_import_recorrentes: {n} transacoes importadas")
+        except Exception as e:
+            logger.error(f"auto_import_recorrentes error: {e}")
+
+    scheduler.add_job(
+        _auto_import_recorrentes,
+        CronTrigger(day=1, hour=6, minute=0, timezone=SP_TZ),
+        id="auto_import_recorrentes",
+        replace_existing=True,
+    )
+    logger.info("Agendado: auto-import financeiro no dia 1 de cada mes")
 
     # Mensagens agendadas para grupos
     grupos = get_grupos()

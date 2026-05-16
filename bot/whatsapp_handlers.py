@@ -221,18 +221,18 @@ def financeiro_context() -> str:
     if not rows:
         return f"(nenhuma transação registrada em {hoje.strftime('%B/%Y')})"
 
-    receitas = sum(r["valor"] for r in rows if r["tipo"] == "receita")
-    despesas = sum(r["valor"] for r in rows if r["tipo"] == "despesa")
+    receitas = sum(float(r["valor"]) for r in rows if r["tipo"] == "Entrada")
+    despesas = sum(float(r["valor"]) for r in rows if r["tipo"] == "Saída")
     saldo = receitas - despesas
 
     linhas = [
-        f"TRANSAÇÕES DE {hoje.strftime('%B/%Y').upper()}:",
+        f"TRANSACOES DE {hoje.strftime('%B/%Y').upper()}:",
         f"Receitas: R$ {receitas:,.2f} | Despesas: R$ {despesas:,.2f} | Saldo: R$ {saldo:,.2f}",
         "",
     ]
     for r in rows[:20]:
-        sinal = "+" if r["tipo"] == "receita" else "-"
-        linhas.append(f"{r['data']} | {sinal}R${r['valor']:.2f} | {r['categoria']} | {r['descricao']}")
+        sinal = "+" if r["tipo"] == "Entrada" else "-"
+        linhas.append(f"{r['data']} | {sinal}R${float(r['valor']):.2f} | {r['categoria']} | {r['descricao']}")
 
     return "\n".join(linhas)
 
@@ -666,3 +666,85 @@ def cmd_relatorio(destino: str):
 
     linhas.append("\nPDF completo disponivel no Jake OS > Relatorios.")
     send_text(destino, "\n".join(linhas))
+
+
+# ── Financeiro pessoal ────────────────────────────────────────────────────────
+
+def cmd_lancamento(destino: str, texto: str):
+    """
+    Registra transação manual via WhatsApp.
+    Sintaxe: /lancamento +150 Piloti  ou  /lancamento -200 mercado
+    + = Entrada, - = Saída. Sem sinal = Entrada.
+    """
+    import re as _re
+    m = _re.match(r'^([+\-]?)(\d+(?:[.,]\d+)?)\s+(.+)$', texto.strip())
+    if not m:
+        send_text(destino, "Formato: /lancamento +150 Piloti  ou  /lancamento -200 mercado")
+        return
+
+    sinal, valor_str, descricao = m.group(1), m.group(2), m.group(3).strip()
+    valor = float(valor_str.replace(",", "."))
+    tipo = "Saída" if sinal == "-" else "Entrada"
+
+    from core.sync_financeiro import registrar_transacao
+    ok = registrar_transacao(descricao, valor, tipo)
+    if ok:
+        sinal_fmt = "+" if tipo == "Entrada" else "-"
+        send_text(destino, f"Lancado: {sinal_fmt}R${valor:.2f} — {descricao} ({tipo})")
+    else:
+        send_text(destino, "Erro ao registrar. Tenta de novo, Patrao.")
+
+
+def cmd_financeiro(destino: str):
+    """Resumo financeiro do mês atual com progresso em relação à meta."""
+    from core.sync_financeiro import resumo_mes, auto_importar_recorrentes
+
+    # Importar recorrentes se ainda não foram importados este mês
+    auto_importar_recorrentes()
+
+    r = resumo_mes()
+    mes_nomes = ["","Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+    mes_nome = mes_nomes[r["mes"]]
+
+    # Meta anual = R$1.000.000 → meta mensal estimada
+    META_ANUAL = 1_000_000.0
+    meta_mensal = META_ANUAL / 12
+
+    saldo = r["saldo"]
+    pct_meta = (saldo / meta_mensal * 100) if meta_mensal else 0
+
+    linhas = [
+        f"*Financeiro — {mes_nome}/{r['ano']}*",
+        "",
+        f"Entradas: R$ {r['receitas']:,.2f}",
+        f"Saidas:   R$ {r['despesas']:,.2f}",
+        f"Saldo:    R$ {saldo:,.2f}",
+        "",
+        f"Meta mensal (1M/ano): R$ {meta_mensal:,.2f}",
+        f"Progresso: {pct_meta:.0f}%",
+    ]
+    if saldo >= meta_mensal:
+        linhas.append("No ritmo certo pra bater o milhao, Patrao!")
+    elif saldo > 0:
+        falta = meta_mensal - saldo
+        linhas.append(f"Faltam R$ {falta:,.2f} pra meta do mes.")
+
+    send_text(destino, "\n".join(linhas))
+
+
+def resumo_financeiro_wa() -> str:
+    """Retorna string formatada do financeiro do mês — usada nas rotinas automáticas."""
+    from core.sync_financeiro import resumo_mes, auto_importar_recorrentes
+    auto_importar_recorrentes()
+    r = resumo_mes()
+    mes_nomes = ["","Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+    mes_nome = mes_nomes[r["mes"]]
+    META_ANUAL = 1_000_000.0
+    meta_mensal = META_ANUAL / 12
+    saldo = r["saldo"]
+    pct = (saldo / meta_mensal * 100) if meta_mensal else 0
+    return (
+        f"*Financeiro {mes_nome}:* Entradas R${r['receitas']:,.0f} | "
+        f"Saidas R${r['despesas']:,.0f} | Saldo R${saldo:,.0f} "
+        f"({pct:.0f}% da meta mensal)"
+    )
