@@ -1603,6 +1603,136 @@ def _expirar_pendentes():
         logger.error(f"_expirar_pendentes error: {e}")
 
 
+def _alerta_saldo_baixo():
+    """
+    Roda todo dia às 8h.
+    Verifica saldo das contas Meta e alerta se alguma estiver abaixo de R$300.
+    """
+    if not AUTHORIZED_NUMBER:
+        return
+    try:
+        import psycopg2, psycopg2.extras
+        conn = psycopg2.connect(os.environ["DATABASE_URL"],
+                                cursor_factory=psycopg2.extras.RealDictCursor)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT nome, account_id, token_key FROM ad_client_profiles
+            WHERE gestor_ativo = TRUE
+        """)
+        contas = cur.fetchall()
+        conn.close()
+    except Exception as e:
+        logger.error(f"_alerta_saldo_baixo: erro ao buscar contas: {e}")
+        return
+
+    try:
+        from meta.meta_api import _resolve_token
+    except Exception:
+        _resolve_token = lambda k: os.getenv(k, "")
+
+    import requests as _req
+
+    alertas = []
+    for conta in contas:
+        try:
+            token = _resolve_token(conta["token_key"])
+        except Exception:
+            token = os.getenv(conta["token_key"], "")
+        if not token:
+            continue
+        try:
+            resp = _req.get(
+                f"https://graph.facebook.com/v21.0/{conta['account_id']}",
+                params={"fields": "amount_spent,spend_cap,balance", "access_token": token},
+                timeout=10,
+            )
+            data = resp.json()
+            amount_spent = float(data.get("amount_spent", 0) or 0) / 100
+            spend_cap    = float(data.get("spend_cap", 0) or 0) / 100
+            balance      = float(data.get("balance", 0) or 0) / 100
+            remaining    = max(0.0, spend_cap - amount_spent) if spend_cap else balance
+            if remaining < 300:
+                alertas.append(f"  • {conta['nome']}: R${remaining:.2f} restante")
+        except Exception:
+            pass
+
+    if alertas:
+        msg = "*Saldo baixo nas contas Meta:*\n" + "\n".join(alertas)
+        send_text(AUTHORIZED_NUMBER, msg)
+        logger.info(f"_alerta_saldo_baixo: {len(alertas)} alertas enviados")
+
+
+def _rotina_sexta():
+    """
+    Roda toda sexta às 17h.
+    Envia relatório financeiro pessoal vs meta R$1M anual.
+    """
+    if not AUTHORIZED_NUMBER:
+        return
+    try:
+        from core.sync_financeiro import resumo_mes
+        from datetime import date as _date
+        r = resumo_mes()
+        hoje = _date.today()
+        dia = hoje.day
+        proj_mensal = (r["receitas"] / dia * 30) if dia > 0 else r["receitas"]
+        proj_anual  = proj_mensal * 12
+        meta_anual  = 1_000_000.0
+        pct         = proj_anual / meta_anual * 100
+        bar_filled  = int(pct / 10)
+        bar         = "X" * bar_filled + "." * (10 - bar_filled)
+
+        msg = (
+            f"*Relatorio Financeiro — {hoje.strftime('%d/%m/%Y')}*\n\n"
+            f"Receitas {hoje.strftime('%b')}: R${r['receitas']:,.2f}\n"
+            f"Despesas {hoje.strftime('%b')}: R${r['despesas']:,.2f}\n"
+            f"Saldo {hoje.strftime('%b')}:    R${r['saldo']:,.2f}\n\n"
+            f"Projecao anual: R${proj_anual:,.0f}\n"
+            f"Meta R$1M:      [{bar}] {pct:.1f}%\n\n"
+        )
+        if pct >= 100:
+            msg += "Meta atingida, Patrao!"
+        elif pct >= 70:
+            msg += "No caminho certo. Segura o ritmo!"
+        elif pct >= 40:
+            msg += "Metade do caminho. Vamos acelerar?"
+        else:
+            msg += "Abaixo da meta. Hora de revisar as entradas."
+
+        send_text(AUTHORIZED_NUMBER, msg)
+        logger.info("_rotina_sexta: relatorio financeiro enviado")
+    except Exception as e:
+        logger.error(f"_rotina_sexta error: {e}")
+
+
+def _bom_dia():
+    """
+    Roda todo dia às 8h05 (após o alerta de saldo).
+    Envia bom dia com dica prática de tráfego pago.
+    """
+    if not AUTHORIZED_NUMBER:
+        return
+    try:
+        from datetime import date as _date
+        hoje = _date.today()
+        dias = ["Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado", "Domingo"]
+        dia_semana = dias[hoje.weekday()]
+
+        prompt = (
+            "Voce e Jake, assistente de trafego pago do Bruno (Patrao).\n"
+            f"Hoje e {dia_semana}, {hoje.strftime('%d/%m/%Y')}.\n"
+            "Escreva uma mensagem de bom dia curta (max 4 linhas) com:\n"
+            "1. Saudacao contextualizada ao dia da semana\n"
+            "2. Uma dica pratica de Meta Ads ou gestao de clientes relevante para hoje\n"
+            "Sem emojis excessivos, tom direto e motivador. Responda em portugues."
+        )
+        msg = chamar_claude(prompt, "Bom dia Patrao!")
+        send_text(AUTHORIZED_NUMBER, msg)
+        logger.info("_bom_dia: mensagem enviada")
+    except Exception as e:
+        logger.error(f"_bom_dia error: {e}")
+
+
 def _configurar_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone=SP_TZ)
 
@@ -1648,6 +1778,33 @@ def _configurar_scheduler() -> BackgroundScheduler:
         replace_existing=True,
     )
     logger.info("Agendado: auto-import financeiro no dia 1 de cada mes")
+
+    # Alerta de saldo baixo (<R$300) todo dia às 8h
+    scheduler.add_job(
+        _alerta_saldo_baixo,
+        CronTrigger(hour=8, minute=0, timezone=SP_TZ),
+        id="alerta_saldo_baixo",
+        replace_existing=True,
+    )
+    logger.info("Agendado: alerta saldo baixo as 08:00")
+
+    # Bom dia diário às 8h05
+    scheduler.add_job(
+        _bom_dia,
+        CronTrigger(hour=8, minute=5, timezone=SP_TZ),
+        id="bom_dia",
+        replace_existing=True,
+    )
+    logger.info("Agendado: bom dia as 08:05")
+
+    # Relatório financeiro toda sexta às 17h
+    scheduler.add_job(
+        _rotina_sexta,
+        CronTrigger(day_of_week="fri", hour=17, minute=0, timezone=SP_TZ),
+        id="rotina_sexta",
+        replace_existing=True,
+    )
+    logger.info("Agendado: relatorio financeiro sexta as 17:00")
 
     # Mensagens agendadas para grupos
     grupos = get_grupos()
