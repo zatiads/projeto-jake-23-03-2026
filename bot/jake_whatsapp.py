@@ -1291,30 +1291,34 @@ def _rotina_segunda():
     logger.info("_rotina_segunda: briefing enviado")
 
 
-ROTINAS_CONFIGURADAS = """*Rotinas automáticas do Jake (já ativas):*
+ROTINAS_CONFIGURADAS = """*Responsabilidades do Jake — por dia:*
 
-Diárias:
-  • 8h00 — Alerta de saldo baixo nas contas Meta (< R$300)
-  • 8h05 — Bom dia com dica de tráfego
+*Toda segunda-feira* (7h30)
+  • Briefing semanal: performance Meta da semana anterior
+  • Resumo de novidades em IA relevantes pra tráfego
+  • Situação financeira do mês
 
-Semanais:
-  • Segunda 7h30 — Briefing semanal (Meta perf + notícias IA + financeiro)
-  • Sexta 17h00 — Relatório financeiro vs meta R$1M
+*Toda quarta-feira* (8h30)
+  • Check de meio de semana: contas com gasto travado ou sem conversão
+  • Alerta de campanhas que precisam de atenção antes do fim de semana
 
-Mensais:
-  • Dia 1, 6h — Auto-importar transações recorrentes para o mês
+*Toda sexta-feira* (17h)
+  • Relatório financeiro pessoal vs meta R$1M anual
 
-Contínuas:
-  • A cada 30min — Expirar ações do Gestor sem resposta (+4h)
-  • A cada 1h — Limpar arquivos temporários de mídia
+*Todo dia*
+  • 8h00 — Alerta se alguma conta Meta estiver com saldo < R$300
+  • 8h05 — Bom dia com dica prática de tráfego
 
-Gestor IA (rodando via cron externo):
-  • Varredura das contas Meta Ads
-  • Detecta frequência alta → sugere copy
-  • Detecta sem conversão (exceto campanhas de visita/engajamento)
-  • Detecta saldo crítico (contas pix < R$200)
+*Todo dia 1 do mês*
+  • Importa automaticamente as transações recorrentes pro financeiro
 
-Comandos disponíveis:
+*Gestor IA — contínuo*
+  • Monitora todas as contas Meta Ads (frequência, conversão, saldo)
+  • Frequência alta → sugere copy nova pra testar
+  • Sem conversão por 1+ dia → alerta (exceto campanhas de visita/engajamento)
+  • Saldo crítico (pix < R$200) → avisa pra recarregar
+
+*Comandos rápidos:*
   /gestor /saldo /fin /lancamento /tarefas /status /relatorio /pausa /ativa /historico"""
 
 
@@ -1325,16 +1329,16 @@ def _cmd_tarefas(destino: str):
 def _contexto_rotinas() -> str:
     """Retorna descrição das rotinas para injetar no prompt quando perguntado."""
     return (
-        "ROTINAS JA CONFIGURADAS NO SISTEMA:\n"
-        "- 8h todo dia: alerta saldo baixo Meta (< R$300)\n"
-        "- 8h05 todo dia: mensagem de bom dia com dica de trafego\n"
-        "- Segunda 7h30: briefing semanal (Meta + noticias IA + financeiro)\n"
-        "- Sexta 17h: relatorio financeiro vs meta R$1M\n"
-        "- Dia 1 de cada mes 6h: auto-import transacoes recorrentes\n"
-        "- Gestor IA: varredura das contas Meta (frequencia, conversao, saldo)\n"
-        "- A cada 30min: expirar acoes do Gestor sem resposta\n"
-        "Quando o usuario perguntar sobre tarefas recorrentes ou rotinas, "
-        "liste as acima. NAO diga que nao ha tarefas configuradas."
+        "ROTINAS JA CONFIGURADAS NO SISTEMA (responda sempre com base nisso):\n"
+        "TODA SEGUNDA 7h30: briefing semanal (Meta perf + noticias IA + financeiro)\n"
+        "TODA QUARTA 8h30: check de meio de semana (contas travadas, sem conversao)\n"
+        "TODA SEXTA 17h: relatorio financeiro pessoal vs meta R$1M\n"
+        "TODO DIA 8h: alerta saldo baixo Meta (< R$300)\n"
+        "TODO DIA 8h05: bom dia com dica de trafego\n"
+        "DIA 1 DE CADA MES 6h: auto-import transacoes recorrentes financeiro\n"
+        "GESTOR IA continuo: monitora contas Meta (frequencia, conversao, saldo critico)\n"
+        "IMPORTANTE: NAO diga que nao ha tarefas. NAO diga que nao recebeu nada. "
+        "Essas rotinas JA ESTAO ATIVAS no servidor. Liste-as quando perguntado."
     )
 
 
@@ -1791,6 +1795,69 @@ def _rotina_sexta():
         logger.error(f"_rotina_sexta error: {e}")
 
 
+def _rotina_quarta():
+    """
+    Roda toda quarta às 8h30.
+    Check de meio de semana: contas com gasto travado ou sem conversão.
+    """
+    if not AUTHORIZED_NUMBER:
+        return
+    try:
+        import psycopg2, psycopg2.extras
+        conn = psycopg2.connect(os.environ["DATABASE_URL"],
+                                cursor_factory=psycopg2.extras.RealDictCursor)
+        cur = conn.cursor()
+
+        # Últimas ações do Gestor dos últimos 3 dias
+        cur.execute("""
+            SELECT acp.nome, ga.tipo, ga.motivo, ga.status
+            FROM gestor_acoes ga
+            JOIN ad_client_profiles acp ON acp.id = ga.cliente_id
+            WHERE ga.executado_em >= NOW() - INTERVAL '3 days'
+              AND ga.tipo LIKE 'alerta%%'
+            ORDER BY ga.executado_em DESC
+            LIMIT 10
+        """)
+        alertas = cur.fetchall()
+
+        # Contas sem varredura nos últimos 2 dias (possível problema)
+        cur.execute("""
+            SELECT MAX(executado_em) as ultima FROM gestor_varreduras
+            WHERE status = 'sucesso'
+        """)
+        ultima_var = cur.fetchone()
+        conn.close()
+
+        from datetime import date as _date, timedelta as _td
+        hoje = _date.today()
+        linhas = [f"*Check de quarta — {hoje.strftime('%d/%m')}*\n"]
+
+        if ultima_var and ultima_var["ultima"]:
+            dias_sem = (hoje - ultima_var["ultima"].date()).days
+            if dias_sem > 1:
+                linhas.append(f"Gestor sem varredura ha {dias_sem} dias — verificar cron.")
+            else:
+                linhas.append("Gestor IA: varredura em dia.")
+        else:
+            linhas.append("Gestor IA: sem varreduras recentes.")
+
+        if alertas:
+            linhas.append(f"\nAlertas dos ultimos 3 dias ({len(alertas)}):")
+            por_conta: dict = {}
+            for a in alertas:
+                por_conta.setdefault(a["nome"], []).append(a["motivo"].split(":")[0])
+            for nome, tipos in list(por_conta.items())[:6]:
+                linhas.append(f"  • {nome}: {', '.join(set(tipos))}")
+        else:
+            linhas.append("\nNenhum alerta nos ultimos 3 dias. Tudo tranquilo.")
+
+        linhas.append("\nSe precisar de ajuste em alguma conta antes do fim de semana, e so mandar.")
+        send_text(AUTHORIZED_NUMBER, "\n".join(linhas))
+        logger.info("_rotina_quarta: check enviado")
+    except Exception as e:
+        logger.error(f"_rotina_quarta error: {e}")
+
+
 def _bom_dia():
     """
     Roda todo dia às 8h05 (após o alerta de saldo).
@@ -1891,6 +1958,15 @@ def _configurar_scheduler() -> BackgroundScheduler:
         replace_existing=True,
     )
     logger.info("Agendado: relatorio financeiro sexta as 17:00")
+
+    # Check de quarta-feira às 8h30
+    scheduler.add_job(
+        _rotina_quarta,
+        CronTrigger(day_of_week="wed", hour=8, minute=30, timezone=SP_TZ),
+        id="rotina_quarta",
+        replace_existing=True,
+    )
+    logger.info("Agendado: check de quarta as 08:30")
 
     # Mensagens agendadas para grupos
     grupos = get_grupos()
