@@ -707,6 +707,80 @@ def cmd_relatorio(destino: str):
 
 # ── Financeiro pessoal ────────────────────────────────────────────────────────
 
+_PALAVRAS_GASTO = {"gastei", "paguei", "comprei", "gasei", "abasteci", "paguei", "desembolsei"}
+_PALAVRAS_ENTRADA = {"ganhei", "recebi", "entrou", "faturei", "cobrei", "vendi"}
+
+def eh_lancamento_natural(texto: str) -> bool:
+    """
+    Detecta se a mensagem é um registro de transação em linguagem natural.
+    Ex: "gastei 80 no mercado", "recebi 500 do Piloti"
+    Retorna False se parece pergunta (saldo, resumo) ou não tem valor monetário.
+    """
+    t = texto.lower()
+    tem_palavra_chave = any(p in t for p in _PALAVRAS_GASTO | _PALAVRAS_ENTRADA)
+    if not tem_palavra_chave:
+        return False
+    # Deve ter algum número (valor)
+    import re as _re
+    tem_valor = bool(_re.search(r'\d+', t))
+    # Não deve ser pergunta de resumo ("quanto gastei", "qual saldo")
+    eh_pergunta = any(q in t for q in ["quanto", "qual", "como", "resumo", "saldo", "total", "?"])
+    return tem_valor and not eh_pergunta
+
+
+def processar_lancamento_natural(destino: str, texto: str) -> bool:
+    """
+    Extrai valor, descrição e tipo de uma mensagem natural via Claude,
+    registra na fin_transacoes e confirma para o Bruno.
+    Retorna True se processou, False se falhou ou não era transação.
+    """
+    import os as _os, anthropic as _ant, json as _json, re as _re
+    try:
+        client = _ant.Anthropic(api_key=_os.getenv("ANTHROPIC_API_KEY", ""))
+        prompt_parser = (
+            "Voce e um parser financeiro. Analise a mensagem e retorne SOMENTE JSON valido:\n"
+            '{"tipo": "Entrada" ou "Saída", "valor": numero_float, "descricao": "texto curto"}\n\n'
+            "Regras:\n"
+            "- 'gastei', 'paguei', 'comprei', 'abasteci' = Saida\n"
+            "- 'ganhei', 'recebi', 'entrou', 'faturei' = Entrada\n"
+            "- valor: extraia o numero (ex: 'oitenta reais' = 80.0, 'R$150' = 150.0)\n"
+            "- descricao: local ou motivo mencionado (ex: 'mercado', 'gasolina', 'Piloti')\n"
+            "- Se nao conseguir extrair valor, retorne null como valor\n"
+            "Retorne APENAS o JSON, sem texto extra."
+        )
+        resp = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=100,
+            messages=[
+                {"role": "user", "content": f"{prompt_parser}\n\nMensagem: {texto}"}
+            ],
+        )
+        raw = resp.content[0].text.strip()
+        # Limpa markdown se vier
+        raw = _re.sub(r"```[a-z]*", "", raw).strip().strip("`")
+        dados = _json.loads(raw)
+
+        valor = dados.get("valor")
+        tipo = dados.get("tipo", "Saída")
+        descricao = dados.get("descricao", texto[:50])
+
+        if not valor or valor <= 0:
+            return False
+
+        from core.sync_financeiro import registrar_transacao
+        ok = registrar_transacao(descricao, float(valor), tipo)
+        if ok:
+            sinal = "+" if tipo == "Entrada" else "-"
+            send_text(destino, f"Anotado! {sinal}R${valor:.2f} — {descricao}")
+        else:
+            send_text(destino, "Erro ao registrar, Patrao. Tenta de novo.")
+        return True
+
+    except Exception as e:
+        logger.error(f"processar_lancamento_natural error: {e}")
+        return False
+
+
 def cmd_lancamento(destino: str, texto: str):
     """
     Registra transação manual via WhatsApp.

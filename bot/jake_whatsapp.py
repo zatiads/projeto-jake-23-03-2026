@@ -223,6 +223,8 @@ def chamar_claude(prompt_sistema: str, mensagem: str, historico: list = None) ->
 _KEYWORDS_FINANCEIRO = [
     "gastei", "gasto", "receita", "despesa", "saldo", "financeiro",
     "dinheiro", "transacao", "quanto entrou", "quanto saiu", "mes",
+    "ganhei", "recebi", "paguei", "comprei", "entradas", "saidas",
+    "faturei", "quanto sobrou", "quanto tenho",
 ]
 
 _KEYWORDS_GRUPO = ["manda", "envia", "grupo", "bom dia", "boa semana", "boa tarde", "boa noite"]
@@ -1428,6 +1430,16 @@ def processar_mensagem(sender_jid: str, texto: str):
             send_text(destino, resposta)
             salvar_mensagem(chat_id, "user", texto)
             salvar_mensagem(chat_id, "assistant", resposta)
+            return
+
+    # Intencao: registro de transacao em linguagem natural
+    # Deve vir ANTES do bloco financeiro geral para não cair no contexto e responder errado
+    destino_fin = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
+    from bot.whatsapp_handlers import eh_lancamento_natural, processar_lancamento_natural
+    if eh_lancamento_natural(texto):
+        ok = processar_lancamento_natural(destino_fin, texto)
+        if ok:
+            salvar_mensagem(chat_id, "user", texto)
             return
 
     # Intencao: financeiro ou clientes — injeta contexto no prompt
