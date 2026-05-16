@@ -55,7 +55,7 @@ def main():
     try:
         # 1. Coletar
         _log("Coletando metricas...")
-        perfis = coletar(db_conn=None)
+        perfis = coletar(db_conn=db_conn)
         _log(f"  {len(perfis)} contas coletadas")
 
         # 2. Analisar
@@ -66,7 +66,7 @@ def main():
 
         # 3. Salvar como pendente (NAO executa no Meta)
         _log("Salvando acoes como pendentes...")
-        n_pendentes = salvar_pendentes(decisoes, perfis, varredura_id, db_conn=None)
+        n_pendentes = salvar_pendentes(decisoes, perfis, varredura_id, db_conn=db_conn)
         _log(f"  {n_pendentes} acoes pendentes salvas")
 
         # 4. Registrar estado de aprovacao no banco

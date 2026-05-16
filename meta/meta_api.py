@@ -242,7 +242,7 @@ _OBJETIVO_MAP = {
     "PURCHASE":   "OUTCOME_SALES",
 }
 
-VALID_TOKEN_KEYS = {"META_TOKEN_PILOTI", "META_TOKEN_DENTTO", "META_ACCESS_TOKEN"}
+VALID_TOKEN_KEYS = {"META_TOKEN_PILOTI", "META_TOKEN_DENTTO", "META_ACCESS_TOKEN", "META_TOKEN_VIELIFE"}
 
 
 def _resolve_token(token_key: str) -> str:
@@ -626,62 +626,57 @@ def atualizar_orcamento_conjunto(token: str, adset_id: str, daily_budget_cents: 
 
 def duplicar_ad(token: str, account_id: str, ad_id: str) -> str:
     """
-    Duplica um ad existente: cria novo adset baseado no original e novo ad nele.
-    Retorna o ID do novo ad criado.
-    O ad duplicado começa PAUSED — aprovação necessária para ativar.
+    Duplica um ad existente via endpoint /copies da Meta API.
+    Copia o adset (deep_copy=True inclui os ads) e retorna o ID do novo ad (PAUSED).
     """
-    # 1. Buscar dados do ad e do adset originais
-    ad = get_ad(token, ad_id)
-    adset_id = ad.get("adset_id") or (ad.get("adset") or {}).get("id")
+    # 1. Buscar adset_id do ad original
+    ad_resp = requests.get(
+        f"{GRAPH_URL}/{ad_id}",
+        params={"fields": "id,name,adset_id", "access_token": token},
+        timeout=15,
+    )
+    ad = _safe_json(ad_resp)
+    if "error" in ad:
+        raise Exception(ad["error"].get("message", "Erro ao buscar ad"))
+    adset_id = ad.get("adset_id")
     if not adset_id:
         raise ValueError(f"Ad {ad_id} nao tem adset_id")
 
-    adset = get_adset(token, adset_id)
-    creative_id = (ad.get("creative") or {}).get("id")
-    if not creative_id:
-        raise ValueError(f"Ad {ad_id} nao tem creative_id")
-
-    # 2. Criar novo adset (cópia do original com prefixo "COPY_")
-    novo_nome_adset = f"COPY_{adset.get('name', adset_id)}"
-    novo_adset_id = criar_conjunto(
-        token=token,
-        account_id=account_id,
-        campaign_id=adset["campaign_id"],
-        nome=novo_nome_adset,
-        orcamento_diario_cents=int(adset.get("daily_budget") or 0),
-        publico_id=None,
-        targeting=adset.get("targeting"),
-        optimization_goal=adset.get("optimization_goal", "LEAD_GENERATION"),
-        billing_event=adset.get("billing_event", "IMPRESSIONS"),
-        status="PAUSED",
+    # 2. Buscar campaign_id do adset
+    adset_resp = requests.get(
+        f"{GRAPH_URL}/{adset_id}",
+        params={"fields": "id,campaign_id", "access_token": token},
+        timeout=15,
     )
+    adset = _safe_json(adset_resp)
+    campaign_id = adset.get("campaign_id", "")
 
-    # 3. Buscar page_id do creative original
-    page_id = None
-    try:
-        resp = requests.get(
-            f"{GRAPH_URL}/{creative_id}",
-            params={"fields": "object_story_spec", "access_token": token},
-            timeout=15,
-        )
-        spec = resp.json().get("object_story_spec", {})
-        page_id = spec.get("page_id") or next(
-            (v.get("page_id") for v in spec.values() if isinstance(v, dict) and v.get("page_id")),
-            None,
-        )
-    except Exception:
-        pass
-
-    # 4. Criar novo ad no novo adset usando o mesmo creative
-    novo_nome_ad = f"COPY_{ad.get('name', ad_id)}"
-    novo_ad_id = criar_anuncio(
-        token=token,
-        account_id=account_id,
-        adset_id=novo_adset_id,
-        page_id=page_id or "",
-        nome=novo_nome_ad,
-        creative_id=creative_id,
-        status="PAUSED",
+    # 3. Copiar adset com deep_copy (Meta replica ads e creative automaticamente)
+    copy_resp = requests.post(
+        f"{GRAPH_URL}/{adset_id}/copies",
+        params={"access_token": token},
+        data={
+            "campaign_id": campaign_id,
+            "deep_copy": "true",
+            "status_option": "PAUSED",
+        },
+        timeout=30,
     )
+    copy_data = _safe_json(copy_resp)
+    if "id" not in copy_data:
+        raise Exception(copy_data.get("error", {}).get("message", "Erro ao duplicar adset"))
 
-    return novo_ad_id
+    novo_adset_id = copy_data["id"]
+
+    # 4. Buscar o novo ad no adset copiado
+    ads_resp = requests.get(
+        f"{GRAPH_URL}/{novo_adset_id}/ads",
+        params={"fields": "id", "access_token": token, "limit": 1},
+        timeout=15,
+    )
+    ads = _safe_json(ads_resp).get("data", [])
+    if ads:
+        return ads[0]["id"]
+
+    # Fallback: deep_copy não gerou ad acessível — retorna o adset duplicado
+    return novo_adset_id

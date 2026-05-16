@@ -6,11 +6,14 @@ Retorna lista de perfis de conta para o Analista.
 import os
 import math
 import json
+import logging
 import requests
 import psycopg2
 import psycopg2.extras
 from datetime import date, timedelta
 from typing import List, Dict, Any
+
+_log = logging.getLogger(__name__)
 
 GRAPH_URL = "https://graph.facebook.com/v21.0"
 
@@ -39,8 +42,11 @@ def _extrair_conversoes(actions: list, objetivo: str) -> int:
     )
 
 
-def _buscar_insights_ads(token: str, account_id: str, days: int = 30) -> list:
-    """Busca insights a nível de ad dos últimos N dias. Retorna lista de rows."""
+def _buscar_insights_ads(token: str, account_id: str, days: int = 30) -> list | None:
+    """
+    Busca insights a nível de ad dos últimos N dias.
+    Retorna lista de rows, [] se sem dados, ou None em caso de erro de API.
+    """
     hoje = date.today()
     inicio = hoje - timedelta(days=days)
     url = f"{GRAPH_URL}/{account_id}/insights"
@@ -54,15 +60,21 @@ def _buscar_insights_ads(token: str, account_id: str, days: int = 30) -> list:
     try:
         resp = requests.get(url, params=params, timeout=30)
         resp.raise_for_status()
-        return resp.json().get("data", [])
-    except Exception:
-        return []
+        data = resp.json()
+        if "error" in data:
+            _log.warning("insights_ads erro API account=%s: %s", account_id, data["error"].get("message"))
+            return None
+        return data.get("data", [])
+    except Exception as e:
+        _log.warning("insights_ads falhou account=%s: %s", account_id, e)
+        return None
 
 
-def _buscar_insights_diarios(token: str, account_id: str, days: int = 7) -> list:
+def _buscar_insights_diarios(token: str, account_id: str, days: int = 7) -> list | None:
     """
     Busca gasto diário da conta nos últimos N dias (level=account).
-    Retorna lista de {"date_start": "YYYY-MM-DD", "spend": float, "actions": list}.
+    Retorna lista de {"date_start": "YYYY-MM-DD", "spend": float, "actions": list},
+    [] se sem dados, ou None em caso de erro de API.
     """
     hoje = date.today()
     inicio = hoje - timedelta(days=days)
@@ -78,9 +90,14 @@ def _buscar_insights_diarios(token: str, account_id: str, days: int = 7) -> list
     try:
         resp = requests.get(url, params=params, timeout=30)
         resp.raise_for_status()
-        return resp.json().get("data", [])
-    except Exception:
-        return []
+        data = resp.json()
+        if "error" in data:
+            _log.warning("insights_diarios erro API account=%s: %s", account_id, data["error"].get("message"))
+            return None
+        return data.get("data", [])
+    except Exception as e:
+        _log.warning("insights_diarios falhou account=%s: %s", account_id, e)
+        return None
 
 
 def _buscar_cpl_semana_anterior(cliente_id: int, objetivo: str) -> float | None:
@@ -217,16 +234,40 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
 
         objetivo = conta["campanha_tipo"] or "MESSAGES"
         rows     = _buscar_insights_ads(token, conta["account_id"])
+        if rows is None:
+            # Erro de API (token expirado, conta suspensa, etc.) — registrar e pular
+            msg = f"Falha na Meta API para account {conta['account_id']} — token expirado ou conta suspensa?"
+            _log.error(msg)
+            perfis.append({
+                "cliente_id":     conta["id"],
+                "nome":           conta["nome"],
+                "agencia":        conta["agencia"],
+                "account_id":     conta["account_id"],
+                "objetivo":       objetivo,
+                "gestor_config":  conta["gestor_config_json"],
+                "tipo_pagamento": conta.get("tipo_pagamento") or "pix",
+                "erro":           msg,
+            })
+            continue
+
         saldo    = _buscar_saldo(token, conta["account_id"])
         metricas = _agregar_conta(rows, objetivo)
 
         # Dados diários para alertas
         dados_diarios = _buscar_insights_diarios(token, conta["account_id"], days=7)
+        if dados_diarios is None:
+            _log.warning("insights_diarios indisponível para account=%s — gasto_ontem=0", conta["account_id"])
+            dados_diarios = []
         gasto_ontem = 0.0
         dias_sem_conversao = 0
         if dados_diarios:
-            ultimo_dia = dados_diarios[-1]
-            gasto_ontem = float(ultimo_dia.get("spend") or 0)
+            # A Meta omite dias sem dados — verificar se o último item é de fato ontem
+            ontem_str = str(date.today() - timedelta(days=1))
+            dia_ontem = next(
+                (d for d in reversed(dados_diarios) if d.get("date_start") == ontem_str),
+                None,
+            )
+            gasto_ontem = float(dia_ontem.get("spend") or 0) if dia_ontem else 0.0
             # Contar dias consecutivos com gasto mas sem conversão
             for dia in reversed(dados_diarios):
                 spend_dia = float(dia.get("spend") or 0)
