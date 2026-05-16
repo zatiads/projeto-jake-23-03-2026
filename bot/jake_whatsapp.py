@@ -1291,6 +1291,66 @@ def _rotina_segunda():
     logger.info("_rotina_segunda: briefing enviado")
 
 
+ROTINAS_CONFIGURADAS = """*Rotinas automáticas do Jake (já ativas):*
+
+Diárias:
+  • 8h00 — Alerta de saldo baixo nas contas Meta (< R$300)
+  • 8h05 — Bom dia com dica de tráfego
+
+Semanais:
+  • Segunda 7h30 — Briefing semanal (Meta perf + notícias IA + financeiro)
+  • Sexta 17h00 — Relatório financeiro vs meta R$1M
+
+Mensais:
+  • Dia 1, 6h — Auto-importar transações recorrentes para o mês
+
+Contínuas:
+  • A cada 30min — Expirar ações do Gestor sem resposta (+4h)
+  • A cada 1h — Limpar arquivos temporários de mídia
+
+Gestor IA (rodando via cron externo):
+  • Varredura das contas Meta Ads
+  • Detecta frequência alta → sugere copy
+  • Detecta sem conversão (exceto campanhas de visita/engajamento)
+  • Detecta saldo crítico (contas pix < R$200)
+
+Comandos disponíveis:
+  /gestor /saldo /fin /lancamento /tarefas /status /relatorio /pausa /ativa /historico"""
+
+
+def _cmd_tarefas(destino: str):
+    send_text(destino, ROTINAS_CONFIGURADAS)
+
+
+def _contexto_rotinas() -> str:
+    """Retorna descrição das rotinas para injetar no prompt quando perguntado."""
+    return (
+        "ROTINAS JA CONFIGURADAS NO SISTEMA:\n"
+        "- 8h todo dia: alerta saldo baixo Meta (< R$300)\n"
+        "- 8h05 todo dia: mensagem de bom dia com dica de trafego\n"
+        "- Segunda 7h30: briefing semanal (Meta + noticias IA + financeiro)\n"
+        "- Sexta 17h: relatorio financeiro vs meta R$1M\n"
+        "- Dia 1 de cada mes 6h: auto-import transacoes recorrentes\n"
+        "- Gestor IA: varredura das contas Meta (frequencia, conversao, saldo)\n"
+        "- A cada 30min: expirar acoes do Gestor sem resposta\n"
+        "Quando o usuario perguntar sobre tarefas recorrentes ou rotinas, "
+        "liste as acima. NAO diga que nao ha tarefas configuradas."
+    )
+
+
+_KEYWORDS_ROTINAS = [
+    "tarefa", "tarefas", "rotina", "rotinas", "recorrente", "recorrentes",
+    "automatico", "automatica", "agendado", "agendada", "configurado",
+    "o que voce faz", "o que tu faz", "o que você faz", "o que jake faz",
+    "quais sao", "quais são", "que funcoes", "que funções",
+]
+
+
+def _eh_sobre_rotinas(texto: str) -> bool:
+    t = texto.lower()
+    return any(k in t for k in _KEYWORDS_ROTINAS)
+
+
 def _processar_slash_cmd(sender_jid: str, texto: str) -> bool:
     """
     Processa slash-commands (/gestor, /saldo, etc.).
@@ -1351,6 +1411,9 @@ def _processar_slash_cmd(sender_jid: str, texto: str) -> bool:
     elif cmd in ("/fin", "/financeiro"):
         cmd_financeiro(destino)
 
+    elif cmd in ("/tarefas", "/rotinas"):
+        _cmd_tarefas(destino)
+
     elif cmd == "/pausa":
         if args:
             _processar_gestor_cmd(sender_jid, f"pausa {args}")
@@ -1364,7 +1427,7 @@ def _processar_slash_cmd(sender_jid: str, texto: str) -> bool:
             send_text(destino, "Uso: /ativa [nome do cliente]")
 
     else:
-        send_text(destino, f"Comando '{cmd}' nao reconhecido. Disponiveis: /gestor /saldo /fin /lancamento /status /relatorio /pausa /ativa /historico")
+        send_text(destino, f"Comando '{cmd}' nao reconhecido. Disponiveis: /gestor /saldo /fin /lancamento /tarefas /status /relatorio /pausa /ativa /historico")
 
     return True
 
@@ -1450,6 +1513,8 @@ def processar_mensagem(sender_jid: str, texto: str):
         ctx = financeiro_context()
         if ctx:
             contextos.append(f"DADOS FINANCEIROS DO SISTEMA:\n{ctx}")
+    if _eh_sobre_rotinas(texto):
+        contextos.append(_contexto_rotinas())
     if _eh_sobre_clientes(texto):
         ctx = _context_clientes()
         if ctx:
