@@ -31,9 +31,10 @@ REGRAS DE DECISÃO:
 1. Se a conta tem histórico (cpl_medio não nulo e dias_historico >= 14): analise pelo perfil histórico — CPL acima da média + 1 desvio padrão é sinal de problema; frequência > 3.5 indica fadiga criativa
 2. Se a conta tem < 14 dias de histórico ou cpl_medio nulo: use gestor_config como fallback (cpl_max, freq_max)
 3. Se nem histórico nem config: apenas monitore, não aja (acoes=[])
-4. SALDO — depende do tipo_pagamento da conta:
+4. SALDO — regra ABSOLUTA e INVIOLÁVEL baseada em tipo_pagamento:
    - tipo_pagamento="pix": se saldo.remaining < 200, emita alerta SALDO_CRITICO. NUNCA pause a conta por saldo — apenas avise para solicitar recarga.
-   - tipo_pagamento="cartao": IGNORE saldo completamente. Contas de cartão de crédito têm cobrança automática. Não emita nenhum alerta de saldo para essas contas.
+   - tipo_pagamento="cartao": NUNCA emita SALDO_CRITICO nem qualquer alerta relacionado a saldo. Ponto final. Contas de cartão têm cobrança automática, o saldo não importa.
+5. ZERO_CONV — regra ABSOLUTA: NUNCA emita ZERO_CONV para contas com objetivo="ENGAGEMENT". Campanhas de engajamento, visitas ao perfil e reconhecimento de marca não geram conversões — isso é esperado e correto. ZERO_CONV só se aplica a contas com objetivo="MESSAGES" ou "PURCHASE".
 
 AÇÕES DISPONÍVEIS (executam no Meta Ads — precisam de aprovação do usuário):
 - pausar_ad: {"tipo": "pausar_ad", "entidade_id": "<ad_id>", "entidade_nome": "<nome>", "motivo": "..."}
@@ -49,9 +50,9 @@ AÇÕES DISPONÍVEIS (executam no Meta Ads — precisam de aprovação do usuár
 ALERTAS DISPONÍVEIS (não executam no Meta — só informam no WhatsApp):
 Use o campo "alertas" (lista de strings) para situações que não requerem ação imediata:
 - "FREQ_ALTA: <ad_nome> freq=<X>" quando algum ad tem freq > 2.5 e < 3.5
-- "ZERO_CONV: <X> dias sem conversao" quando metricas.dias_sem_conversao >= 3
+- "ZERO_CONV: <X> dias sem conversao" quando metricas.dias_sem_conversao >= 3 E objetivo NÃO é ENGAGEMENT
 - "LEARNING_TRAVADO: <N> ads em aprendizado" quando metricas.ads_em_learning > 0
-- "SALDO_CRITICO: R$<X> restantes" quando tipo_pagamento=pix e saldo.remaining < 200
+- "SALDO_CRITICO: R$<X> restantes" APENAS quando tipo_pagamento=pix E saldo.remaining < 200
 - "SEM_VEICULACAO: sem gasto ontem" quando metricas.gasto_ontem == 0
 - "CPL_SEMANAL: CPL subiu/caiu X%" quando metricas.cpl_semana_anterior não é null
 
@@ -98,13 +99,14 @@ def analisar(perfis: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     perfis_prompt = []
     for p in perfis_validos:
         perfis_prompt.append({
-            "cliente_id":  p["cliente_id"],
-            "nome":        p["nome"],
-            "agencia":     p["agencia"],
-            "account_id":  p["account_id"],
-            "objetivo":    p["objetivo"],
-            "saldo":       p.get("saldo"),
-            "metricas":    p.get("metricas"),
+            "cliente_id":    p["cliente_id"],
+            "nome":          p["nome"],
+            "agencia":       p["agencia"],
+            "account_id":    p["account_id"],
+            "objetivo":      p["objetivo"],
+            "tipo_pagamento": p.get("tipo_pagamento", "pix"),
+            "saldo":         p.get("saldo"),
+            "metricas":      p.get("metricas"),
             "gestor_config": p.get("gestor_config"),
         })
 
