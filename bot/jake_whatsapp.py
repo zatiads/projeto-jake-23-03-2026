@@ -48,6 +48,15 @@ ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 SP_TZ              = pytz.timezone("America/Sao_Paulo")
 
 # ── Prompt (copiado literalmente de bot/jake_telegram.py) ─────────────────────
+def _perfil_contexto() -> str:
+    """Carrega contexto do perfil do Bruno para injetar no system prompt."""
+    try:
+        from core.perfil_bruno import get_contexto_sistema
+        return "\n\n" + get_contexto_sistema()
+    except Exception:
+        return ""
+
+
 PROMPT_ANALISTA = """Voce e Jake - a inteligencia artificial mais avancada em marketing digital do Brasil. Voce e o parceiro estrategico do Bruno, gestor de trafego com carteira de clientes em educacao, saude e servicos.
 
 SUAS COMPETENCIAS (dominio absoluto):
@@ -1422,7 +1431,7 @@ def processar_mensagem(sender_jid: str, texto: str):
             return
 
     # Intencao: financeiro ou clientes — injeta contexto no prompt
-    prompt = PROMPT_ANALISTA
+    prompt = PROMPT_ANALISTA + _perfil_contexto()
     mensagem_claude = texto
     contextos = []
     if _eh_financeiro(texto):

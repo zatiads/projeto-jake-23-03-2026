@@ -269,13 +269,16 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
             )
             gasto_ontem = float(dia_ontem.get("spend") or 0) if dia_ontem else 0.0
             # Contar dias consecutivos com gasto mas sem conversão
-            for dia in reversed(dados_diarios):
-                spend_dia = float(dia.get("spend") or 0)
-                conv_dia = _extrair_conversoes(dia.get("actions") or [], objetivo)
-                if spend_dia > 0 and conv_dia == 0:
-                    dias_sem_conversao += 1
-                elif spend_dia > 0:
-                    break
+            # Ignorar objetivos que não geram conversão de mensagem/venda
+            _OBJETIVOS_SEM_CONVERSAO = {"ENGAGEMENT", "REACH", "BRAND_AWARENESS", "VIDEO_VIEWS"}
+            if objetivo not in _OBJETIVOS_SEM_CONVERSAO:
+                for dia in reversed(dados_diarios):
+                    spend_dia = float(dia.get("spend") or 0)
+                    conv_dia = _extrair_conversoes(dia.get("actions") or [], objetivo)
+                    if spend_dia > 0 and conv_dia == 0:
+                        dias_sem_conversao += 1
+                    elif spend_dia > 0:
+                        break
 
         # Ads em aprendizado (effective_status = LEARNING)
         ads_em_learning = sum(1 for r in rows if r.get("effective_status") == "LEARNING")

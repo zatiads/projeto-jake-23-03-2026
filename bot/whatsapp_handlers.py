@@ -384,6 +384,35 @@ def formatar_resumo_gestor(acoes: list, alertas: list, total_contas: int, varred
     return "\n".join(linhas)
 
 
+def _sugerir_copy_freq_alta(destino: str, clientes: list):
+    """
+    Gera sugestão de copy via Claude para clientes com frequência alta.
+    Envia mensagem separada para o Bruno.
+    """
+    try:
+        import anthropic as _ant
+        import os as _os
+        client = _ant.Anthropic(api_key=_os.getenv("ANTHROPIC_API_KEY", ""))
+        nomes = ", ".join(clientes)
+        prompt = (
+            f"Voce e Jake, assistente de trafego pago do Bruno (Patrao).\n"
+            f"Os anuncios dos clientes {nomes} estao com frequencia alta (publico saturado).\n"
+            "Escreva 2 opcoes de copy curta para anuncio no Meta Ads (max 3 linhas cada), "
+            "focando em angulo diferente para renovar o criativo. "
+            "Formato: numera cada opcao. Tom direto, sem enrolacao. Portugues."
+        )
+        resp = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        sugestao = resp.content[0].text.strip()
+        msg = f"*Frequencia alta em: {nomes}*\nQuer testar uma copy diferente? Aqui estao 2 opcoes:\n\n{sugestao}"
+        send_text(destino, msg)
+    except Exception as e:
+        logger.error(f"_sugerir_copy_freq_alta error: {e}")
+
+
 def enviar_resumo_gestor(varredura_id: int):
     """Busca ações pendentes e alertas da varredura e envia mensagem WA."""
     import os as _os
@@ -428,6 +457,14 @@ def enviar_resumo_gestor(varredura_id: int):
     msg = formatar_resumo_gestor(acoes, alertas, total_contas, varredura_id)
     if msg:
         send_text(destino, msg)
+
+    # Sugestão de copy para contas com frequência alta
+    contas_freq_alta = [
+        al["cliente_nome"] for al in alertas
+        if al.get("motivo", "").startswith("FREQ_ALTA")
+    ]
+    if contas_freq_alta:
+        _sugerir_copy_freq_alta(destino, contas_freq_alta)
 
 
 try:
