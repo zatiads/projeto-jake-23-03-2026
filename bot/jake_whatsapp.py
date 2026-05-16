@@ -1011,6 +1011,62 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
         return
 
 
+# ── Handler de áudio (Whisper) ────────────────────────────────────────────────
+
+def processar_audio(sender_jid: str, msg_key: dict, message: dict):
+    """Baixa áudio do WhatsApp, transcreve com Whisper e processa como texto."""
+    import uuid as _uuid_a
+    destino = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
+
+    result = download_media_bytes(msg_key, message)
+    if not result:
+        send_text(destino, "Nao consegui baixar o audio. Tenta de novo, Patrao.")
+        return
+
+    audio_bytes, mimetype = result
+    # WhatsApp envia OGG/Opus — Whisper aceita .ogg nativamente
+    tmp_path = f"/tmp/wa_audio_{_uuid_a.uuid4()}.ogg"
+    try:
+        with open(tmp_path, "wb") as fh:
+            fh.write(audio_bytes)
+    except Exception as e:
+        logger.error(f"processar_audio: erro ao salvar tmp: {e}")
+        send_text(destino, "Erro interno ao salvar audio. Tenta de novo, Patrao.")
+        return
+
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not openai_key:
+        send_text(destino, "OPENAI_API_KEY nao configurado — nao consigo transcrever audio.")
+        return
+
+    try:
+        import openai as _openai
+        oai = _openai.OpenAI(api_key=openai_key)
+        with open(tmp_path, "rb") as fh:
+            transcript = oai.audio.transcriptions.create(
+                model="whisper-1",
+                file=fh,
+                language="pt",
+            )
+        texto = transcript.text.strip()
+    except Exception as e:
+        logger.error(f"processar_audio: Whisper falhou: {e}")
+        send_text(destino, f"Nao consegui transcrever o audio: {e}")
+        return
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
+    if not texto:
+        send_text(destino, "Nao entendi o audio. Tenta falar mais alto ou mandar texto.")
+        return
+
+    logger.info(f"Audio transcrito: {texto[:120]!r}")
+    processar_mensagem(sender_jid, texto)
+
+
 # ── Handler de mídia ──────────────────────────────────────────────────────────
 
 _MIME_EXT_MAP_WA = {
@@ -1316,16 +1372,14 @@ def webhook():
         or ""
     ).strip()
 
-    # Detectar mídia (imagem ou vídeo)
-    _MIME_EXT_MAP = {
-        "image/jpeg": ".jpg", "image/png": ".png",
-        "video/mp4": ".mp4",
-    }
+    # Detectar tipo de mensagem
     tipo_midia = None
     if message.get("imageMessage"):
         tipo_midia = "imageMessage"
     elif message.get("videoMessage"):
         tipo_midia = "videoMessage"
+    elif message.get("audioMessage"):
+        tipo_midia = "audioMessage"
 
     if not texto and not tipo_midia:
         return jsonify({"ok": True})
@@ -1333,7 +1387,14 @@ def webhook():
     # Processar em background para nao bloquear o webhook
     import threading
 
-    if tipo_midia:
+    if tipo_midia == "audioMessage":
+        def _run_audio():
+            try:
+                processar_audio(sender_jid, msg_data.get("key", {}), message)
+            except Exception as e:
+                logger.error(f"Erro em processar_audio: {e}", exc_info=True)
+        threading.Thread(target=_run_audio, daemon=True).start()
+    elif tipo_midia:
         def _run_midia():
             try:
                 processar_midia(sender_jid, msg_data.get("key", {}), message, tipo_midia)
