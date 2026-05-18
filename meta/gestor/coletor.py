@@ -53,7 +53,7 @@ def _buscar_insights_ads(token: str, account_id: str, days: int = 30) -> list | 
     params = {
         "access_token": token,
         "level": "ad",
-        "fields": "ad_id,ad_name,spend,impressions,clicks,actions,frequency,cpm,ctr,effective_status",
+        "fields": "ad_id,ad_name,spend,impressions,clicks,actions,frequency,cpm,ctr",
         "time_range": json.dumps({"since": str(inicio), "until": str(hoje)}),
         "limit": 200,
     }
@@ -280,8 +280,17 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
                     elif spend_dia > 0:
                         break
 
-        # Ads em aprendizado (effective_status = LEARNING)
-        ads_em_learning = sum(1 for r in rows if r.get("effective_status") == "LEARNING")
+        # Ads em aprendizado — busca via endpoint /ads separado
+        try:
+            ads_resp = requests.get(
+                f"{GRAPH_URL}/{conta['account_id']}/ads",
+                params={"access_token": token, "fields": "effective_status",
+                        "effective_status": '["LEARNING"]', "limit": 200},
+                timeout=15,
+            )
+            ads_em_learning = len(ads_resp.json().get("data", []))
+        except Exception:
+            ads_em_learning = 0
 
         # CPL semana anterior (do banco)
         cpl_semana_anterior = _buscar_cpl_semana_anterior(conta["id"], objetivo)
