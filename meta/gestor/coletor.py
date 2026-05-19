@@ -17,6 +17,17 @@ _log = logging.getLogger(__name__)
 
 GRAPH_URL = "https://graph.facebook.com/v21.0"
 
+# Objetivos de campanha Meta → tipo interno
+_META_OBJETIVO_MAP = {
+    "MESSAGES":   {"MESSAGES"},
+    "PURCHASE":   {"CONVERSIONS", "OUTCOME_SALES", "PRODUCT_CATALOG_SALES",
+                   "CATALOG_SALES", "OUTCOME_LEADS"},
+    "ENGAGEMENT": {"PAGE_LIKES", "POST_ENGAGEMENT", "OUTCOME_ENGAGEMENT", "REACH",
+                   "VIDEO_VIEWS", "BRAND_AWARENESS", "LINK_CLICKS", "EVENT_RESPONSES",
+                   "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS", "OUTCOME_APP_PROMOTION"},
+}
+
+
 def _get_db():
     db_url = os.environ.get("DATABASE_URL", "").strip()
     if not db_url:
@@ -42,6 +53,27 @@ def _extrair_conversoes(actions: list, objetivo: str) -> int:
     )
 
 
+def _buscar_objetivos_campanhas(token: str, account_id: str) -> dict:
+    """Retorna {campaign_id: objective} para campanhas ativas e pausadas da conta."""
+    try:
+        resp = requests.get(
+            f"{GRAPH_URL}/{account_id}/campaigns",
+            params={
+                "access_token": token,
+                "fields": "id,objective",
+                "effective_status": json.dumps(["ACTIVE", "PAUSED"]),
+                "limit": 200,
+            },
+            timeout=15,
+        )
+        data = resp.json()
+        if "error" in data:
+            return {}
+        return {c["id"]: c.get("objective", "") for c in data.get("data", [])}
+    except Exception:
+        return {}
+
+
 def _buscar_insights_ads(token: str, account_id: str, days: int = 30) -> list | None:
     """
     Busca insights a nível de ad dos últimos N dias.
@@ -53,7 +85,7 @@ def _buscar_insights_ads(token: str, account_id: str, days: int = 30) -> list | 
     params = {
         "access_token": token,
         "level": "ad",
-        "fields": "ad_id,ad_name,adset_id,adset_name,spend,impressions,clicks,actions,frequency,cpm,ctr",
+        "fields": "ad_id,ad_name,adset_id,adset_name,campaign_id,spend,impressions,clicks,actions,frequency,cpm,ctr",
         "time_range": json.dumps({"since": str(inicio), "until": str(hoje)}),
         "filtering": json.dumps([{"field": "ad.effective_status", "operator": "IN", "value": ["ACTIVE"]}]),
         "limit": 200,
@@ -258,6 +290,18 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
             continue
 
         saldo = _buscar_saldo(token, conta["account_id"])
+
+        # Filtrar ads por objetivo da campanha — exclui ads de campanhas do tipo errado
+        # (ex: conta MESSAGES com campanha de visita ao perfil misturada)
+        objetivos_validos = _META_OBJETIVO_MAP.get(objetivo)
+        if objetivos_validos and rows:
+            obj_map = _buscar_objetivos_campanhas(token, conta["account_id"])
+            if obj_map:
+                rows = [
+                    r for r in rows
+                    if obj_map.get(r.get("campaign_id", ""), "") in objetivos_validos
+                    or r.get("campaign_id", "") not in obj_map  # campanha não encontrada: incluir
+                ]
 
         # Ads em aprendizado + created_time (antes de agregar para ter dias_rodando)
         ads_em_learning = 0
