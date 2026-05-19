@@ -325,15 +325,15 @@ def _marcar_estado_resolvido(estado_id: int):
         logger.error(f"_marcar_estado_resolvido error: {e}")
 
 
-def formatar_resumo_gestor(acoes: list, alertas: list, total_contas: int, varredura_id: int) -> str | None:
+def formatar_resumo_gestor(acoes: list, alertas: list, total_contas: int, varredura_id: int, monitorando: list = None) -> str | None:
     """
     Formata mensagem matinal do Gestor IA para WA.
-    Retorna None se não há ações nem alertas (silêncio).
+    Retorna None se não há ações, alertas nem monitorando (silêncio).
     """
     from datetime import date as _date
     hoje = _date.today().strftime("%d/%m")
 
-    if not acoes and not alertas:
+    if not acoes and not alertas and not monitorando:
         return None
 
     linhas = [f"🤖 *Gestor IA — {hoje}*"]
@@ -376,6 +376,14 @@ def formatar_resumo_gestor(acoes: list, alertas: list, total_contas: int, varred
             prefixo = motivo.split(":")[0].strip()
             emoji = _ALERTA_EMOJI.get(prefixo, "•")
             linhas.append(f"{emoji} *{al['cliente_nome']}:* {motivo.split(':', 1)[-1].strip()}")
+        linhas.append("")
+
+    if monitorando:
+        linhas.append("👁️ *Monitorando:*")
+        for conta in monitorando:
+            for ad in conta["ads"]:
+                cpl_str = f", CPL R${ad['cpl']:.0f}" if ad.get("cpl") else ""
+                linhas.append(f"• {conta['conta']} — {ad['ad_name']} ({ad['dias']} dias, R${ad['spend']:.0f} invest.{cpl_str}, freq {ad['freq']})")
         linhas.append("")
 
     if acoes:
@@ -449,13 +457,17 @@ def enviar_resumo_gestor(varredura_id: int):
                 ORDER BY ga.executado_em
             """, (varredura_id,))
             alertas = [dict(r) for r in cur.fetchall()]
+
+            cur.execute("SELECT resumo_json FROM gestor_varreduras WHERE id=%s", (varredura_id,))
+            row = cur.fetchone()
+            monitorando = (row["resumo_json"] or {}).get("monitorando", []) if row else []
         finally:
             conn.close()
     except Exception as e:
         logger.error(f"enviar_resumo_gestor DB error: {e}")
         return
 
-    msg = formatar_resumo_gestor(acoes, alertas, total_contas, varredura_id)
+    msg = formatar_resumo_gestor(acoes, alertas, total_contas, varredura_id, monitorando)
     if msg:
         send_text(destino, msg)
 

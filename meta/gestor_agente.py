@@ -75,6 +75,15 @@ def main():
         total_acoes = sum(len(d.get('acoes', [])) for d in decisoes)
         _log(f"  {total_acoes} acoes decididas")
 
+        # 2b. Substituir alertas do Claude por alertas determinísticos
+        from meta.gestor.alertas import gerar_alertas, gerar_monitorando
+        alertas_det = gerar_alertas(perfis)
+        for d in decisoes:
+            d["alertas"] = alertas_det.get(d["cliente_id"], [])
+        monitorando = gerar_monitorando(perfis)
+        total_alertas = sum(len(v) for v in alertas_det.values())
+        _log(f"  {total_alertas} alertas deterministicos | {len(monitorando)} contas monitorando")
+
         # 3. Salvar como pendente (NAO executa no Meta)
         _log("Salvando acoes como pendentes...")
         n_pendentes = salvar_pendentes(decisoes, perfis, varredura_id, db_conn=db_conn)
@@ -118,7 +127,7 @@ def main():
             WHERE id=%s
         """, (
             len(perfis), contas_ok, contas_acao, contas_erro,
-            json.dumps({"pendentes": n_pendentes}),
+            json.dumps({"pendentes": n_pendentes, "monitorando": monitorando}),
             round(duracao, 2),
             varredura_id,
         ))
