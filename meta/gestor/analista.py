@@ -64,10 +64,10 @@ AÇÕES DISPONÍVEIS (executam no Meta Ads — precisam de aprovação do usuár
 ALERTAS DISPONÍVEIS (não executam no Meta — só informam no WhatsApp):
 Use o campo "alertas" (lista de strings) para situações que não requerem ação imediata:
 - "FREQ_ALTA: <ad_nome> freq=<X>" quando algum ad tem freq > 2.5 e < 3.5
-- "ZERO_CONV: <X> dias sem conversao" quando metricas.dias_sem_conversao >= 3 E objetivo NÃO é ENGAGEMENT
+- "ZERO_CONV: <X> dias sem conversao" quando metricas.dias_sem_conversao >= 7 E objetivo NÃO é ENGAGEMENT
 - "LEARNING_TRAVADO: <N> ads em aprendizado" quando metricas.ads_em_learning > 0
 - "SALDO_CRITICO: R$<X> restantes" APENAS quando tipo_pagamento=pix E saldo.remaining < 300
-- "SEM_VEICULACAO: sem gasto ontem" quando metricas.gasto_ontem == 0
+- "SEM_VEICULACAO: sem gasto ontem" quando metricas.gasto_ontem == 0 E saldo.remaining > 0 (se saldo for zero, é óbvio que não há gasto — não alertar)
 - "CPL_SEMANAL: CPL subiu/caiu X%" quando metricas.cpl_semana_anterior não é null
 
 NOMENCLATURA POR OBJETIVO — use sempre estes nomes no campo "motivo":

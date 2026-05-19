@@ -55,6 +55,7 @@ def _buscar_insights_ads(token: str, account_id: str, days: int = 30) -> list | 
         "level": "ad",
         "fields": "ad_id,ad_name,adset_id,adset_name,spend,impressions,clicks,actions,frequency,cpm,ctr",
         "time_range": json.dumps({"since": str(inicio), "until": str(hoje)}),
+        "filtering": json.dumps([{"field": "ad.effective_status", "operator": "IN", "value": ["ACTIVE"]}]),
         "limit": 200,
     }
     try:
