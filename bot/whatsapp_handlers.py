@@ -459,13 +459,7 @@ def enviar_resumo_gestor(varredura_id: int):
     if msg:
         send_text(destino, msg)
 
-    # Sugestão de copy para contas com frequência alta
-    contas_freq_alta = [
-        al["cliente_nome"] for al in alertas
-        if al.get("motivo", "").startswith("FREQ_ALTA")
-    ]
-    if contas_freq_alta:
-        _sugerir_copy_freq_alta(destino, contas_freq_alta)
+    # Sugestão de copy desativada (economiza tokens — fase de teste)
 
 
 try:

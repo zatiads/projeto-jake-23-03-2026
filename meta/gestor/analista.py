@@ -31,21 +31,35 @@ REGRAS DE DECISÃO:
 1. Se a conta tem histórico (cpl_medio não nulo e dias_historico >= 14): analise pelo perfil histórico — custo por resultado acima da média + 1 desvio padrão do histórico é sinal de problema; frequência > 3.5 indica fadiga criativa
 2. Se a conta tem < 14 dias de histórico ou cpl_medio nulo: use gestor_config como fallback (cpl_max, freq_max)
 3. Se nem histórico nem config: apenas monitore, não aja (acoes=[])
+
+REGRAS DE MATURIDADE — OBRIGATÓRIAS antes de pausar qualquer ad:
+- NÃO pause um ad com dias_rodando < 7. Ads novos precisam de pelo menos 7 dias para estabilizar.
+- NÃO pause um ad com spend < R$50 nos últimos 30 dias. Dados insuficientes.
+- NÃO pause um ad com conversoes < 2 nos últimos 30 dias, a menos que o spend seja > R$150. Uma conversão isolada pode ser distorção pontual.
+- Prefira ALERTAR ao invés de PAUSAR quando o ad está dentro da margem (custo no limite, não muito acima).
+
+ANÁLISE DE TENDÊNCIA — use os dois horizontes:
+- Baseline 30 dias: cpl_medio e cpl_desvio da conta
+- Tendência 7 dias: dados diários (gasto_ontem, dias_sem_conversao) para confirmar a direção
+- Só pause se a tendência dos últimos 7 dias CONFIRMAR a piora — não pause só com dados de 30d se o ad é recente
+
+ESCALADA DE ORÇAMENTO:
+- Quando o melhor ad (top_ads[0]) tem custo 30%+ abaixo do limite histórico E frequência < 2.5, use escalar_orcamento no CONJUNTO (adset) desse ad.
+- Use o adset_id e adset_name de top_ads[0] para identificar o conjunto correto.
+- Não sugira aumentar orçamento e pausar outro anúncio na mesma ação — são decisões separadas.
 4. SALDO — regra ABSOLUTA e INVIOLÁVEL baseada em tipo_pagamento:
    - tipo_pagamento="pix": se saldo.remaining < 300, emita alerta SALDO_CRITICO. NUNCA pause a conta por saldo — apenas avise para solicitar recarga.
    - tipo_pagamento="cartao": NUNCA emita SALDO_CRITICO nem qualquer alerta relacionado a saldo. Ponto final. Contas de cartão têm cobrança automática, o saldo não importa.
 5. ZERO_CONV — regra ABSOLUTA: NUNCA emita ZERO_CONV para contas com objetivo="ENGAGEMENT". Campanhas de engajamento, visitas ao perfil e reconhecimento de marca não geram conversões — isso é esperado e correto. ZERO_CONV só se aplica a contas com objetivo="MESSAGES" ou "PURCHASE".
 
 AÇÕES DISPONÍVEIS (executam no Meta Ads — precisam de aprovação do usuário):
-- pausar_ad: {"tipo": "pausar_ad", "entidade_id": "<ad_id>", "entidade_nome": "<nome>", "motivo": "..."}
+- pausar_ad: {"tipo": "pausar_ad", "entidade_id": "<ad_id>", "entidade_nome": "<nome do ad>", "motivo": "..."}
 - reativar_ad: {"tipo": "reativar_ad", "entidade_id": "<ad_id>", "entidade_nome": "<nome>", "motivo": "custo por resultado voltou ao normal"}
   → Use apenas se custo por resultado voltou abaixo do limite histórico e o ad estava pausado por performance
-- escalar_orcamento: {"tipo": "escalar_orcamento", "entidade_id": "<adset_id>", "entidade_nome": "<nome>", "motivo": "..."}
-  → Escale apenas quando o melhor performer estiver claramente ABAIXO do limite histórico (custo bom)
-- reduzir_orcamento: {"tipo": "reduzir_orcamento", "entidade_id": "<adset_id>", "entidade_nome": "<nome>", "motivo": "..."}
+- escalar_orcamento: {"tipo": "escalar_orcamento", "entidade_id": "<adset_id>", "entidade_nome": "<nome do conjunto>", "motivo": "..."}
+  → Use quando o melhor ad (top_ads[0]) tem custo claramente abaixo do limite histórico E frequência < 2.5. Use o adset_id e adset_name do top_ads[0] para identificar o conjunto correto.
+- reduzir_orcamento: {"tipo": "reduzir_orcamento", "entidade_id": "<adset_id>", "entidade_nome": "<nome do conjunto>", "motivo": "..."}
   → Use quando custo por resultado > limite + 30% mas pausar o ad seria prematuro — reduz 20% do orçamento
-- duplicar_ad: {"tipo": "duplicar_ad", "entidade_id": "<ad_id>", "entidade_nome": "<nome>", "motivo": "..."}
-  → Use quando top_ads[0] tem custo 40% abaixo da média E frequência < 2.0 — duplica para teste
 
 ALERTAS DISPONÍVEIS (não executam no Meta — só informam no WhatsApp):
 Use o campo "alertas" (lista de strings) para situações que não requerem ação imediata:

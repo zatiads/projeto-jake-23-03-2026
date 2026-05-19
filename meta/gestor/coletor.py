@@ -53,7 +53,7 @@ def _buscar_insights_ads(token: str, account_id: str, days: int = 30) -> list | 
     params = {
         "access_token": token,
         "level": "ad",
-        "fields": "ad_id,ad_name,spend,impressions,clicks,actions,frequency,cpm,ctr",
+        "fields": "ad_id,ad_name,adset_id,adset_name,spend,impressions,clicks,actions,frequency,cpm,ctr",
         "time_range": json.dumps({"since": str(inicio), "until": str(hoje)}),
         "limit": 200,
     }
@@ -146,25 +146,31 @@ def _buscar_saldo(token: str, account_id: str) -> dict:
         return {"amount_spent": 0.0, "spend_cap": 0.0, "remaining": 0.0}
 
 
-def _agregar_conta(rows: list, objetivo: str) -> dict:
+def _agregar_conta(rows: list, objetivo: str, ad_created_map: dict = None) -> dict:
     """
     Agrega linhas de ad-level insights num perfil de conta.
     Retorna: cpl_medio, cpl_desvio, total_conversoes, total_spend, dias_com_dados,
              top_ads (3 melhores CPL), bottom_ads (3 piores CPL).
+    ad_created_map: {ad_id: dias_rodando} — opcional, para filtrar ads muito novos.
     """
+    ad_created_map = ad_created_map or {}
     ads_com_dados = []
     for row in rows:
         spend = float(row.get("spend") or 0)
         conv  = _extrair_conversoes(row.get("actions") or [], objetivo)
         cpl   = spend / conv if conv > 0 else None
+        ad_id = row.get("ad_id", "")
         ads_com_dados.append({
-            "ad_id":   row.get("ad_id", ""),
-            "ad_name": row.get("ad_name", ""),
-            "spend":   spend,
+            "ad_id":      ad_id,
+            "ad_name":    row.get("ad_name", ""),
+            "adset_id":   row.get("adset_id", ""),
+            "adset_name": row.get("adset_name", ""),
+            "spend":      spend,
             "conversoes": conv,
-            "cpl":     cpl,
-            "freq":    float(row.get("frequency") or 0),
-            "ctr":     float(row.get("ctr") or 0),
+            "cpl":        cpl,
+            "freq":       float(row.get("frequency") or 0),
+            "ctr":        float(row.get("ctr") or 0),
+            "dias_rodando": ad_created_map.get(ad_id, 30),
         })
 
     cpls = [a["cpl"] for a in ads_com_dados if a["cpl"] is not None]
@@ -251,7 +257,7 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
             continue
 
         saldo    = _buscar_saldo(token, conta["account_id"])
-        metricas = _agregar_conta(rows, objetivo)
+        metricas = _agregar_conta(rows, objetivo, ad_created_map=ad_created_map)
 
         # Dados diários para alertas
         dados_diarios = _buscar_insights_diarios(token, conta["account_id"], days=7)
@@ -280,17 +286,31 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
                     elif spend_dia > 0:
                         break
 
-        # Ads em aprendizado — busca via endpoint /ads separado
+        # Ads em aprendizado + created_time para calcular dias rodando
+        ads_em_learning = 0
+        ad_created_map: dict = {}  # ad_id -> dias_rodando
         try:
             ads_resp = requests.get(
                 f"{GRAPH_URL}/{conta['account_id']}/ads",
-                params={"access_token": token, "fields": "effective_status",
-                        "effective_status": '["LEARNING"]', "limit": 200},
+                params={"access_token": token,
+                        "fields": "id,effective_status,created_time",
+                        "limit": 200},
                 timeout=15,
             )
-            ads_em_learning = len(ads_resp.json().get("data", []))
+            hoje_dt = date.today()
+            for ad in ads_resp.json().get("data", []):
+                if ad.get("effective_status") == "LEARNING":
+                    ads_em_learning += 1
+                ct = ad.get("created_time", "")
+                if ct:
+                    try:
+                        from datetime import datetime as _dt
+                        criado = _dt.fromisoformat(ct[:10]).date()
+                        ad_created_map[ad["id"]] = (hoje_dt - criado).days
+                    except Exception:
+                        pass
         except Exception:
-            ads_em_learning = 0
+            pass
 
         # CPL semana anterior (do banco)
         cpl_semana_anterior = _buscar_cpl_semana_anterior(conta["id"], objetivo)
