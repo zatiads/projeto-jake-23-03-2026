@@ -256,39 +256,11 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
             })
             continue
 
-        saldo    = _buscar_saldo(token, conta["account_id"])
-        metricas = _agregar_conta(rows, objetivo, ad_created_map=ad_created_map)
+        saldo = _buscar_saldo(token, conta["account_id"])
 
-        # Dados diários para alertas
-        dados_diarios = _buscar_insights_diarios(token, conta["account_id"], days=7)
-        if dados_diarios is None:
-            _log.warning("insights_diarios indisponível para account=%s — gasto_ontem=0", conta["account_id"])
-            dados_diarios = []
-        gasto_ontem = 0.0
-        dias_sem_conversao = 0
-        if dados_diarios:
-            # A Meta omite dias sem dados — verificar se o último item é de fato ontem
-            ontem_str = str(date.today() - timedelta(days=1))
-            dia_ontem = next(
-                (d for d in reversed(dados_diarios) if d.get("date_start") == ontem_str),
-                None,
-            )
-            gasto_ontem = float(dia_ontem.get("spend") or 0) if dia_ontem else 0.0
-            # Contar dias consecutivos com gasto mas sem conversão
-            # Ignorar objetivos que não geram conversão de mensagem/venda
-            _OBJETIVOS_SEM_CONVERSAO = {"ENGAGEMENT", "REACH", "BRAND_AWARENESS", "VIDEO_VIEWS"}
-            if objetivo not in _OBJETIVOS_SEM_CONVERSAO:
-                for dia in reversed(dados_diarios):
-                    spend_dia = float(dia.get("spend") or 0)
-                    conv_dia = _extrair_conversoes(dia.get("actions") or [], objetivo)
-                    if spend_dia > 0 and conv_dia == 0:
-                        dias_sem_conversao += 1
-                    elif spend_dia > 0:
-                        break
-
-        # Ads em aprendizado + created_time para calcular dias rodando
+        # Ads em aprendizado + created_time (antes de agregar para ter dias_rodando)
         ads_em_learning = 0
-        ad_created_map: dict = {}  # ad_id -> dias_rodando
+        ad_created_map = {}  # ad_id -> dias_rodando
         try:
             ads_resp = requests.get(
                 f"{GRAPH_URL}/{conta['account_id']}/ads",
@@ -311,6 +283,34 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
                         pass
         except Exception:
             pass
+
+        metricas = _agregar_conta(rows, objetivo, ad_created_map=ad_created_map)
+
+        # Dados diários para alertas
+        dados_diarios = _buscar_insights_diarios(token, conta["account_id"], days=7)
+        if dados_diarios is None:
+            _log.warning("insights_diarios indisponível para account=%s — gasto_ontem=0", conta["account_id"])
+            dados_diarios = []
+        gasto_ontem = 0.0
+        dias_sem_conversao = 0
+        if dados_diarios:
+            # A Meta omite dias sem dados — verificar se o último item é de fato ontem
+            ontem_str = str(date.today() - timedelta(days=1))
+            dia_ontem = next(
+                (d for d in reversed(dados_diarios) if d.get("date_start") == ontem_str),
+                None,
+            )
+            gasto_ontem = float(dia_ontem.get("spend") or 0) if dia_ontem else 0.0
+            # Contar dias consecutivos com gasto mas sem conversão
+            _OBJETIVOS_SEM_CONVERSAO = {"ENGAGEMENT", "REACH", "BRAND_AWARENESS", "VIDEO_VIEWS"}
+            if objetivo not in _OBJETIVOS_SEM_CONVERSAO:
+                for dia in reversed(dados_diarios):
+                    spend_dia = float(dia.get("spend") or 0)
+                    conv_dia = _extrair_conversoes(dia.get("actions") or [], objetivo)
+                    if spend_dia > 0 and conv_dia == 0:
+                        dias_sem_conversao += 1
+                    elif spend_dia > 0:
+                        break
 
         # CPL semana anterior (do banco)
         cpl_semana_anterior = _buscar_cpl_semana_anterior(conta["id"], objetivo)
