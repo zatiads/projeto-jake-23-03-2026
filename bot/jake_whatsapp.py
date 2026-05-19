@@ -1334,7 +1334,7 @@ def _contexto_rotinas() -> str:
         "TODA QUARTA 8h30: check de meio de semana (contas travadas, sem conversao)\n"
         "TODA SEXTA 17h: relatorio financeiro pessoal vs meta R$1M\n"
         "TODO DIA 8h: alerta saldo baixo Meta (< R$300)\n"
-        "TODO DIA 8h05: bom dia com dica de trafego\n"
+        "TODO DIA 8h05: noticias de IA e marketing (resumo Claude, feeds RSS)\n"
         "DIA 1 DE CADA MES 6h: auto-import transacoes recorrentes financeiro\n"
         "GESTOR IA continuo: monitora contas Meta (frequencia, conversao, saldo critico)\n"
         "IMPORTANTE: NAO diga que nao ha tarefas. NAO diga que nao recebeu nada. "
@@ -1696,7 +1696,9 @@ def _expirar_pendentes():
 def _alerta_saldo_baixo():
     """
     Roda todo dia às 8h.
-    Verifica saldo das contas Meta e alerta se alguma estiver abaixo de R$300.
+    Verifica saldo das contas Meta, separando por agência (Piloti / Dentto).
+    Limites personalizados por conta. Contas de cartão de crédito pausadas
+    exibem "Falta de pagamento" ao invés de saldo restante.
     """
     if not AUTHORIZED_NUMBER:
         return
@@ -1706,7 +1708,7 @@ def _alerta_saldo_baixo():
                                 cursor_factory=psycopg2.extras.RealDictCursor)
         cur = conn.cursor()
         cur.execute("""
-            SELECT nome, account_id, token_key FROM ad_client_profiles
+            SELECT nome, account_id, token_key, agencia FROM ad_client_profiles
             WHERE gestor_ativo = TRUE
         """)
         contas = cur.fetchall()
@@ -1722,7 +1724,21 @@ def _alerta_saldo_baixo():
 
     import requests as _req
 
-    alertas = []
+    # Limites de alerta personalizados (default R$300)
+    LIMITES = {
+        "Calixta Films":  100.0,
+        "Amanda Cunha":    50.0,
+        "Marcos Couto":    50.0,
+    }
+    LIMITE_PADRAO = 300.0
+
+    # Contas de cartão de crédito: não têm saldo pré-pago.
+    # Se estiverem pausadas, o motivo é falta de pagamento — exibir isso.
+    CARTAO = {"Maíra Castaldi", "RD Contabilidade"}
+
+    alertas_piloti = []
+    alertas_dentto = []
+
     for conta in contas:
         try:
             token = _resolve_token(conta["token_key"])
@@ -1733,23 +1749,49 @@ def _alerta_saldo_baixo():
         try:
             resp = _req.get(
                 f"https://graph.facebook.com/v21.0/{conta['account_id']}",
-                params={"fields": "amount_spent,spend_cap,balance", "access_token": token},
+                params={"fields": "amount_spent,spend_cap,balance,account_status", "access_token": token},
                 timeout=10,
             )
             data = resp.json()
-            amount_spent = float(data.get("amount_spent", 0) or 0) / 100
-            spend_cap    = float(data.get("spend_cap", 0) or 0) / 100
-            balance      = float(data.get("balance", 0) or 0) / 100
-            remaining    = max(0.0, spend_cap - amount_spent) if spend_cap else balance
-            if remaining < 300:
-                alertas.append(f"  • {conta['nome']}: R${remaining:.2f} restante")
+            nome     = conta["nome"]
+            agencia  = (conta.get("agencia") or "piloti").lower()
+            # account_status: 1=ativa, 2=desativada, 3=não paga (unsettled), 9=período de graça
+            status   = int(data.get("account_status", 1))
+
+            if nome in CARTAO:
+                # Cartão de crédito — só alerta se conta pausada por não pagamento
+                if status in (2, 3, 9):
+                    linha = f"  • {nome}: ⚠️ Falta de pagamento"
+                else:
+                    continue  # ativa no cartão, sem alerta
+            else:
+                amount_spent = float(data.get("amount_spent", 0) or 0) / 100
+                spend_cap    = float(data.get("spend_cap",    0) or 0) / 100
+                balance      = float(data.get("balance",      0) or 0) / 100
+                remaining    = max(0.0, spend_cap - amount_spent) if spend_cap else balance
+                limite       = LIMITES.get(nome, LIMITE_PADRAO)
+                if remaining >= limite:
+                    continue
+                linha = f"  • {nome}: R${remaining:.2f} restante"
+
+            if agencia == "dentto":
+                alertas_dentto.append(linha)
+            else:
+                alertas_piloti.append(linha)
+
         except Exception:
             pass
 
-    if alertas:
-        msg = "*Saldo baixo nas contas Meta:*\n" + "\n".join(alertas)
+    partes = []
+    if alertas_piloti:
+        partes.append("🟠🟣 *Piloti:*\n" + "\n".join(alertas_piloti))
+    if alertas_dentto:
+        partes.append("🔵 *Dentto:*\n" + "\n".join(alertas_dentto))
+
+    if partes:
+        msg = "⚠️ *Saldo baixo — Contas Meta:*\n\n" + "\n\n".join(partes)
         send_text(AUTHORIZED_NUMBER, msg)
-        logger.info(f"_alerta_saldo_baixo: {len(alertas)} alertas enviados")
+        logger.info(f"_alerta_saldo_baixo: Piloti={len(alertas_piloti)} Dentto={len(alertas_dentto)}")
 
 
 def _rotina_sexta():
@@ -1858,32 +1900,73 @@ def _rotina_quarta():
         logger.error(f"_rotina_quarta error: {e}")
 
 
-def _bom_dia():
+def _noticias_diarias():
     """
-    Roda todo dia às 8h05 (após o alerta de saldo).
-    Envia bom dia com dica prática de tráfego pago.
+    Roda todo dia às 8h05.
+    Busca as principais notícias de IA e marketing do dia via RSS,
+    filtra o que é relevante para gestor de tráfego Meta Ads e envia resumo.
     """
     if not AUTHORIZED_NUMBER:
         return
     try:
+        import urllib.request
+        import xml.etree.ElementTree as ET
         from datetime import date as _date
+
+        feeds = [
+            "https://techcrunch.com/tag/artificial-intelligence/feed/",
+            "https://feeds.feedburner.com/socialmediaexaminer",
+            "https://www.searchenginejournal.com/feed/",
+            "https://www.jonloomer.com/feed/",
+            "https://www.artificialintelligence-news.com/feed/",
+        ]
+
+        noticias = []
+        for feed_url in feeds:
+            try:
+                req = urllib.request.Request(feed_url, headers={"User-Agent": "Jake-IA/1.0"})
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    xml_data = resp.read()
+                root = ET.fromstring(xml_data)
+                for item in root.findall(".//item")[:3]:
+                    titulo = item.findtext("title", "").strip()
+                    if titulo:
+                        noticias.append(titulo)
+            except Exception:
+                pass
+            if len(noticias) >= 8:
+                break
+
         hoje = _date.today()
-        dias = ["Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado", "Domingo"]
+        dias = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
         dia_semana = dias[hoje.weekday()]
 
-        prompt = (
-            "Voce e Jake, assistente de trafego pago do Bruno (Patrao).\n"
-            f"Hoje e {dia_semana}, {hoje.strftime('%d/%m/%Y')}.\n"
-            "Escreva uma mensagem de bom dia curta (max 4 linhas) com:\n"
-            "1. Saudacao contextualizada ao dia da semana\n"
-            "2. Uma dica pratica de Meta Ads ou gestao de clientes relevante para hoje\n"
-            "Sem emojis excessivos, tom direto e motivador. Responda em portugues."
+        if noticias:
+            prompt = (
+                f"Você é Jake, assistente do Bruno — gestor de tráfego Meta Ads.\n"
+                f"Hoje é {dia_semana}, {hoje.strftime('%d/%m/%Y')}.\n"
+                "Com base nas notícias abaixo, selecione as 3 mais relevantes para quem "
+                "gerencia campanhas Meta Ads e agências de marketing digital no Brasil. "
+                "Para cada uma escreva: título adaptado ao contexto + 1 frase de impacto prático. "
+                "Formato: bullet point. Tom direto, sem enrolação, português.\n\n"
+                "Notícias disponíveis:\n"
+                + "\n".join(f"- {n}" for n in noticias)
+            )
+            try:
+                resumo = chamar_claude(prompt, "Resumo IA & Marketing:")
+            except Exception:
+                resumo = "\n".join(f"• {n}" for n in noticias[:3])
+        else:
+            resumo = "Não consegui acessar os feeds hoje. Tente verificar manualmente."
+
+        msg = (
+            f"📰 *IA & Marketing — {dia_semana} {hoje.strftime('%d/%m')}*\n\n"
+            f"{resumo}"
         )
-        msg = chamar_claude(prompt, "Bom dia Patrao!")
         send_text(AUTHORIZED_NUMBER, msg)
-        logger.info("_bom_dia: mensagem enviada")
+        logger.info("_noticias_diarias: resumo enviado")
     except Exception as e:
-        logger.error(f"_bom_dia error: {e}")
+        logger.error(f"_noticias_diarias error: {e}")
 
 
 def _configurar_scheduler() -> BackgroundScheduler:
@@ -1932,23 +2015,14 @@ def _configurar_scheduler() -> BackgroundScheduler:
     )
     logger.info("Agendado: auto-import financeiro no dia 1 de cada mes")
 
-    # Alerta de saldo baixo (<R$300) todo dia às 8h
+    # Notícias diárias de IA & Marketing às 7h35
     scheduler.add_job(
-        _alerta_saldo_baixo,
-        CronTrigger(hour=8, minute=0, timezone=SP_TZ),
-        id="alerta_saldo_baixo",
+        _noticias_diarias,
+        CronTrigger(hour=7, minute=35, timezone=SP_TZ),
+        id="noticias_diarias",
         replace_existing=True,
     )
-    logger.info("Agendado: alerta saldo baixo as 08:00")
-
-    # Bom dia diário às 8h05
-    scheduler.add_job(
-        _bom_dia,
-        CronTrigger(hour=8, minute=5, timezone=SP_TZ),
-        id="bom_dia",
-        replace_existing=True,
-    )
-    logger.info("Agendado: bom dia as 08:05")
+    logger.info("Agendado: noticias diarias IA & Marketing as 07:35")
 
     # Relatório financeiro toda sexta às 17h
     scheduler.add_job(
@@ -1959,14 +2033,14 @@ def _configurar_scheduler() -> BackgroundScheduler:
     )
     logger.info("Agendado: relatorio financeiro sexta as 17:00")
 
-    # Check de quarta-feira às 8h30
+    # Check de quarta-feira às 7h30
     scheduler.add_job(
         _rotina_quarta,
-        CronTrigger(day_of_week="wed", hour=8, minute=30, timezone=SP_TZ),
+        CronTrigger(day_of_week="wed", hour=7, minute=30, timezone=SP_TZ),
         id="rotina_quarta",
         replace_existing=True,
     )
-    logger.info("Agendado: check de quarta as 08:30")
+    logger.info("Agendado: check de quarta as 07:30")
 
     # Mensagens agendadas para grupos
     grupos = get_grupos()
