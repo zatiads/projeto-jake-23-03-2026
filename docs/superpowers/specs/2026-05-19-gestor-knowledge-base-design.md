@@ -107,7 +107,8 @@ TEXTO:
 
 **Controle de qualidade:**
 - Output parseado como JSON; se `aprovado=false` → descartado sem salvar
-- Duplicatas: match exato em `titulo` normalizado (lowercase, strip) contra últimas 100 entradas
+- Duplicatas: match exato em `titulo` normalizado (lowercase, strip) contra toda a tabela (`SELECT titulo FROM gestor_conhecimento WHERE ativo=TRUE`)
+- Scraping: timeout=15s por URL; mínimo 500 caracteres de texto extraído para tentar extração; URLs com erro HTTP, timeout ou texto curto → skip silencioso + log em stderr; o job continua para próxima URL
 
 **Execução:** cron toda segunda às 6h00 (antes da varredura das 7h30)
 
