@@ -362,6 +362,7 @@ def formatar_resumo_gestor(acoes: list, alertas: list, total_contas: int, varred
         for a in acoes:
             label = _TIPO_LABEL.get(a["tipo"], a["tipo"].upper())
             linhas.append(f"*{a['numero_na_varredura']}. {label}* — {a['cliente_nome']}")
+            linhas.append(f"   📌 _{a['entidade_nome']}_")
             linhas.append(f"   {a['motivo']}")
             linhas.append("")
     else:
