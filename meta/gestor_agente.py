@@ -53,6 +53,17 @@ def main():
     db_conn.commit()
 
     try:
+        # 0. Expirar ações pendentes de varreduras anteriores
+        cur.execute("""
+            UPDATE gestor_acoes
+            SET status = 'expirado', expirado_em = NOW()
+            WHERE status = 'pendente' AND varredura_id < %s
+        """, (varredura_id,))
+        expiradas = cur.rowcount
+        if expiradas > 0:
+            _log(f"  {expiradas} acoes antigas expiradas")
+        db_conn.commit()
+
         # 1. Coletar
         _log("Coletando metricas...")
         perfis = coletar(db_conn=db_conn)
