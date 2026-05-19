@@ -8,6 +8,11 @@ import json
 import logging
 from typing import List, Dict, Any
 
+try:
+    from meta.gestor.conhecimento.contexto import montar_contexto as _montar_contexto
+except Exception:
+    _montar_contexto = None  # type: ignore
+
 _log = logging.getLogger(__name__)
 
 try:
@@ -138,6 +143,13 @@ def analisar(perfis: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "gestor_config": p.get("gestor_config"),
         })
 
+    # Injetar conhecimento de gestor sênior no system_prompt
+    system_prompt = _SYSTEM_PROMPT
+    if _montar_contexto is not None:
+        bloco = _montar_contexto(perfis_validos)
+        if bloco:
+            system_prompt = _SYSTEM_PROMPT + "\n\n" + bloco
+
     user_msg = (
         "Analise estas contas e retorne as decisões de otimização em JSON:\n\n"
         + json.dumps(perfis_prompt, ensure_ascii=False, indent=2)
@@ -147,7 +159,7 @@ def analisar(perfis: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     msg = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=8192,
-        system=_SYSTEM_PROMPT,
+        system=system_prompt,
         messages=[{"role": "user", "content": user_msg}],
     )
 
