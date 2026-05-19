@@ -82,10 +82,32 @@ Script de migração única. Popula a tabela com ~20 blocos de conhecimento de a
 "quando escalar orçamento Meta Ads sem perder performance"
 ```
 
+**Prompt de extração (Claude):**
+```
+Você é um especialista em tráfego pago Meta Ads no Brasil.
+Leia o texto abaixo e extraia APENAS regras acionáveis sobre gestão de campanhas.
+Ignore conteúdo genérico, de vendas ou sem dados concretos.
+
+Retorne SOMENTE JSON válido neste formato:
+{
+  "aprovado": true|false,
+  "motivo_rejeicao": "string ou null",
+  "titulo": "string curto descritivo",
+  "nichos": ["dental"|"fitness"|"varejo"|"servicos"|"saude"|"geral"],
+  "tipo_campanha": "MESSAGES"|"PURCHASE"|"ENGAGEMENT"|"geral",
+  "regras": "- regra 1\n- regra 2\n..."
+}
+
+Rejeite (aprovado=false) se: menos de 3 regras acionáveis, conteúdo genérico sem números,
+ou conteúdo de vendas sem informação técnica útil.
+
+TEXTO:
+{texto}
+```
+
 **Controle de qualidade:**
-- Claude avalia o conteúdo antes de salvar (prompt de extração com critério rigoroso)
-- Conteúdo com menos de 3 regras acionáveis é descartado
-- Duplicatas são detectadas por similaridade de título
+- Output parseado como JSON; se `aprovado=false` → descartado sem salvar
+- Duplicatas: match exato em `titulo` normalizado (lowercase, strip) contra últimas 100 entradas
 
 **Execução:** cron toda segunda às 6h00 (antes da varredura das 7h30)
 
@@ -118,17 +140,25 @@ CONHECIMENTO DE GESTOR SENIOR — use como referencia nas decisoes:
 ...
 ```
 
+**Assinatura de `montar_contexto`:**
+```python
+def montar_contexto(perfis: list[dict]) -> str:
+    """
+    perfis: lista de dicts com pelo menos as chaves:
+      - 'nome': str  (nome da conta, ex: "Espaço Dente")
+      - 'objetivo': str  (ex: "MESSAGES", "ENGAGEMENT", "PURCHASE")
+    Retorna string formatada para append no system_prompt do analista.
+    Retorna "" se banco vazio ou erro.
+    """
+```
+
 **Integração com `analista.py`:**
 ```python
 from meta.gestor.conhecimento.contexto import montar_contexto
 
-bloco = montar_contexto(perfis)  # perfis da varredura atual
-system_prompt = _SYSTEM_PROMPT + "\n\n" + bloco
+bloco = montar_contexto(perfis)
+system_prompt = _SYSTEM_PROMPT + ("\n\n" + bloco if bloco else "")
 ```
-
-### 4. Aprendizado via WhatsApp (opcional, fase 2)
-
-Comando: `"jake aprende: queen poltronas CPL até R$60"` → Jake salva nova regra no banco com `origem='aprendizado'`.
 
 ---
 
@@ -140,7 +170,7 @@ Comando: `"jake aprende: queen poltronas CPL até R$60"` → Jake salva nova reg
 | Bloco de conhecimento (10 blocos) | ~1.000 |
 | **Total** | **~1.900** |
 
-Dentro do limite de 8.192 tokens de output do modelo. Custo marginal por varredura: ~$0.003.
+Custo adicional por varredura: ~$0.003 (modelo claude-sonnet-4-6, contexto de 200k tokens — sem risco de overflow).
 
 ---
 
@@ -162,7 +192,7 @@ Dentro do limite de 8.192 tokens de output do modelo. Custo marginal por varredu
 | `meta/gestor/conhecimento/buscador.py` | criar |
 | `meta/gestor/conhecimento/contexto.py` | criar |
 | `meta/gestor/analista.py` | modificar (importar e injetar contexto) |
-| `meta/gestor/migrations.py` | modificar (adicionar tabela gestor_conhecimento) |
+| `meta/gestor/migrations.py` | modificar — adicionar migration com o CREATE TABLE acima (executar antes do seed.py) |
 | `crontab` | modificar (adicionar job semanal buscador) |
 
 ---
