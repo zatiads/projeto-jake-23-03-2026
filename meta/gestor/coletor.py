@@ -291,15 +291,17 @@ def coletar(db_conn=None) -> List[Dict[str, Any]]:
 
         saldo = _buscar_saldo(token, conta["account_id"])
 
-        # Filtrar ads por objetivo da campanha — exclui ads de campanhas do tipo errado
-        # (ex: conta MESSAGES com campanha de visita ao perfil misturada)
-        objetivos_validos = _META_OBJETIVO_MAP.get(objetivo)
-        if objetivos_validos and rows:
+        # Filtrar ads por objetivo da campanha — exclui ads de campanhas explicitamente
+        # do tipo errado (ex: conta MESSAGES com campanha de visita ao perfil misturada).
+        # Usa blacklist (exclui o que não bate) em vez de whitelist, para não perder
+        # ads de campanhas com objetivo diferente mas alinhado (ex: OUTCOME_LEADS numa conta MESSAGES).
+        if objetivo == "MESSAGES" and rows:
             obj_map = _buscar_objetivos_campanhas(token, conta["account_id"])
             if obj_map:
+                _engagement_objs = _META_OBJETIVO_MAP.get("ENGAGEMENT", set())
                 rows = [
                     r for r in rows
-                    if obj_map.get(r.get("campaign_id", ""), "") in objetivos_validos
+                    if obj_map.get(r.get("campaign_id", ""), "") not in _engagement_objs
                     or r.get("campaign_id", "") not in obj_map  # campanha não encontrada: incluir
                 ]
 
