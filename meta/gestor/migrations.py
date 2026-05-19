@@ -96,6 +96,7 @@ def run():
         conn.commit()
         cur.close()
         print("Migrations aplicadas com sucesso.")
+        migrate_conhecimento(conn)
     except Exception:
         conn.rollback()
         raise
@@ -135,6 +136,31 @@ def migrate_v2(conn):
 
     conn.commit()
     print("[migrations] v2 aplicada.")
+
+
+def migrate_conhecimento(conn):
+    """Migração: tabela de conhecimento sênior do Gestor."""
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS gestor_conhecimento (
+            id            SERIAL PRIMARY KEY,
+            titulo        TEXT NOT NULL,
+            regras        TEXT NOT NULL,
+            nichos        TEXT[] DEFAULT '{}',
+            tipo_campanha TEXT,
+            fonte         TEXT,
+            origem        TEXT DEFAULT 'seed',
+            ativo         BOOLEAN DEFAULT TRUE,
+            criado_em     TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_gestor_conhecimento_nichos
+        ON gestor_conhecimento USING GIN(nichos)
+        WHERE ativo = TRUE
+    """)
+    conn.commit()
+    print("[migrations] gestor_conhecimento aplicada.")
 
 
 if __name__ == "__main__":
