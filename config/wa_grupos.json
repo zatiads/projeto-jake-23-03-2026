@@ -5,27 +5,27 @@
     "lembretes": [
       {
         "id": "compras_segunda",
-        "msg": "Oi gente! 🛒 Segunda-feira chegou. O que tá faltando em casa? Me mandem aqui embaixo os itens que precisam comprar e eu guardo a lista pra vocês.",
+        "msg": "Fala galera! 🛒✨ Segunda chegou e eu vim fazer minha pergunta semanal favorita: o que tá faltando em casa? 👀\n\nJoga os itens aqui embaixo que eu guardo tudo. Quando quiserem a lista, é só o Bruno me pedir no privado! 😄",
         "cron": "0 9 * * 1"
       },
       {
         "id": "gastos_sexta",
-        "msg": "Oi gente! 👋 Sexta-feira chegou — bora registrar os gastos da semana antes de acumular? Me manda aqui no grupo o que gastaram e eu organizo tudo. 💸",
+        "msg": "Sexta-feira, pessoal! 🎉 Antes de entrar no modo fim de semana, bora registrar os gastos da semana? 💸\n\nJoga aqui o que vocês gastaram que eu anoto tudo. Assim a gente não chega no fim do mês perdido 😅📊",
         "cron": "0 9 * * 5"
       },
       {
         "id": "sofa_aviso",
-        "msg": "Atenção! 🛋️ O boleto do sofá vence em 2 dias (dia 17). São R$223,10 pra cada um. Já separaram?",
+        "msg": "Atenção! 🛋️⚠️ O boleto do sofá vence em 2 dias (dia 17). São R$223,10 pra cada um — já separaram? 💳",
         "cron": "0 9 15 * *"
       },
       {
         "id": "aluguel_aviso",
-        "msg": "Oi! 🏠 O aluguel vence em 2 dias (dia 15). Já deixaram tudo separado?",
+        "msg": "Oi gente! 🏠⚠️ Lembrando que o aluguel vence em 2 dias (dia 15). Tá tudo certo com o pagamento? 💰",
         "cron": "0 9 13 * *"
       },
       {
         "id": "energia_aviso",
-        "msg": "Lembrete! ⚡ A conta de energia vence em 2 dias (dia 22). Bora verificar se tá tudo certo?",
+        "msg": "Lembrete rápido! ⚡⚠️ A conta de energia vence em 2 dias (dia 22). Bora não deixar pra última hora! 😬💡",
         "cron": "0 9 20 * *"
       }
     ]

@@ -1692,14 +1692,15 @@ def _cmd_lista_compras(destino: str):
         _cur.execute("SELECT item, adicionado_em FROM lista_compras ORDER BY adicionado_em")
         itens = [dict(r) for r in _cur.fetchall()]
         if not itens:
-            send_text(destino, "A lista de compras tá vazia, Patrão! Ninguém adicionou nada ainda. 🛒")
+            send_text(destino, "A lista tá vazia, Patrão! 🛒 Ninguém adicionou nada ainda no grupo. Pede pra Camila jogar os itens lá! 😄")
             _conn.close()
             return
-        linhas = ["🛒 *Lista do Mercado:*", ""]
+        linhas = ["🛒✨ *Lista do Mercado:*", ""]
         for i, item in enumerate(itens, 1):
-            linhas.append(f"{i}. {item['item']}")
+            linhas.append(f"  {i}. {item['item']}")
         linhas.append("")
-        linhas.append(f"_{len(itens)} item(s) no total — lista limpa após esse envio_ ✅")
+        linhas.append(f"📦 _{len(itens)} item(s) no total_")
+        linhas.append("✅ _Lista limpa — boas compras!_ 🎉")
         _cur.execute("DELETE FROM lista_compras")
         _conn.commit()
         _conn.close()
