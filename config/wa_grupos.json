@@ -4,6 +4,11 @@
     "jid": "120363310359411409@g.us",
     "lembretes": [
       {
+        "id": "compras_segunda",
+        "msg": "Oi gente! 🛒 Segunda-feira chegou. O que tá faltando em casa? Me mandem aqui embaixo os itens que precisam comprar e eu guardo a lista pra vocês.",
+        "cron": "0 9 * * 1"
+      },
+      {
         "id": "gastos_sexta",
         "msg": "Oi gente! 👋 Sexta-feira chegou — bora registrar os gastos da semana antes de acumular? Me manda aqui no grupo o que gastaram e eu organizo tudo. 💸",
         "cron": "0 9 * * 5"

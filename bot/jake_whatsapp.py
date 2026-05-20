@@ -46,6 +46,7 @@ AUTHORIZED_NUMBER  = os.environ.get("WA_AUTHORIZED_NUMBER", "").strip()
 WEBHOOK_SECRET     = os.environ.get("EVOLUTION_WEBHOOK_SECRET", "").strip()
 ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 SP_TZ              = pytz.timezone("America/Sao_Paulo")
+CASA_GROUP_JID     = "120363310359411409@g.us"
 
 # ── Prompt (copiado literalmente de bot/jake_telegram.py) ─────────────────────
 def _perfil_contexto() -> str:
@@ -228,6 +229,7 @@ _KEYWORDS_FINANCEIRO = [
 ]
 
 _KEYWORDS_GRUPO = ["manda", "envia", "grupo", "bom dia", "boa semana", "boa tarde", "boa noite"]
+_KEYWORDS_LISTA_COMPRAS = ["lista do mercado", "lista de compras", "lista do supermercado", "manda a lista", "me manda a lista"]
 
 _KEYWORDS_CLIENTES = [
     "cliente", "clientes", "carteira", "orçamento", "orcamento", "investimento",
@@ -1445,6 +1447,13 @@ def processar_mensagem(sender_jid: str, texto: str):
     if _processar_slash_cmd(sender_jid, texto):
         return
 
+    # Lista de compras
+    _t_lower = texto.lower()
+    if any(k in _t_lower for k in _KEYWORDS_LISTA_COMPRAS):
+        destino_lista = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
+        _cmd_lista_compras(destino_lista)
+        return
+
     # 2. Aprovação do gestor (sem sessão ativa E padrão ok/cancela)
     if _APROVACAO_RE.match(texto.strip()):
         sessao_check = _get_sessao(sender_jid)
@@ -1576,6 +1585,31 @@ def webhook():
     # Debug: logar JID recebido
     logger.info(f"Webhook recebido: sender_jid={sender_jid!r} authorized={AUTHORIZED_JID!r} fromMe={key.get('fromMe')}")
 
+    # Mensagens do grupo Casa — salvar itens na lista de compras
+    if sender_jid == CASA_GROUP_JID:
+        message_grp = msg_data.get("message", {})
+        texto_grp = (
+            message_grp.get("conversation")
+            or message_grp.get("extendedTextMessage", {}).get("text")
+            or ""
+        ).strip()
+        if texto_grp:
+            remetente = key.get("participant", sender_jid)
+            try:
+                import psycopg2 as _pg2
+                _conn = _pg2.connect(os.environ.get("DATABASE_URL", ""))
+                _cur = _conn.cursor()
+                _cur.execute(
+                    "INSERT INTO lista_compras (item, adicionado_por) VALUES (%s, %s)",
+                    (texto_grp, remetente)
+                )
+                _conn.commit()
+                _conn.close()
+                logger.info(f"Item adicionado na lista: {texto_grp!r} por {remetente}")
+            except Exception as _e:
+                logger.error(f"Erro ao salvar item lista_compras: {_e}")
+        return jsonify({"ok": True})
+
     # Apenas responder ao usuario autorizado
     if sender_jid != AUTHORIZED_JID:
         logger.info(f"JID nao autorizado, ignorando: {sender_jid!r}")
@@ -1647,6 +1681,33 @@ def _enviar_mensagem_grupo(grupo: dict):
     """Cron agendado: envia mensagem para um grupo configurado."""
     logger.info(f"Enviando mensagem agendada para grupo {grupo['nome']}")
     send_text(grupo["jid"], grupo["msg"])
+
+
+def _cmd_lista_compras(destino: str):
+    """Busca itens da lista de compras, envia formatado e limpa a lista."""
+    try:
+        import psycopg2 as _pg2, psycopg2.extras as _ext
+        _conn = _pg2.connect(os.environ.get("DATABASE_URL", ""), cursor_factory=_ext.RealDictCursor)
+        _cur = _conn.cursor()
+        _cur.execute("SELECT item, adicionado_em FROM lista_compras ORDER BY adicionado_em")
+        itens = [dict(r) for r in _cur.fetchall()]
+        if not itens:
+            send_text(destino, "A lista de compras tá vazia, Patrão! Ninguém adicionou nada ainda. 🛒")
+            _conn.close()
+            return
+        linhas = ["🛒 *Lista do Mercado:*", ""]
+        for i, item in enumerate(itens, 1):
+            linhas.append(f"{i}. {item['item']}")
+        linhas.append("")
+        linhas.append(f"_{len(itens)} item(s) no total — lista limpa após esse envio_ ✅")
+        _cur.execute("DELETE FROM lista_compras")
+        _conn.commit()
+        _conn.close()
+        send_text(destino, "\n".join(linhas))
+        logger.info(f"Lista de compras enviada e limpa ({len(itens)} itens)")
+    except Exception as _e:
+        logger.error(f"Erro em _cmd_lista_compras: {_e}")
+        send_text(destino, "Erro ao buscar a lista. Tenta de novo, Patrão.")
 
 def _limpar_tmp_midia():
     """Remove arquivos wa_media_* do /tmp com mais de 1 hora."""
