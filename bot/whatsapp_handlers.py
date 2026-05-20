@@ -54,7 +54,7 @@ def jid_to_chat_id(jid: str) -> int:
     """Converte JID WhatsApp em chat_id inteiro. Ex: '5511999@s.whatsapp.net' → 5511999"""
     return int(jid.split("@")[0])
 
-def carregar_historico(chat_id: int, limite: int = 40) -> list:
+def carregar_historico(chat_id: int, limite: int = 20) -> list:
     """Retorna lista [{role, content}] do DB para namespace 'whatsapp'."""
     try:
         conn = _db()
