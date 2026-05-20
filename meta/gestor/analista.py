@@ -148,7 +148,7 @@ def analisar(perfis: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     client = _anthropic_client()
     msg = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=8192,
         system=system_prompt,
         messages=[{"role": "user", "content": user_msg}],
