@@ -2044,28 +2044,50 @@ def _configurar_scheduler() -> BackgroundScheduler:
 
     # Mensagens agendadas para grupos
     grupos = get_grupos()
-    DIAS_MAP = {
-        "mon": "mon", "tue": "tue", "wed": "wed", "thu": "thu",
-        "fri": "fri", "sat": "sat", "sun": "sun",
-    }
-    for i, grupo in enumerate(grupos):
-        cron_time = grupo.get("cron", "")
-        dias = grupo.get("dias", [])
-        if not cron_time or not dias:
-            continue
-        try:
-            hora, minuto = cron_time.split(":")
-            dia_semana = ",".join(DIAS_MAP.get(d, d) for d in dias)
-            scheduler.add_job(
-                _enviar_mensagem_grupo,
-                CronTrigger(day_of_week=dia_semana, hour=int(hora), minute=int(minuto), timezone=SP_TZ),
-                args=[grupo],
-                id=f"grupo_{i}_{grupo['nome']}",
-                replace_existing=True,
-            )
-            logger.info(f"Agendado: grupo '{grupo['nome']}' as {cron_time} nos dias {dias}")
-        except Exception as e:
-            logger.error(f"Erro ao agendar grupo {grupo.get('nome')}: {e}")
+    for grupo in grupos:
+        jid  = grupo.get("jid", "")
+        nome = grupo.get("nome", "")
+        # Suporta formato novo: lembretes=[{id, msg, cron}]
+        # e formato legado: {msg, cron: "HH:MM", dias: [...]}
+        lembretes = grupo.get("lembretes") or []
+        if not lembretes and grupo.get("msg") and grupo.get("cron"):
+            lembretes = [{"id": nome, "msg": grupo["msg"], "cron": grupo["cron"], "dias": grupo.get("dias", [])}]
+        for lembrete in lembretes:
+            lid = lembrete.get("id", lembrete.get("msg", "")[:20])
+            msg = lembrete.get("msg", "")
+            cron = lembrete.get("cron", "")
+            if not cron or not msg:
+                continue
+            try:
+                partes = cron.strip().split()
+                if len(partes) == 5:
+                    # Cron padrão 5 campos: minuto hora dia mes dia_semana
+                    minuto, hora, dia, mes, dia_sem = partes
+                    scheduler.add_job(
+                        _enviar_mensagem_grupo,
+                        CronTrigger(
+                            minute=minuto, hour=hora, day=dia,
+                            month=mes, day_of_week=dia_sem, timezone=SP_TZ
+                        ),
+                        args=[{"jid": jid, "nome": nome, "msg": msg}],
+                        id=f"grupo_{nome}_{lid}",
+                        replace_existing=True,
+                    )
+                else:
+                    # Formato legado HH:MM + dias
+                    hora_m, minuto_m = cron.split(":")
+                    dias = lembrete.get("dias", [])
+                    dia_semana = ",".join(dias) if dias else "*"
+                    scheduler.add_job(
+                        _enviar_mensagem_grupo,
+                        CronTrigger(day_of_week=dia_semana, hour=int(hora_m), minute=int(minuto_m), timezone=SP_TZ),
+                        args=[{"jid": jid, "nome": nome, "msg": msg}],
+                        id=f"grupo_{nome}_{lid}",
+                        replace_existing=True,
+                    )
+                logger.info(f"Agendado: lembrete '{lid}' para grupo '{nome}' | cron={cron}")
+            except Exception as e:
+                logger.error(f"Erro ao agendar lembrete '{lid}' do grupo '{nome}': {e}")
 
     return scheduler
 

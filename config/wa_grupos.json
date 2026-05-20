@@ -1,9 +1,28 @@
 [
   {
-    "nome": "Exemplo",
-    "jid": "120363XXXXXXXXXX@g.us",
-    "msg": "Bom dia, time! Semana de resultados!",
-    "cron": "08:00",
-    "dias": ["mon"]
+    "nome": "casa",
+    "jid": "120363310359411409@g.us",
+    "lembretes": [
+      {
+        "id": "gastos_sexta",
+        "msg": "Oi gente! 👋 Sexta-feira chegou — bora registrar os gastos da semana antes de acumular? Me manda aqui no grupo o que gastaram e eu organizo tudo. 💸",
+        "cron": "0 9 * * 5"
+      },
+      {
+        "id": "sofa_aviso",
+        "msg": "Atenção! 🛋️ O boleto do sofá vence em 2 dias (dia 17). São R$223,10 pra cada um. Já separaram?",
+        "cron": "0 9 15 * *"
+      },
+      {
+        "id": "aluguel_aviso",
+        "msg": "Oi! 🏠 O aluguel vence em 2 dias (dia 15). Já deixaram tudo separado?",
+        "cron": "0 9 13 * *"
+      },
+      {
+        "id": "energia_aviso",
+        "msg": "Lembrete! ⚡ A conta de energia vence em 2 dias (dia 22). Bora verificar se tá tudo certo?",
+        "cron": "0 9 20 * *"
+      }
+    ]
   }
 ]
