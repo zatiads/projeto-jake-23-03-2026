@@ -219,7 +219,7 @@ def _noticias_diarias():
 
 def _rotina_quarta():
     """
-    Roda toda quarta às 8h30.
+    Roda toda quarta às 7h30.
     Check de meio de semana: contas com gasto travado ou sem conversão.
     """
     if not AUTHORIZED_NUMBER:
@@ -250,7 +250,7 @@ def _rotina_quarta():
         ultima_var = cur.fetchone()
         conn.close()
 
-        from datetime import date as _date, timedelta as _td
+        from datetime import date as _date
         hoje = _date.today()
         linhas = [f"*Check de quarta — {hoje.strftime('%d/%m')}*\n"]
 
@@ -425,7 +425,7 @@ def _alerta_saldo_baixo():
 
 
 def _enviar_resumo_gestor():
-    """Cron das 17h: envia resumo do Gestor IA para o Bruno."""
+    """Envia resumo do Gestor IA para o Bruno (não agendado automaticamente)."""
     if not AUTHORIZED_JID:
         logger.warning("WA_AUTHORIZED_JID nao configurado - resumo nao enviado")
         return
