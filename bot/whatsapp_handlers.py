@@ -530,15 +530,28 @@ def processar_aprovacao(texto: str, destino: str):
         resultado = executar_aprovadas(varredura_id=varredura_id, canceladas=canceladas)
         _marcar_estado_resolvido(estado_id)
 
-        partes = []
-        if resultado["ok"]:
-            partes.append(f"{resultado['ok']} acao(es) executada(s)")
-        if resultado["canceladas"]:
-            partes.append(f"{resultado['canceladas']} cancelada(s)")
-        if resultado["erro"]:
-            partes.append(f"{resultado['erro']} com erro")
-
-        msg = "Gestor IA: " + ", ".join(partes) + "." if partes else "Gestor IA: nenhuma acao executada."
+        _TIPO_LABEL = {
+            "pausar_ad":        "Pausar ad",
+            "reativar_ad":      "Reativar ad",
+            "escalar_orcamento":"Escalar orçamento",
+            "reduzir_orcamento":"Reduzir orçamento",
+            "duplicar_ad":      "Duplicar ad",
+        }
+        linhas = ["*Gestor IA — resultado:*", ""]
+        for d in resultado.get("detalhes", []):
+            if d["status"] == "ok":
+                icone = "✅"
+            elif d["status"] == "cancelado":
+                icone = "🚫"
+            else:
+                icone = "❌"
+            label = _TIPO_LABEL.get(d.get("tipo", ""), d.get("tipo", ""))
+            linhas.append(f"{icone} {d['num']}. {label} — {d['nome']}")
+            if d["status"] == "erro" and d.get("erro"):
+                linhas.append(f"   _{d['erro']}_")
+        if not resultado.get("detalhes"):
+            linhas.append("Nenhuma acao executada.")
+        msg = "\n".join(linhas)
         send_text(destino, msg)
     except Exception as e:
         logger.error(f"processar_aprovacao error: {e}")

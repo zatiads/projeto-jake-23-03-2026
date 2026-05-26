@@ -9,11 +9,15 @@
   var _conjIdx   = null;     // índice do conjunto ativo
   var _criatIdx  = null;     // índice do criativo ativo
   var _publicos  = [];       // cache de públicos salvos
-  var _cliente   = null;     // cliente ativo (objeto)
+  var _cliente   = null;     // cliente ativo (objeto) — modo single
   var MAX_CONJ   = 10;
   var _modoCamp    = 'nova';       // 'nova' | 'existente'
   var _modoCriativo = 'upload';    // 'upload' | 'drive'
   var MAX_CRIAT  = 10;
+  // ── Multi-cliente ──────────────────────────────────
+  var _multiCliente        = false;
+  var _clientesDisponiveis = [];
+  var _clientesSelecionados = {}; // id -> true
 
   var _LS_KEY = 'jakeos_lote_v1';
 
@@ -133,13 +137,70 @@
   function _atualizarBotaoPublicar() {
     var btn = _el('lote-btn-publicar');
     if (!btn) return;
-    var ok = _conjuntos.length > 0 && _conjuntos.every(function(c) {
+    var clienteOk = _multiCliente
+      ? Object.keys(_clientesSelecionados).length > 0
+      : !!_cliente;
+    var ok = clienteOk && _conjuntos.length > 0 && _conjuntos.every(function(c) {
       return c.criativos.length > 0 && c.criativos.every(function(r) {
         return r.creative_ref && r.copy && r.copy.titulo && r.copy.texto;
       });
     });
     btn.disabled = !ok;
     btn.title = ok ? '' : 'Preencha todos os criativos e copies antes de publicar';
+  }
+
+  // ── Multi-Cliente ───────────────────────────────────
+  window.loteToggleMultiCliente = function() {
+    _multiCliente = !_multiCliente;
+    var btn   = _el('lote-btn-multi');
+    var lista = _el('lote-multi-lista');
+    var label = _el('lote-multi-label');
+    if (_multiCliente) {
+      if (btn)   { btn.classList.add('active'); btn.textContent = '👥 Multi-cliente ✓'; }
+      if (lista) lista.style.display = '';
+      _carregarClientesMulti();
+    } else {
+      if (btn)   { btn.classList.remove('active'); btn.textContent = '👥 Multi-cliente'; }
+      if (lista) lista.style.display = 'none';
+      _clientesSelecionados = {};
+      if (label) label.textContent = '';
+    }
+    _atualizarBotaoPublicar();
+  };
+
+  function _carregarClientesMulti() {
+    if (_clientesDisponiveis.length) { _renderClientesMulti(); return; }
+    fetch('/api/anuncios/clientes')
+      .then(function(r){ return r.json(); })
+      .then(function(d){ _clientesDisponiveis = d.clientes || []; _renderClientesMulti(); })
+      .catch(function(){});
+  }
+
+  function _renderClientesMulti() {
+    var lista = _el('lote-multi-lista');
+    if (!lista) return;
+    lista.innerHTML = _clientesDisponiveis.map(function(c) {
+      var chk = _clientesSelecionados[c.id] ? 'checked' : '';
+      return '<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;cursor:pointer;background:rgba(255,255,255,.02)">' +
+        '<input type="checkbox" value="'+c.id+'" '+chk+' onchange="loteToggleClienteMulti('+c.id+')">' +
+        '<span style="font-size:12px">'+_esc(c.nome)+'</span>' +
+        '<span style="font-size:10px;color:rgba(176,190,197,.35);margin-left:auto">'+_esc(c.agencia)+'</span>' +
+        '</label>';
+    }).join('');
+    _atualizarLabelMulti();
+  }
+
+  window.loteToggleClienteMulti = function(id) {
+    if (_clientesSelecionados[id]) { delete _clientesSelecionados[id]; }
+    else { _clientesSelecionados[id] = true; }
+    _atualizarLabelMulti();
+    _atualizarBotaoPublicar();
+  };
+
+  function _atualizarLabelMulti() {
+    var n = Object.keys(_clientesSelecionados).length;
+    var label = _el('lote-multi-label');
+    if (label) label.textContent = n > 0 ? n + ' cliente(s) selecionado(s)' : '';
   }
 
   // ── Públicos ───────────────────────────────────────
@@ -392,27 +453,40 @@
   function _uploadArquivo(file) {
     if (_conjIdx === null || _criatIdx === null) return;
     var r = _conjuntos[_conjIdx].criativos[_criatIdx];
-    var c = _getCliente();
-    var fd = new FormData();
-    fd.append('arquivo', file);
-    fd.append('account_id', c.account_id || '');
-    fd.append('token_key', c.token_key || 'META_ACCESS_TOKEN');
-
     var area = _el('lote-criativo-upload-area');
     if (area) area.innerHTML += '<div class="anu-copy-loading"><span class="anu-spinner"></span> Enviando...</div>';
 
-    fetch('/api/anuncios/upload-criativo', { method:'POST', body: fd })
-      .then(function(resp){ return resp.json(); })
-      .then(function(d) {
-        if (d.error) { alert('Erro upload: ' + d.error); return; }
-        r.creative_ref = d;
-        r.preview = URL.createObjectURL(file);
-        _renderCriativos();
-        _renderCopy();
-        _atualizarBotaoPublicar();
-        _salvarLocal();
-      })
-      .catch(function(e){ alert('Erro de rede: ' + e); });
+    if (_multiCliente) {
+      // Multi-cliente: salva em /tmp sem subir para Meta (upload por conta acontece na stream)
+      var fd = new FormData();
+      fd.append('criativo', file);
+      fetch('/api/anuncios/multi-cliente/upload-temp', { method:'POST', body: fd })
+        .then(function(resp){ return resp.json(); })
+        .then(function(d) {
+          if (d.error) { alert('Erro upload: ' + d.error); return; }
+          var tipo = (d.ext && d.ext.indexOf('mp4') !== -1) ? 'video' : 'imagem';
+          r.creative_ref = { tipo: tipo, tmp_uuid: d.tmp_uuid, ext: d.ext || '.jpg' };
+          r.preview = URL.createObjectURL(file);
+          _renderCriativos(); _renderCopy(); _atualizarBotaoPublicar(); _salvarLocal();
+        })
+        .catch(function(e){ alert('Erro de rede: ' + e); });
+    } else {
+      // Single-cliente: upload direto para a conta Meta selecionada
+      var c = _getCliente();
+      var fd = new FormData();
+      fd.append('arquivo', file);
+      fd.append('account_id', c.account_id || '');
+      fd.append('token_key', c.token_key || 'META_ACCESS_TOKEN');
+      fetch('/api/anuncios/upload-criativo', { method:'POST', body: fd })
+        .then(function(resp){ return resp.json(); })
+        .then(function(d) {
+          if (d.error) { alert('Erro upload: ' + d.error); return; }
+          r.creative_ref = d;
+          r.preview = URL.createObjectURL(file);
+          _renderCriativos(); _renderCopy(); _atualizarBotaoPublicar(); _salvarLocal();
+        })
+        .catch(function(e){ alert('Erro de rede: ' + e); });
+    }
   }
 
   function _uploadCarrosselCard(file) {
@@ -535,7 +609,11 @@
 
   // ── Publicar Lote via SSE ──────────────────────────
   function _publicarLote() {
-    if (!_cliente) { alert('Selecione um cliente.'); return; }
+    if (_multiCliente) {
+      if (Object.keys(_clientesSelecionados).length === 0) { alert('Selecione ao menos um cliente.'); return; }
+    } else {
+      if (!_cliente) { alert('Selecione um cliente.'); return; }
+    }
 
     var conjuntosPayload = _conjuntos.map(function(conj) {
       return {
@@ -549,7 +627,6 @@
 
     var loteId = _uuid4();
     var payload = {
-      cliente_id:             _cliente.id,
       campanha_nome:          _val('lote-camp-nome') || 'Campanha Jake OS',
       campanha_tipo:          _val('lote-camp-tipo'),
       orcamento_diario_total: parseFloat(_val('lote-orcamento')) || 0,
@@ -558,6 +635,11 @@
       modo_campanha:          _modoCamp,
       campaign_id_existente:  _modoCamp === 'existente' ? (_val('lote-camp-select') || '') : '',
     };
+    if (_multiCliente) {
+      payload.cliente_ids = Object.keys(_clientesSelecionados).map(Number);
+    } else {
+      payload.cliente_id = _cliente.id;
+    }
 
     fetch('/api/anuncios/publicar-lote', {
       method: 'POST',
@@ -613,12 +695,14 @@
     var log = _el('lote-prog-log');
     if (!log) return;
     var cls = 'info', txt = '';
-    if (ev.tipo === 'campanha_ok')    { cls='ok';   txt='✓ Campanha criada: ' + ev.campaign_id; }
-    else if (ev.tipo === 'conjunto_ok')   { cls='ok';   txt='✓ Conjunto '+(ev.conjunto_idx+1)+' criado: ' + ev.adset_id; }
-    else if (ev.tipo === 'conjunto_erro') { cls='erro';  txt='✕ Conjunto '+(ev.conjunto_idx+1)+' falhou: ' + ev.erro; }
-    else if (ev.tipo === 'anuncio_ok')    { cls='ok';   txt='✓ Anúncio '+(ev.criativo_idx+1)+' do conj '+(ev.conjunto_idx+1)+': ' + ev.ad_id; }
-    else if (ev.tipo === 'anuncio_erro')  { cls='erro';  txt='✕ Anúncio '+(ev.criativo_idx+1)+' do conj '+(ev.conjunto_idx+1)+': ' + ev.erro; }
-    else if (ev.tipo === 'erro_fatal')    { cls='erro';  txt='✕ Erro fatal: ' + ev.erro; }
+    var pref = ev.cliente ? '['+ev.cliente+'] ' : '';
+    if (ev.tipo === 'cliente_inicio') { cls='info'; txt='── ' + ev.cliente + ' ──'; }
+    else if (ev.tipo === 'campanha_ok')    { cls='ok';   txt= pref+'✓ Campanha criada: ' + ev.campaign_id; }
+    else if (ev.tipo === 'conjunto_ok')   { cls='ok';   txt= pref+'✓ Conjunto '+(ev.conjunto_idx+1)+' criado: ' + ev.adset_id; }
+    else if (ev.tipo === 'conjunto_erro') { cls='erro';  txt= pref+'✕ Conjunto '+(ev.conjunto_idx+1)+' falhou: ' + ev.erro; }
+    else if (ev.tipo === 'anuncio_ok')    { cls='ok';   txt= pref+'✓ Anúncio '+(ev.criativo_idx+1)+' do conj '+(ev.conjunto_idx+1)+': ' + ev.ad_id; }
+    else if (ev.tipo === 'anuncio_erro')  { cls='erro';  txt= pref+'✕ Anúncio '+(ev.criativo_idx+1)+' do conj '+(ev.conjunto_idx+1)+': ' + ev.erro; }
+    else if (ev.tipo === 'erro_fatal')    { cls='erro';  txt= pref+'✕ Erro fatal: ' + ev.erro; }
     else if (ev.tipo === 'fim')           { cls='info';  txt='━━ Finalizado: '+ev.sucesso+' criados, '+ev.falha+' falhas'; }
     var line = document.createElement('div');
     line.className = cls;

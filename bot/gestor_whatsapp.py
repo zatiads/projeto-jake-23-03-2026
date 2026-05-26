@@ -58,7 +58,8 @@ class GestorJakeOS:
                       cri_por_conjunto: int | None = None,
                       orcamento_por_conjunto: float | None = None,
                       copy: dict | None = None,
-                      copies_list: list | None = None) -> dict:
+                      copies_list: list | None = None,
+                      publicos_salvos_por_cliente: dict | None = None) -> dict:
         """
         Prepara lote via Jake OS. Retorna dict com mc_token para consumir o stream.
         Lança RuntimeError em caso de falha.
@@ -87,6 +88,8 @@ class GestorJakeOS:
             payload["copy"] = copy
         if copies_list:
             payload["copies_list"] = copies_list
+        if publicos_salvos_por_cliente:
+            payload["publicos_salvos_por_cliente"] = publicos_salvos_por_cliente
         resp = self._session.post(
             f"{self._base}/api/anuncios/wa/subir",
             json=payload,
@@ -128,6 +131,8 @@ class GestorJakeOS:
                         try:
                             ev = json.loads(line[5:].strip())
                             eventos.append(ev)
+                            if ev.get("tipo") == "fim":
+                                break
                         except Exception:
                             pass
         except Exception as e:

@@ -222,7 +222,7 @@ def executar_aprovadas(
         db_conn = _get_db()
         fechar = True
 
-    contadores = {"ok": 0, "erro": 0, "canceladas": 0}
+    contadores = {"ok": 0, "erro": 0, "canceladas": 0, "detalhes": []}
 
     try:
         cur = db_conn.cursor()
@@ -246,6 +246,7 @@ def executar_aprovadas(
                     WHERE id=%s
                 """, (acao["id"],))
                 contadores["canceladas"] += 1
+                contadores["detalhes"].append({"num": num, "status": "cancelado", "nome": acao["entidade_nome"]})
                 continue
 
             cur2 = db_conn.cursor()
@@ -315,6 +316,7 @@ def executar_aprovadas(
                     WHERE id=%s
                 """, (json.dumps(valor_antes), json.dumps(valor_depois), acao["id"]))
                 contadores["ok"] += 1
+                contadores["detalhes"].append({"num": num, "status": "ok", "nome": acao["entidade_nome"], "tipo": tipo})
 
             except Exception as e:
                 cur.execute(
@@ -322,6 +324,7 @@ def executar_aprovadas(
                     (f" | Erro: {str(e)[:200]}", acao["id"]),
                 )
                 contadores["erro"] += 1
+                contadores["detalhes"].append({"num": num, "status": "erro", "nome": acao["entidade_nome"], "tipo": tipo, "erro": str(e)[:150]})
 
         db_conn.commit()
     finally:

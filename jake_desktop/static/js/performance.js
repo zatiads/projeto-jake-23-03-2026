@@ -7,18 +7,19 @@
   /* ── Config de clientes (espelho do relatorios.js) ── */
   var AGENCIES = {
     piloti: [
-      { id: "act_3790140084580806", name: "Infinita Hiperbárica" },
-      { id: "act_465321557197081",  name: "MR Runners"           },
-      { id: "act_1076847820195449", name: "Saucker"              },
+      { id: "act_1006820257491698", name: "Calixta Films"        },
       { id: "act_1095710212746155", name: "Daniele Taveira"      },
+      { id: "act_3790140084580806", name: "Infinita Hiperbárica" },
       { id: "act_1006436427517079", name: "IOB"                  },
       { id: "act_126503999415274",  name: "Isac Academia"        },
       { id: "act_812220691454430",  name: "Maíra Castaldi"       },
+      { id: "act_465321557197081",  name: "MR Runners"           },
       { id: "act_507545471090485",  name: "Odonto Uberaba"       },
       { id: "act_323137203122197",  name: "Queen Poltronas"      },
       { id: "act_840594572249284",  name: "RD Contabilidade"     },
       { id: "act_7838846752907408", name: "Realize Sorrisos"     },
-      { id: "act_510054631964792",  name: "RunWay"               }
+      { id: "act_510054631964792",  name: "RunWay"               },
+      { id: "act_1076847820195449", name: "Saucker"              }
     ],
     dentto: []
   };

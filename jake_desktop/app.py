@@ -3465,6 +3465,7 @@ def anuncios_wa_subir():
     campanha_nome  = (d.get("campanha_nome") or "").strip()
     campanha_tipo  = (d.get("campanha_tipo") or "MESSAGES").strip().upper()
     orcamento_por_conjunto_raw = d.get("orcamento_por_conjunto")
+    publicos_salvos_por_cliente = d.get("publicos_salvos_por_cliente") or {}
 
     # Normalizar: arquivo_local avulso vai para a lista
     if arquivo_local and arquivo_local not in arquivos_locais:
@@ -3594,9 +3595,10 @@ def anuncios_wa_subir():
         "campanha_nome":     campanha_nome,
         "orcamento":         orcamento,
         "campanha_tipo":     campanha_tipo,
-        "num_conjuntos":          d.get("num_conjuntos") or 1,
-        "cri_por_conjunto":       d.get("cri_por_conjunto") or len(arquivos_locais if arquivos_locais else [tmp_path]),
-        "orcamento_por_conjunto": orcamento_por_conjunto,
+        "num_conjuntos":               d.get("num_conjuntos") or 1,
+        "cri_por_conjunto":            d.get("cri_por_conjunto") or len(arquivos_locais if arquivos_locais else [tmp_path]),
+        "orcamento_por_conjunto":      orcamento_por_conjunto,
+        "publicos_salvos_por_cliente": publicos_salvos_por_cliente,
     }
     threading.Timer(1800, lambda: _lote_payloads.pop(mc_token, None)).start()
 
@@ -5232,8 +5234,8 @@ def drive_stream(db_token):
 def anuncios_publicar_lote():
     """Etapa 1: valida payload, armazena em memória, retorna lote_token."""
     d = request.get_json() or {}
-    if not d.get("cliente_id"):
-        return jsonify({"error": "cliente_id obrigatório"}), 400
+    if not d.get("cliente_id") and not d.get("cliente_ids"):
+        return jsonify({"error": "cliente_id ou cliente_ids obrigatório"}), 400
     if not d.get("conjuntos"):
         return jsonify({"error": "conjuntos não podem ser vazios"}), 400
     lote_token = str(uuid.uuid4())
@@ -5255,132 +5257,155 @@ def anuncios_publicar_lote_stream(lote_token):
             yield _sse({"tipo": "erro_fatal", "erro": "Lote não encontrado ou já processado"})
             return
 
-        cliente_id      = payload["cliente_id"]
-        camp_nome            = payload.get("campanha_nome", "Campanha Jake OS")
-        camp_tipo            = payload.get("campanha_tipo", "MESSAGES")
-        orcamento_total      = float(payload.get("orcamento_diario_total", 0))
-        modo_camp            = payload.get("modo_campanha", "nova")
+        camp_nome             = payload.get("campanha_nome", "Campanha Jake OS")
+        camp_tipo             = payload.get("campanha_tipo", "MESSAGES")
+        orcamento_total       = float(payload.get("orcamento_diario_total", 0))
+        modo_camp             = payload.get("modo_campanha", "nova")
         campaign_id_existente = payload.get("campaign_id_existente", "").strip()
-        conjuntos       = payload["conjuntos"]
-        lote_id         = payload.get("lote_id", lote_token)
-        n_conjuntos     = len(conjuntos)
+        conjuntos             = payload["conjuntos"]
+        lote_id               = payload.get("lote_id", lote_token)
+        n_conjuntos           = len(conjuntos)
+        # Suporta cliente_ids (multi) ou cliente_id (single)
+        cliente_ids_lista = payload.get("cliente_ids") or [payload.get("cliente_id")]
 
-        try:
-            conn = _get_db(); cur = conn.cursor()
-            cur.execute("SELECT * FROM ad_client_profiles WHERE id = %s", (cliente_id,))
-            cliente = cur.fetchone(); conn.close()
-        except Exception as e:
-            yield _sse({"tipo": "erro_fatal", "erro": f"Erro ao buscar cliente: {e}"})
-            return
-        if not cliente:
-            yield _sse({"tipo": "erro_fatal", "erro": "Cliente não encontrado"})
-            return
+        total_geral = sum(len(c.get("criativos", [])) for c in conjuntos) * len(cliente_ids_lista)
+        sucesso_geral = 0; falha_geral = 0
 
-        token_key = cliente["token_key"]
-        if token_key not in _VALID_TOKEN_KEYS:
-            yield _sse({"tipo": "erro_fatal", "erro": "token_key inválido"}); return
-        token      = os.getenv(token_key, "")
-        account_id = cliente["account_id"]
-        page_id    = cliente.get("page_id", "")
-        link_url   = cliente.get("link_url") or ""
-        localizacao = cliente.get("localizacao_json") or {}
-        opt_goal   = cliente.get("optimization_goal") or None
-        pixel_id   = cliente.get("pixel_id") or None
-
-        cbo = camp_tipo not in ("ENGAGEMENT", "PURCHASE")
-        if modo_camp == "existente" and campaign_id_existente:
-            # Validar campaign_id — deve ser numérico
-            if not campaign_id_existente.isdigit():
-                yield _sse({"tipo": "erro_fatal", "erro": "campaign_id_existente inválido"}); return
-            # Validar que a campanha pertence à conta do cliente
+        for cliente_id in cliente_ids_lista:
             try:
-                r_check = requests.get(
-                    f"https://graph.facebook.com/v21.0/{campaign_id_existente}",
-                    params={"fields": "account_id", "access_token": token},
-                    timeout=10,
-                )
-                r_check.raise_for_status()
-                resp_data = r_check.json()
-            except requests.exceptions.RequestException as e:
-                yield _sse({"tipo": "erro_fatal", "erro": f"Erro ao validar campanha: {e}"}); return
-            # Verificar erro da API Meta (retorna 200 com campo error)
-            if "error" in resp_data:
-                yield _sse({"tipo": "erro_fatal", "erro": f"Meta API: {resp_data['error'].get('message', str(resp_data['error']))}"}); return
-            expected_account = account_id.replace("act_", "")
-            if str(resp_data.get("account_id", "")) != expected_account:
-                yield _sse({"tipo": "erro_fatal", "erro": "Campanha não pertence à conta do cliente"}); return
-            campaign_id = campaign_id_existente
-            yield _sse({"tipo": "campanha_ok", "campaign_id": campaign_id, "existente": True})
-        else:
-            try:
-                campaign_id = _meta_api.criar_campanha(
-                    token, account_id, camp_tipo, camp_nome, orcamento_total, cbo=cbo
-                )
-                yield _sse({"tipo": "campanha_ok", "campaign_id": campaign_id})
+                conn = _get_db(); cur = conn.cursor()
+                cur.execute("SELECT * FROM ad_client_profiles WHERE id = %s", (cliente_id,))
+                cliente = cur.fetchone(); conn.close()
             except Exception as e:
-                yield _sse({"tipo": "erro_fatal", "erro": str(e)}); return
-
-        total = sum(len(c.get("criativos", [])) for c in conjuntos)
-        sucesso = 0; falha = 0
-
-        for ci, conjunto in enumerate(conjuntos):
-            audience_id = conjunto.get("audience_id")
-            publico = cliente.get("publico_json") or {}
-            if audience_id:
-                try:
-                    conn2 = _get_db(); cur2 = conn2.cursor()
-                    cur2.execute("SELECT targeting_json FROM ad_audiences WHERE id=%s", (audience_id,))
-                    row = cur2.fetchone(); conn2.close()
-                    if row and row["targeting_json"]:
-                        publico = row["targeting_json"]
-                except Exception:
-                    pass
-
-            orcamento_conj = (orcamento_total / n_conjuntos) if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None
-            try:
-                adset_id = _meta_api.criar_conjunto(
-                    token, account_id, campaign_id, camp_tipo, publico, localizacao,
-                    orcamento=orcamento_conj, optimization_goal=opt_goal,
-                    pixel_id=pixel_id, nome=conjunto.get("nome"),
-                    page_id=page_id or None,
-                )
-                yield _sse({"tipo": "conjunto_ok", "conjunto_idx": ci, "adset_id": adset_id})
-            except Exception as e:
-                yield _sse({"tipo": "conjunto_erro", "conjunto_idx": ci, "erro": str(e)})
-                falha += len(conjunto.get("criativos", []))
+                yield _sse({"tipo": "erro_fatal", "erro": f"Erro ao buscar cliente {cliente_id}: {e}"})
+                continue
+            if not cliente:
+                yield _sse({"tipo": "erro_fatal", "erro": f"Cliente {cliente_id} não encontrado"})
                 continue
 
-            for ri, criativo in enumerate(conjunto.get("criativos", [])):
-                copy = criativo.get("copy", {})
+            token_key = cliente["token_key"]
+            if token_key not in _VALID_TOKEN_KEYS:
+                yield _sse({"tipo": "erro_fatal", "erro": f"token_key inválido para {cliente['nome']}", "cliente": cliente["nome"]})
+                continue
+            token       = os.getenv(token_key, "")
+            account_id  = cliente["account_id"]
+            page_id     = cliente.get("page_id", "")
+            link_url    = cliente.get("link_url") or ""
+            localizacao = cliente.get("localizacao_json") or {}
+            opt_goal    = cliente.get("optimization_goal") or None
+            pixel_id    = cliente.get("pixel_id") or None
+            nome_cliente = cliente["nome"]
+
+            yield _sse({"tipo": "cliente_inicio", "cliente": nome_cliente})
+
+            cbo = camp_tipo not in ("ENGAGEMENT", "PURCHASE")
+            if modo_camp == "existente" and campaign_id_existente:
+                if not campaign_id_existente.isdigit():
+                    yield _sse({"tipo": "erro_fatal", "erro": "campaign_id_existente inválido", "cliente": nome_cliente}); continue
                 try:
-                    ad_id = _meta_api.criar_anuncio(
-                        token, account_id, adset_id, page_id,
-                        criativo["creative_ref"],
-                        copy.get("titulo", ""), copy.get("texto", ""),
-                        copy.get("cta", "WHATSAPP_MESSAGE"),
-                        link_url=link_url
+                    r_check = requests.get(
+                        f"https://graph.facebook.com/v21.0/{campaign_id_existente}",
+                        params={"fields": "account_id", "access_token": token},
+                        timeout=10,
                     )
+                    r_check.raise_for_status()
+                    resp_data = r_check.json()
+                except requests.exceptions.RequestException as e:
+                    yield _sse({"tipo": "erro_fatal", "erro": f"Erro ao validar campanha: {e}", "cliente": nome_cliente}); continue
+                if "error" in resp_data:
+                    yield _sse({"tipo": "erro_fatal", "erro": f"Meta API: {resp_data['error'].get('message', str(resp_data['error']))}", "cliente": nome_cliente}); continue
+                expected_account = account_id.replace("act_", "")
+                if str(resp_data.get("account_id", "")) != expected_account:
+                    yield _sse({"tipo": "erro_fatal", "erro": "Campanha não pertence à conta do cliente", "cliente": nome_cliente}); continue
+                campaign_id = campaign_id_existente
+                yield _sse({"tipo": "campanha_ok", "campaign_id": campaign_id, "existente": True, "cliente": nome_cliente})
+            else:
+                try:
+                    campaign_id = _meta_api.criar_campanha(
+                        token, account_id, camp_tipo, camp_nome, orcamento_total, cbo=cbo
+                    )
+                    yield _sse({"tipo": "campanha_ok", "campaign_id": campaign_id, "cliente": nome_cliente})
+                except Exception as e:
+                    yield _sse({"tipo": "erro_fatal", "erro": str(e), "cliente": nome_cliente}); continue
+
+            sucesso = 0; falha = 0
+
+            for ci, conjunto in enumerate(conjuntos):
+                audience_id = conjunto.get("audience_id")
+                publico = cliente.get("publico_json") or {}
+                saved_aud = cliente.get("publico_salvo_id") or None
+                if audience_id:
                     try:
-                        conn3 = _get_db(); cur3 = conn3.cursor()
-                        cur3.execute("""
-                            INSERT INTO ad_publish_log
-                                (cliente_id, account_id, campaign_id, adset_id, ad_id,
-                                 status, audience_id, lote_id, payload_json)
-                            VALUES (%s,%s,%s,%s,%s,'sucesso',%s,%s,%s)
-                        """, (cliente_id, account_id, campaign_id, adset_id, ad_id,
-                              audience_id, lote_id, json.dumps(criativo)))
-                        conn3.commit(); conn3.close()
+                        conn2 = _get_db(); cur2 = conn2.cursor()
+                        cur2.execute("SELECT targeting_json FROM ad_audiences WHERE id=%s", (audience_id,))
+                        row = cur2.fetchone(); conn2.close()
+                        if row and row["targeting_json"]:
+                            publico = row["targeting_json"]
+                            saved_aud = None
                     except Exception:
                         pass
-                    sucesso += 1
-                    yield _sse({"tipo": "anuncio_ok", "conjunto_idx": ci,
-                                "criativo_idx": ri, "ad_id": ad_id})
-                except Exception as e:
-                    falha += 1
-                    yield _sse({"tipo": "anuncio_erro", "conjunto_idx": ci,
-                                "criativo_idx": ri, "erro": str(e)})
 
-        yield _sse({"tipo": "fim", "total": total, "sucesso": sucesso, "falha": falha})
+                orcamento_conj = (orcamento_total / n_conjuntos) if camp_tipo in ("ENGAGEMENT", "PURCHASE") else None
+                try:
+                    adset_id = _meta_api.criar_conjunto(
+                        token, account_id, campaign_id, camp_tipo, publico, localizacao,
+                        orcamento=orcamento_conj, optimization_goal=opt_goal,
+                        pixel_id=pixel_id, nome=conjunto.get("nome"),
+                        page_id=page_id or None,
+                        saved_audience_id=saved_aud,
+                    )
+                    yield _sse({"tipo": "conjunto_ok", "conjunto_idx": ci, "adset_id": adset_id, "cliente": nome_cliente})
+                except Exception as e:
+                    yield _sse({"tipo": "conjunto_erro", "conjunto_idx": ci, "erro": str(e), "cliente": nome_cliente})
+                    falha += len(conjunto.get("criativos", []))
+                    continue
+
+                for ri, criativo in enumerate(conjunto.get("criativos", [])):
+                    copy = criativo.get("copy", {})
+                    try:
+                        # Resolve creative_ref: se tmp_uuid (multi-cliente), re-faz upload para esta conta
+                        cr = dict(criativo.get("creative_ref") or {})
+                        if cr.get("tmp_uuid") and not cr.get("hash") and not cr.get("video_id"):
+                            tmp_uuid_cr = cr["tmp_uuid"]
+                            ext_cr = cr.get("ext", ".jpg")
+                            tmp_path_cr = os.path.join(_TMP_DIR, f"{tmp_uuid_cr}{ext_cr}")
+                            with open(tmp_path_cr, "rb") as _f:
+                                cr_bytes = _f.read()
+                            if cr.get("tipo") == "video":
+                                video_id = _meta_api.upload_video(token, account_id, cr_bytes, f"criativo{ext_cr}")
+                                cr = {"tipo": "video", "video_id": video_id}
+                            else:
+                                res = _meta_api.upload_imagem(token, account_id, cr_bytes, f"criativo{ext_cr}")
+                                cr = {"tipo": "imagem", "hash": res["hash"]}
+                        ad_id = _meta_api.criar_anuncio(
+                            token, account_id, adset_id, page_id, cr,
+                            copy.get("titulo", ""), copy.get("texto", ""),
+                            copy.get("cta", "WHATSAPP_MESSAGE"),
+                            link_url=link_url
+                        )
+                        try:
+                            conn3 = _get_db(); cur3 = conn3.cursor()
+                            cur3.execute("""
+                                INSERT INTO ad_publish_log
+                                    (cliente_id, account_id, campaign_id, adset_id, ad_id,
+                                     status, audience_id, lote_id, payload_json)
+                                VALUES (%s,%s,%s,%s,%s,'sucesso',%s,%s,%s)
+                            """, (cliente_id, account_id, campaign_id, adset_id, ad_id,
+                                  audience_id, lote_id, json.dumps(criativo)))
+                            conn3.commit(); conn3.close()
+                        except Exception:
+                            pass
+                        sucesso += 1
+                        sucesso_geral += 1
+                        yield _sse({"tipo": "anuncio_ok", "conjunto_idx": ci,
+                                    "criativo_idx": ri, "ad_id": ad_id, "cliente": nome_cliente})
+                    except Exception as e:
+                        falha += 1
+                        falha_geral += 1
+                        yield _sse({"tipo": "anuncio_erro", "conjunto_idx": ci,
+                                    "criativo_idx": ri, "erro": str(e), "cliente": nome_cliente})
+        # fim do loop de clientes
+        yield _sse({"tipo": "fim", "total": total_geral, "sucesso": sucesso_geral, "falha": falha_geral})
 
     return app.response_class(
         gerar(),

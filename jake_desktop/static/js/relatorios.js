@@ -8,23 +8,30 @@
   /* ── Clientes reais (ordem alfabética) ──────────── */
   var AGENCIES = {
     piloti: [
-      { id: "act_3790140084580806",  name: "Infinita Hiperbárica" },
-      { id: "act_465321557197081",  name: "MR Runners"       },
-      { id: "act_1076847820195449", name: "Saucker"          },
+      { id: "act_1006820257491698", name: "Calixta Films"    },
       { id: "act_1095710212746155", name: "Daniele Taveira"  },
+      { id: "act_3790140084580806", name: "Infinita Hiperbárica" },
       { id: "act_1006436427517079", name: "IOB"              },
       { id: "act_126503999415274",  name: "Isac Academia"    },
       { id: "act_812220691454430",  name: "Maíra Castaldi"   },
-{ id: "act_507545471090485",  name: "Odonto Uberaba"   },
+      { id: "act_465321557197081",  name: "MR Runners"       },
+      { id: "act_507545471090485",  name: "Odonto Uberaba"   },
       { id: "act_323137203122197",  name: "Queen Poltronas"  },
       { id: "act_840594572249284",  name: "RD Contabilidade" },
       { id: "act_7838846752907408", name: "Realize Sorrisos" },
-      { id: "act_510054631964792",  name: "RunWay"           }
+      { id: "act_510054631964792",  name: "RunWay"           },
+      { id: "act_1076847820195449", name: "Saucker"          }
     ],
     dentto: []
   };
 
   var currentAgency = "piloti";
+
+  /* ── Saudação dinâmica por horário ──────────────── */
+  function saudacao() {
+    var h = new Date().getHours();
+    return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+  }
 
   /* ── Helpers de formatação ───────────────────────── */
   function fmtN(n)   { return parseInt(n || 0, 10).toLocaleString("pt-BR"); }
@@ -47,7 +54,7 @@
     "act_510054631964792": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       return [
-        "Boa tarde pessoal!",
+        saudacao() + " pessoal!",
         "Segue relatório das nossas campanhas nos últimos 7 dias:",
         "",
         "RunWay",
@@ -75,7 +82,7 @@
     "act_323137203122197": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       return [
-        "Boa tarde pessoal!",
+        saudacao() + " pessoal!",
         "Segue relatório das nossas campanhas nos últimos 7 dias:",
         "",
         "Queen",
@@ -103,7 +110,7 @@
     "act_1006436427517079": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       return [
-        "Boa tarde pessoal!",
+        saudacao() + " pessoal!",
         "Segue relatório das nossas campanhas nos últimos 7 dias:",
         "",
         "IOB",
@@ -131,7 +138,7 @@
     "act_812220691454430": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       return [
-        "Boa tarde pessoal!",
+        saudacao() + " pessoal!",
         "Segue relatório das nossas campanhas nos últimos 7 dias:",
         "",
         "Maíra Castaldi",
@@ -159,7 +166,7 @@
     "act_126503999415274": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       return [
-        "Boa tarde pessoal!",
+        saudacao() + " pessoal!",
         "Segue relatório das nossas campanhas nos últimos 7 dias:",
         "",
         "Isac Rocha",
@@ -186,7 +193,7 @@
     "act_3790140084580806": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       var lines = [
-        "Boa tarde pessoal!",
+        saudacao() + " pessoal!",
         "Segue relatório das nossas campanhas nos últimos 7 dias:",
         "",
         "Infinita Hiperbárica",
@@ -213,7 +220,7 @@
     "act_465321557197081": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       return [
-        "Boa tarde pessoal!",
+        saudacao() + " pessoal!",
         "Segue relatório das nossas campanhas nos últimos 7 dias:",
         "",
         "MR Runners",
@@ -237,7 +244,7 @@
     "act_1076847820195449": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       return [
-        "Boa tarde pessoal!",
+        saudacao() + " pessoal!",
         "Segue relatório das nossas campanhas nos últimos 7 dias:",
         "",
         "Saucker",
@@ -258,7 +265,7 @@
     "act_840594572249284": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       return [
-        "Boa tarde pessoal!!",
+        saudacao() + " pessoal!!",
         "Segue relatório das nossas campanhas:",
         "",
         "RD Contabilidade",
@@ -285,7 +292,7 @@
     "act_1095710212746155": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       return [
-        "Boa tarde pessoal!!",
+        saudacao() + " pessoal!!",
         "Segue relatório das nossas campanhas:",
         "",
         "Daniele Taveira",
@@ -312,7 +319,7 @@
     "act_507545471090485": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       return [
-        "Boa tarde pessoal! ",
+        saudacao() + " pessoal! ",
         "Segue relatório das nossas campanhas nos últimos 7 dias:",
         "",
         "Odonto Uberaba",
@@ -333,7 +340,7 @@
     "act_7838846752907408": function (m, ai) {
       var s = parseFloat(m.spend || 0);
       return [
-        "Boa tarde pessoal!",
+        saudacao() + " pessoal!",
         "Segue relatório das nossas campanhas nos últimos 7 dias:",
         "",
         "Realize Sorrisos",
@@ -367,7 +374,7 @@
   function genericReport(client, m, ai) {
     var s = parseFloat(m.spend || 0);
     var lines = [
-      "Boa tarde pessoal!",
+      saudacao() + " pessoal!",
       "Segue relatório das nossas campanhas nos últimos 7 dias:",
       "",
       client.name,
