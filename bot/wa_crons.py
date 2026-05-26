@@ -553,14 +553,14 @@ def configurar_scheduler() -> BackgroundScheduler:
     )
     logger.info("Agendado: relatorio financeiro sexta as 17:00")
 
-    # Check de quarta-feira às 8h30
+    # Check de quarta-feira às 7h30
     scheduler.add_job(
         _rotina_quarta,
-        CronTrigger(day_of_week="wed", hour=8, minute=30, timezone=SP_TZ),
+        CronTrigger(day_of_week="wed", hour=7, minute=30, timezone=SP_TZ),
         id="rotina_quarta",
         replace_existing=True,
     )
-    logger.info("Agendado: check de quarta as 08:30")
+    logger.info("Agendado: check de quarta as 07:30")
 
     # [NOVO] Alerta de saldo baixo Meta todo dia às 8h
     scheduler.add_job(
