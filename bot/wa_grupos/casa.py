@@ -20,8 +20,6 @@ def handle_mensagem_casa(texto: str, key: dict, processar_fn=None) -> bool:
 
     Retorna True se processou, False se ignorou (texto vazio).
     """
-    from bot.whatsapp_handlers import send_text
-
     texto = texto.strip()
     if not texto:
         return False
@@ -41,7 +39,7 @@ def handle_mensagem_casa(texto: str, key: dict, processar_fn=None) -> bool:
         return True
 
     # Salvar na lista de compras
-    remetente = key.get("participant", key.get("remoteJid", ""))
+    remetente = key.get("participant", "")
     try:
         import psycopg2
         conn = psycopg2.connect(os.environ.get("DATABASE_URL", ""))
