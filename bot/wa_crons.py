@@ -20,7 +20,7 @@ SP_TZ             = pytz.timezone("America/Sao_Paulo")
 
 
 def _chamar_claude(prompt_sistema: str, mensagem: str) -> str:
-    """Chamada simples ao Claude — uso exclusivo dos crons."""
+    """Chamada simples ao Claude — uso exclusivo dos crons. Usa Haiku por eficiência de custo."""
     import anthropic
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
     resp = client.messages.create(
