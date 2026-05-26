@@ -32,6 +32,11 @@ from bot.whatsapp_handlers import (
     resumo_gestor, financeiro_context,
     verificar_conexao, download_media_bytes,
 )
+from bot.wa_crons import configurar_scheduler
+from bot.wa_grupos import (
+    CASA_GROUP_JID, handle_mensagem_casa,
+    VIAGEM_GROUP_JID, handle_mensagem_viagem,
+)
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -46,7 +51,6 @@ AUTHORIZED_NUMBER  = os.environ.get("WA_AUTHORIZED_NUMBER", "").strip()
 WEBHOOK_SECRET     = os.environ.get("EVOLUTION_WEBHOOK_SECRET", "").strip()
 ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 SP_TZ              = pytz.timezone("America/Sao_Paulo")
-CASA_GROUP_JID     = "120363310359411409@g.us"
 
 # ── Prompt (copiado literalmente de bot/jake_telegram.py) ─────────────────────
 def _perfil_contexto() -> str:
@@ -189,6 +193,73 @@ def resolver_clientes(nomes: list) -> dict:
             nao_encontrados.append(nome_digitado)
 
     return {"confirmados": confirmados, "ambiguos": ambiguos, "nao_encontrados": nao_encontrados}
+
+
+def _split_nomes_clientes(texto: str) -> list:
+    """Divide 'massaranduba, barra velha, tijucas e Schroeder' em lista de nomes."""
+    import re as _re
+    texto = _re.sub(r'\s+e\s+', ',', texto, flags=_re.IGNORECASE)
+    texto = _re.sub(r'\s+and\s+', ',', texto, flags=_re.IGNORECASE)
+    partes = [p.strip() for p in texto.split(',') if p.strip()]
+    return partes
+
+
+def _extrair_cidade(nome_cliente: str) -> str:
+    """Remove prefixos de rede (ODC, [CA], CA -, etc.) e retorna o nome da cidade."""
+    import re as _re
+    nome = _re.sub(r'^\[CA\]\s*', '', nome_cliente, flags=_re.IGNORECASE)
+    nome = _re.sub(r'^CA\s*[-–]\s*', '', nome, flags=_re.IGNORECASE)
+    nome = _re.sub(r'^CA\s+\d*\s*[-–]?\s*', '', nome, flags=_re.IGNORECASE)
+    nome = _re.sub(r'^ODC\s+', '', nome, flags=_re.IGNORECASE)
+    nome = _re.sub(r'^Odontocompany\s+', '', nome, flags=_re.IGNORECASE)
+    nome = _re.sub(r'^ODONTO\s+\w+\s*\d*\s*', '', nome, flags=_re.IGNORECASE)
+    nome = _re.sub(r'^BM\(\d+\)\s*', '', nome, flags=_re.IGNORECASE)
+    return nome.strip()
+
+
+def _auto_resolver_publico(cliente: dict) -> dict:
+    """
+    Se cliente não tem publico_salvo_id, busca na Meta API uma audiência
+    com nome '{cidade} - P' (ex: 'Massaranduba - P').
+    Retorna cliente atualizado in-memory (não salva no banco).
+    """
+    if cliente.get("publico_salvo_id"):
+        return cliente
+
+    token_key  = cliente.get("token_key", "")
+    account_id = cliente.get("account_id", "")
+    if not token_key or not account_id:
+        return cliente
+
+    cidade = _extrair_cidade(cliente["nome"])
+    if not cidade:
+        return cliente
+
+    padrao = f"{cidade} - P"
+
+    try:
+        from dotenv import load_dotenv as _ldenv
+        _ldenv(os.path.join(_root, ".env"))
+        token = os.environ.get(token_key, "").strip()
+        if not token:
+            return cliente
+
+        import requests as _req
+        resp = _req.get(
+            f"https://graph.facebook.com/v21.0/{account_id}/saved_audiences",
+            params={"fields": "id,name", "access_token": token, "limit": 100},
+            timeout=10,
+        )
+        for p in resp.json().get("data", []):
+            if p.get("name", "").strip().lower() == padrao.lower():
+                cliente = dict(cliente)
+                cliente["publico_salvo_id"]   = p["id"]
+                cliente["publico_salvo_nome"] = p["name"]
+                return cliente
+    except Exception as e:
+        logger.warning(f"_auto_resolver_publico({cliente['nome']}): {e}")
+
+    return cliente
 
 
 # ── Claude ────────────────────────────────────────────────────────────────────
@@ -489,19 +560,35 @@ def _formatar_resumo_subida(clientes: list, orcamento: float, campanha_tipo: str
 
 
 def _formatar_resultado_stream(eventos: list, total_clientes: int) -> str:
-    ok = [e for e in eventos if e.get("tipo") == "concluido" or e.get("status") == "ok"]
-    erros = [e for e in eventos if e.get("tipo") == "erro" or e.get("status") == "erro"]
-    linhas = [f"Anúncio subido! {len(ok)}/{total_clientes} concluídos"]
-    for e in ok:
-        camp = e.get("campanha_id", "")
-        nome = e.get("cliente", "")
-        ads = e.get("ads", 1)
-        sufixo = f" — {ads} anúncio(s)" if ads and ads > 1 else ""
-        linhas.append(f"  ✅ {nome}{sufixo}" + (f" (camp. {camp})" if camp else ""))
-    for e in erros:
-        nome = e.get("cliente", "")
-        msg = e.get("erro", e.get("message", "erro"))
-        linhas.append(f"  ❌ {nome}: {msg}")
+    if not eventos:
+        return "⏳ Sem resposta do servidor. Verifique o Jake OS."
+
+    fim        = next((e for e in eventos if e.get("tipo") == "fim"), None)
+    ads_ok     = [e for e in eventos if e.get("tipo") == "anuncio_ok"]
+    erros_fat  = [e for e in eventos if e.get("tipo") == "erro_fatal"]
+    erros_conj = [e for e in eventos if e.get("tipo") == "conjunto_erro"]
+    erros_ad   = [e for e in eventos if e.get("tipo") == "anuncio_erro"]
+
+    sucesso = fim.get("sucesso", len(ads_ok)) if fim else len(ads_ok)
+    falha   = fim.get("falha", 0) if fim else len(erros_ad) + len(erros_conj)
+    total   = sucesso + falha
+
+    linhas = [f"*Anúncio subido!* {sucesso}/{total} criativo(s) publicado(s)"]
+
+    clientes_ok: dict = {}
+    for e in ads_ok:
+        clientes_ok.setdefault(e.get("cliente", "?"), 0)
+        clientes_ok[e.get("cliente", "?")] += 1
+    for nome, n in clientes_ok.items():
+        linhas.append(f"  ✅ {nome} — {n} anúncio(s)")
+
+    for e in erros_fat:
+        linhas.append(f"  ❌ {e.get('cliente','?')}: {e.get('erro','erro fatal')}")
+    for e in erros_conj:
+        linhas.append(f"  ⚠️ {e.get('cliente','?')} — conjunto {(e.get('conjunto_idx') or 0)+1}: {e.get('erro','')}")
+    for e in erros_ad:
+        linhas.append(f"  ⚠️ {e.get('cliente','?')} — criativo {(e.get('criativo_idx') or 0)+1}: {e.get('erro','')}")
+
     return "\n".join(linhas)
 
 
@@ -555,10 +642,18 @@ def _montar_confirmacao_final(sender_jid: str, destino: str, cmd: dict, clientes
             _set_sessao(sender_jid, "aguardando_orcamento", {"cmd": cmd, "clientes": clientes})
             return
 
-        # 4. Público salvo obrigatório
-        sem_publico = [c["nome"] for c in clientes if not c.get("publico_salvo_id")]
-        if sem_publico:
-            nomes = ", ".join(sem_publico)
+        # 4. Público salvo — tenta auto-resolver pelo padrão '{cidade} - P'
+        clientes_sem = [c for c in clientes if not c.get("publico_salvo_id")]
+        if clientes_sem:
+            send_text(destino, "🔍 Buscando públicos salvos...")
+            clientes_resolvidos = []
+            for c in clientes:
+                clientes_resolvidos.append(_auto_resolver_publico(c))
+            clientes = clientes_resolvidos
+
+        sem_publico_final = [c["nome"] for c in clientes if not c.get("publico_salvo_id")]
+        if sem_publico_final:
+            nomes = ", ".join(sem_publico_final)
             send_text(destino, f"Não posso subir — cliente(s) sem Público Salvo configurado: {nomes}\nCadastra o ID do público no Jake OS (aba Anúncios → editar cliente) antes de tentar de novo.")
             return
 
@@ -836,22 +931,27 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
 
     # ── Estados de coleta de dados (aceitam qualquer texto) ──────────────────
     if estado == "aguardando_cliente":
-        nome = texto.strip()
-        resolucao = resolver_clientes([nome])
+        # Suporta múltiplos clientes: "massaranduba, barra velha, tijucas e schroeder"
+        nomes_digitados = _split_nomes_clientes(texto.strip())
+        resolucao = resolver_clientes(nomes_digitados)
         if resolucao["nao_encontrados"]:
-            send_text(destino, f"Não encontrei '{nome}'. Tenta outro nome ou 'lista clientes'.")
+            nao_enc = ", ".join(resolucao["nao_encontrados"])
+            send_text(destino, f"Não encontrei: {nao_enc}. Tenta outro nome ou 'lista clientes'.")
             return
         if resolucao["ambiguos"]:
             amb = resolucao["ambiguos"][0]
             cand = amb["candidato"]
             payload["pendente_cliente"] = cand
+            payload["confirmados_parciais"] = resolucao["confirmados"]
+            payload["ambiguos_restantes"] = resolucao["ambiguos"]
+            payload["ambiguo_atual"] = 0
             _set_sessao(sender_jid, "aguardando_confirmacao_cliente_guiado", payload)
-            send_text(destino, f"Encontrei *{cand['nome']}*, é esse? (sim/não)")
+            send_text(destino, f"Encontrei *{cand['nome']}* para '{amb['digitado']}', é esse? (sim/não)")
             return
-        cliente = resolucao["confirmados"][0]
-        payload["clientes"] = [cliente]
+        clientes = resolucao["confirmados"]
+        payload["clientes"] = clientes
         _limpar_sessao(sender_jid)
-        _montar_confirmacao_final(sender_jid, destino, payload["cmd"], [cliente])
+        _montar_confirmacao_final(sender_jid, destino, payload["cmd"], clientes)
         return
 
     if estado == "aguardando_confirmacao_cliente_guiado":
@@ -860,10 +960,24 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
             send_text(destino, "Cancelado. Me passa o nome certo do cliente.")
             return
         if positivo:
-            cliente = payload.pop("pendente_cliente")
-            payload["clientes"] = [cliente]
-            _limpar_sessao(sender_jid)
-            _montar_confirmacao_final(sender_jid, destino, payload["cmd"], [cliente])
+            cliente_confirmado = payload.pop("pendente_cliente")
+            confirmados = payload.pop("confirmados_parciais", []) + [cliente_confirmado]
+            ambiguos_rest = payload.pop("ambiguos_restantes", [])
+            idx_atual = payload.pop("ambiguo_atual", 0) + 1
+            # Avança para o próximo ambíguo, se houver
+            if idx_atual < len(ambiguos_rest):
+                amb = ambiguos_rest[idx_atual]
+                cand = amb["candidato"]
+                payload["pendente_cliente"] = cand
+                payload["confirmados_parciais"] = confirmados
+                payload["ambiguos_restantes"] = ambiguos_rest
+                payload["ambiguo_atual"] = idx_atual
+                _set_sessao(sender_jid, "aguardando_confirmacao_cliente_guiado", payload)
+                send_text(destino, f"Encontrei *{cand['nome']}* para '{amb['digitado']}', é esse? (sim/não)")
+            else:
+                payload["clientes"] = confirmados
+                _limpar_sessao(sender_jid)
+                _montar_confirmacao_final(sender_jid, destino, payload["cmd"], confirmados)
         else:
             send_text(destino, "Responde sim ou não, Patrão.")
         return
@@ -942,6 +1056,12 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
                 from bot.gestor_whatsapp import get_gestor
                 gestor = get_gestor()
                 cliente_ids = [c["id"] for c in payload["clientes"]]
+                # Preserva públicos auto-resolvidos (não salvos no banco) passando por cliente
+                _publicos_por_cliente = {
+                    str(c["id"]): c["publico_salvo_id"]
+                    for c in payload["clientes"]
+                    if c.get("publico_salvo_id")
+                }
                 _est = payload.get("estrutura") or {}
                 _drive = payload.get("drive_link") or None
                 _arq_local = payload.get("arquivo_local") or None
@@ -963,6 +1083,7 @@ def _processar_confirmacao(sender_jid: str, texto: str, sessao: dict):
                     orcamento_por_conjunto=payload.get("orcamento_por_conjunto") or None,
                     copy=payload.get("copy") or {},
                     copies_list=payload.get("copies_list") or [],
+                    publicos_salvos_por_cliente=_publicos_por_cliente or None,
                 )
                 mc_token = dados["mc_token"]
                 eventos = gestor.consumir_stream(mc_token)
@@ -1090,6 +1211,7 @@ def processar_midia(sender_jid: str, msg_key: dict, message: dict, tipo_midia: s
     """Processa imagem/vídeo recebido via WhatsApp — inicia fluxo guiado de subida."""
     import uuid as _uuid_m
     destino = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else sender_jid
+    logger.info(f"processar_midia: tipo={tipo_midia} sender={sender_jid}")
 
     # Se já tem lote em execução, recusar
     sessao = _get_sessao(sender_jid)
@@ -1145,7 +1267,9 @@ def processar_midia(sender_jid: str, msg_key: dict, message: dict, tipo_midia: s
         tipo, rec, num, cmd_, clientes_ = _acao
         if tipo == "confirmar":
             _montar_confirmacao_final(sender_jid, destino, cmd_, clientes_)
-        # "aguardar" — sem mensagem por imagem para não flodar
+        else:
+            faltam = num - rec
+            send_text(destino, f"📸 Recebido {rec}/{num}. Envia mais {faltam} criativo(s).")
         return
 
     # Se há sessão aguardando mídia (cliente já selecionado), continuar de onde parou
@@ -1175,122 +1299,6 @@ def processar_midia(sender_jid: str, msg_key: dict, message: dict, tipo_midia: s
 
 import re as _re_slash
 _APROVACAO_RE = _re_slash.compile(r'^(ok|cancela\s+\d+)$', _re_slash.IGNORECASE)
-
-
-def _rotina_segunda():
-    """
-    Rotina automática toda segunda às 7h30.
-    Envia: resumo Meta da semana anterior + notícias de IA + situação financeira.
-    """
-    if not AUTHORIZED_NUMBER:
-        return
-
-    import urllib.request
-    import xml.etree.ElementTree as ET
-
-    destino = AUTHORIZED_NUMBER
-
-    # 1. Performance Meta da semana anterior
-    try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ["DATABASE_URL"],
-                                cursor_factory=psycopg2.extras.RealDictCursor)
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT acp.nome, ga.tipo, COUNT(*) as n
-            FROM gestor_acoes ga
-            JOIN ad_client_profiles acp ON acp.id = ga.cliente_id
-            WHERE ga.executado_em >= NOW() - INTERVAL '7 days'
-              AND ga.status = 'sucesso'
-              AND ga.tipo NOT LIKE 'alerta%%'
-            GROUP BY acp.nome, ga.tipo
-            ORDER BY acp.nome
-        """)
-        acoes_semana = cur.fetchall()
-
-        cur.execute("""
-            SELECT contas_total, contas_ok, contas_acao, contas_erro
-            FROM gestor_varreduras
-            WHERE executado_em >= NOW() - INTERVAL '7 days'
-              AND status = 'sucesso'
-            ORDER BY executado_em DESC LIMIT 1
-        """)
-        ultima_varredura = cur.fetchone()
-        conn.close()
-    except Exception as e:
-        logger.error(f"_rotina_segunda: erro ao buscar Meta: {e}")
-        acoes_semana = []
-        ultima_varredura = None
-
-    linhas_meta = ["*Resumo Meta — semana anterior:*"]
-    if ultima_varredura:
-        linhas_meta.append(
-            f"{ultima_varredura['contas_ok']}/{ultima_varredura['contas_total']} contas OK | "
-            f"{ultima_varredura['contas_acao']} acoes tomadas"
-        )
-    if acoes_semana:
-        por_cliente: dict = {}
-        for a in acoes_semana:
-            por_cliente.setdefault(a["nome"], []).append(f"{a['tipo']}({a['n']})")
-        for nome, tipos in list(por_cliente.items())[:5]:
-            linhas_meta.append(f"  • {nome}: {', '.join(tipos)}")
-    else:
-        linhas_meta.append("Nenhuma acao executada na semana.")
-
-    # 2. Notícias de IA (RSS)
-    noticias = []
-    feeds = [
-        "https://techcrunch.com/tag/artificial-intelligence/feed/",
-        "https://www.artificialintelligence-news.com/feed/",
-    ]
-    for feed_url in feeds:
-        try:
-            req = urllib.request.Request(feed_url, headers={"User-Agent": "Jake-IA/1.0"})
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                xml_data = resp.read()
-            root = ET.fromstring(xml_data)
-            for item in root.findall(".//item")[:3]:
-                titulo = item.findtext("title", "").strip()
-                if titulo:
-                    noticias.append(titulo)
-        except Exception:
-            pass
-        if len(noticias) >= 5:
-            break
-
-    if noticias:
-        prompt_noticias = (
-            "Você é Jake, assistente de tráfego pago do Bruno.\n"
-            "Filtre e resuma em 3-4 frases curtas (português) as notícias de IA abaixo "
-            "focando no que é relevante para um gestor de tráfego Meta Ads:\n\n"
-            + "\n".join(f"- {n}" for n in noticias)
-        )
-        try:
-            resumo_ia = chamar_claude(prompt_noticias, "Resumo para gestor de tráfego:")
-        except Exception:
-            resumo_ia = "\n".join(f"• {n}" for n in noticias[:3])
-    else:
-        resumo_ia = "Nao consegui buscar noticias desta semana."
-
-    # 3. Financeiro
-    try:
-        from bot.whatsapp_handlers import resumo_financeiro_wa
-        fin_linha = resumo_financeiro_wa()
-    except Exception as e:
-        fin_linha = f"(erro ao carregar financeiro: {e})"
-
-    # Montar mensagem final
-    from datetime import date as _date
-    hoje = _date.today().strftime("%d/%m")
-    msg = (
-        f"Bom dia, Patrao! Segunda-feira {hoje} — aqui esta o seu briefing:\n\n"
-        + "\n".join(linhas_meta)
-        + f"\n\n*IA & Trafego — novidades:*\n{resumo_ia}"
-        + f"\n\n{fin_linha}"
-        + "\n\nBoa semana!"
-    )
-    send_text(destino, msg)
-    logger.info("_rotina_segunda: briefing enviado")
 
 
 ROTINAS_CONFIGURADAS = """*Responsabilidades do Jake — por dia:*
@@ -1585,7 +1593,7 @@ def webhook():
     # Debug: logar JID recebido
     logger.info(f"Webhook recebido: sender_jid={sender_jid!r} authorized={AUTHORIZED_JID!r} fromMe={key.get('fromMe')}")
 
-    # Mensagens do grupo Casa — salvar itens na lista de compras
+    # Mensagens do grupo Casa
     if sender_jid == CASA_GROUP_JID:
         message_grp = msg_data.get("message", {})
         texto_grp = (
@@ -1593,21 +1601,18 @@ def webhook():
             or message_grp.get("extendedTextMessage", {}).get("text")
             or ""
         ).strip()
-        if texto_grp:
-            remetente = key.get("participant", sender_jid)
-            try:
-                import psycopg2 as _pg2
-                _conn = _pg2.connect(os.environ.get("DATABASE_URL", ""))
-                _cur = _conn.cursor()
-                _cur.execute(
-                    "INSERT INTO lista_compras (item, adicionado_por) VALUES (%s, %s)",
-                    (texto_grp, remetente)
-                )
-                _conn.commit()
-                _conn.close()
-                logger.info(f"Item adicionado na lista: {texto_grp!r} por {remetente}")
-            except Exception as _e:
-                logger.error(f"Erro ao salvar item lista_compras: {_e}")
+        handle_mensagem_casa(texto_grp, key, processar_fn=processar_mensagem)
+        return jsonify({"ok": True})
+
+    # Mensagens do grupo Viagem Chile [NOVO]
+    if sender_jid == VIAGEM_GROUP_JID:
+        message_grp = msg_data.get("message", {})
+        texto_grp = (
+            message_grp.get("conversation")
+            or message_grp.get("extendedTextMessage", {}).get("text")
+            or ""
+        ).strip()
+        handle_mensagem_viagem(texto_grp, key, processar_fn=processar_mensagem)
         return jsonify({"ok": True})
 
     # Apenas responder ao usuario autorizado
@@ -1665,24 +1670,6 @@ def webhook():
 def health():
     return jsonify({"ok": True, "wa_status": verificar_conexao()})
 
-# ── APScheduler — crons ───────────────────────────────────────────────────────
-
-def _enviar_resumo_gestor():
-    """Cron das 17h: envia resumo do Gestor IA para o Bruno."""
-    if not AUTHORIZED_JID:
-        logger.warning("WA_AUTHORIZED_JID nao configurado - resumo nao enviado")
-        return
-    logger.info("Enviando resumo diario do Gestor IA...")
-    resumo = resumo_gestor()
-    destino = AUTHORIZED_NUMBER if AUTHORIZED_NUMBER else AUTHORIZED_JID
-    send_text(destino, resumo)
-
-def _enviar_mensagem_grupo(grupo: dict):
-    """Cron agendado: envia mensagem para um grupo configurado."""
-    logger.info(f"Enviando mensagem agendada para grupo {grupo['nome']}")
-    send_text(grupo["jid"], grupo["msg"])
-
-
 def _cmd_lista_compras(destino: str):
     """Busca itens da lista de compras, envia formatado e limpa a lista."""
     try:
@@ -1710,449 +1697,6 @@ def _cmd_lista_compras(destino: str):
         logger.error(f"Erro em _cmd_lista_compras: {_e}")
         send_text(destino, "Erro ao buscar a lista. Tenta de novo, Patrão.")
 
-def _limpar_tmp_midia():
-    """Remove arquivos wa_media_* do /tmp com mais de 1 hora."""
-    import glob as _glob_tmp
-    agora = _time.time()
-    removidos = 0
-    for f in _glob_tmp.glob("/tmp/wa_media_*"):
-        try:
-            if agora - os.path.getmtime(f) > 3600:
-                os.remove(f)
-                removidos += 1
-        except Exception:
-            pass
-    if removidos:
-        logger.info(f"_limpar_tmp_midia: {removidos} arquivo(s) removido(s)")
-
-
-def _expirar_pendentes():
-    """Expira ações pendentes com mais de 4h sem aprovação."""
-    try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ["DATABASE_URL"],
-                                cursor_factory=psycopg2.extras.RealDictCursor)
-        cur = conn.cursor()
-        cur.execute("""
-            UPDATE gestor_acoes
-            SET status='expirado', expirado_em=NOW()
-            WHERE status='pendente'
-              AND executado_em < NOW() - INTERVAL '4 hours'
-        """)
-        n_acoes = cur.rowcount
-        cur.execute("""
-            UPDATE gestor_estado
-            SET status='expirado', resolvido_em=NOW()
-            WHERE status='aguardando'
-              AND criado_em < NOW() - INTERVAL '4 hours'
-        """)
-        n_estados = cur.rowcount
-        conn.commit()
-        conn.close()
-        if n_acoes or n_estados:
-            logger.info(f"_expirar_pendentes: {n_acoes} acoes e {n_estados} estados expirados")
-    except Exception as e:
-        logger.error(f"_expirar_pendentes error: {e}")
-
-
-def _alerta_saldo_baixo():
-    """
-    Roda todo dia às 8h.
-    Verifica saldo das contas Meta, separando por agência (Piloti / Dentto).
-    Limites personalizados por conta. Contas de cartão de crédito pausadas
-    exibem "Falta de pagamento" ao invés de saldo restante.
-    """
-    if not AUTHORIZED_NUMBER:
-        return
-    try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ["DATABASE_URL"],
-                                cursor_factory=psycopg2.extras.RealDictCursor)
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT nome, account_id, token_key, agencia FROM ad_client_profiles
-            WHERE gestor_ativo = TRUE
-        """)
-        contas = cur.fetchall()
-        conn.close()
-    except Exception as e:
-        logger.error(f"_alerta_saldo_baixo: erro ao buscar contas: {e}")
-        return
-
-    try:
-        from meta.meta_api import _resolve_token
-    except Exception:
-        _resolve_token = lambda k: os.getenv(k, "")
-
-    import requests as _req
-
-    # Limites de alerta personalizados (default R$300)
-    LIMITES = {
-        "Calixta Films":  100.0,
-        "Amanda Cunha":    50.0,
-        "Marcos Couto":    50.0,
-    }
-    LIMITE_PADRAO = 300.0
-
-    # Contas de cartão de crédito: não têm saldo pré-pago.
-    # Se estiverem pausadas, o motivo é falta de pagamento — exibir isso.
-    CARTAO = {"Maíra Castaldi", "RD Contabilidade"}
-
-    alertas_piloti = []
-    alertas_dentto = []
-
-    for conta in contas:
-        try:
-            token = _resolve_token(conta["token_key"])
-        except Exception:
-            token = os.getenv(conta["token_key"], "")
-        if not token:
-            continue
-        try:
-            resp = _req.get(
-                f"https://graph.facebook.com/v21.0/{conta['account_id']}",
-                params={"fields": "amount_spent,spend_cap,balance,account_status", "access_token": token},
-                timeout=10,
-            )
-            data = resp.json()
-            nome     = conta["nome"]
-            agencia  = (conta.get("agencia") or "piloti").lower()
-            # account_status: 1=ativa, 2=desativada, 3=não paga (unsettled), 9=período de graça
-            status   = int(data.get("account_status", 1))
-
-            if nome in CARTAO:
-                # Cartão de crédito — só alerta se conta pausada por não pagamento
-                if status in (2, 3, 9):
-                    linha = f"  • {nome}: ⚠️ Falta de pagamento"
-                else:
-                    continue  # ativa no cartão, sem alerta
-            else:
-                amount_spent = float(data.get("amount_spent", 0) or 0) / 100
-                spend_cap    = float(data.get("spend_cap",    0) or 0) / 100
-                balance      = float(data.get("balance",      0) or 0) / 100
-                remaining    = max(0.0, spend_cap - amount_spent) if spend_cap else balance
-                limite       = LIMITES.get(nome, LIMITE_PADRAO)
-                if remaining >= limite:
-                    continue
-                linha = f"  • {nome}: R${remaining:.2f} restante"
-
-            if agencia == "dentto":
-                alertas_dentto.append(linha)
-            else:
-                alertas_piloti.append(linha)
-
-        except Exception:
-            pass
-
-    partes = []
-    if alertas_piloti:
-        partes.append("🟠🟣 *Piloti:*\n" + "\n".join(alertas_piloti))
-    if alertas_dentto:
-        partes.append("🔵 *Dentto:*\n" + "\n".join(alertas_dentto))
-
-    if partes:
-        msg = "⚠️ *Saldo baixo — Contas Meta:*\n\n" + "\n\n".join(partes)
-        send_text(AUTHORIZED_NUMBER, msg)
-        logger.info(f"_alerta_saldo_baixo: Piloti={len(alertas_piloti)} Dentto={len(alertas_dentto)}")
-
-
-def _rotina_sexta():
-    """
-    Roda toda sexta às 17h.
-    Envia relatório financeiro pessoal vs meta R$1M anual.
-    """
-    if not AUTHORIZED_NUMBER:
-        return
-    try:
-        from core.sync_financeiro import resumo_mes
-        from datetime import date as _date
-        r = resumo_mes()
-        hoje = _date.today()
-        dia = hoje.day
-        proj_mensal = (r["receitas"] / dia * 30) if dia > 0 else r["receitas"]
-        proj_anual  = proj_mensal * 12
-        meta_anual  = 1_000_000.0
-        pct         = proj_anual / meta_anual * 100
-        bar_filled  = int(pct / 10)
-        bar         = "X" * bar_filled + "." * (10 - bar_filled)
-
-        msg = (
-            f"*Relatorio Financeiro — {hoje.strftime('%d/%m/%Y')}*\n\n"
-            f"Receitas {hoje.strftime('%b')}: R${r['receitas']:,.2f}\n"
-            f"Despesas {hoje.strftime('%b')}: R${r['despesas']:,.2f}\n"
-            f"Saldo {hoje.strftime('%b')}:    R${r['saldo']:,.2f}\n\n"
-            f"Projecao anual: R${proj_anual:,.0f}\n"
-            f"Meta R$1M:      [{bar}] {pct:.1f}%\n\n"
-        )
-        if pct >= 100:
-            msg += "Meta atingida, Patrao!"
-        elif pct >= 70:
-            msg += "No caminho certo. Segura o ritmo!"
-        elif pct >= 40:
-            msg += "Metade do caminho. Vamos acelerar?"
-        else:
-            msg += "Abaixo da meta. Hora de revisar as entradas."
-
-        send_text(AUTHORIZED_NUMBER, msg)
-        logger.info("_rotina_sexta: relatorio financeiro enviado")
-    except Exception as e:
-        logger.error(f"_rotina_sexta error: {e}")
-
-
-def _rotina_quarta():
-    """
-    Roda toda quarta às 8h30.
-    Check de meio de semana: contas com gasto travado ou sem conversão.
-    """
-    if not AUTHORIZED_NUMBER:
-        return
-    try:
-        import psycopg2, psycopg2.extras
-        conn = psycopg2.connect(os.environ["DATABASE_URL"],
-                                cursor_factory=psycopg2.extras.RealDictCursor)
-        cur = conn.cursor()
-
-        # Últimas ações do Gestor dos últimos 3 dias
-        cur.execute("""
-            SELECT acp.nome, ga.tipo, ga.motivo, ga.status
-            FROM gestor_acoes ga
-            JOIN ad_client_profiles acp ON acp.id = ga.cliente_id
-            WHERE ga.executado_em >= NOW() - INTERVAL '3 days'
-              AND ga.tipo LIKE 'alerta%%'
-            ORDER BY ga.executado_em DESC
-            LIMIT 10
-        """)
-        alertas = cur.fetchall()
-
-        # Contas sem varredura nos últimos 2 dias (possível problema)
-        cur.execute("""
-            SELECT MAX(executado_em) as ultima FROM gestor_varreduras
-            WHERE status = 'sucesso'
-        """)
-        ultima_var = cur.fetchone()
-        conn.close()
-
-        from datetime import date as _date, timedelta as _td
-        hoje = _date.today()
-        linhas = [f"*Check de quarta — {hoje.strftime('%d/%m')}*\n"]
-
-        if ultima_var and ultima_var["ultima"]:
-            dias_sem = (hoje - ultima_var["ultima"].date()).days
-            if dias_sem > 1:
-                linhas.append(f"Gestor sem varredura ha {dias_sem} dias — verificar cron.")
-            else:
-                linhas.append("Gestor IA: varredura em dia.")
-        else:
-            linhas.append("Gestor IA: sem varreduras recentes.")
-
-        if alertas:
-            linhas.append(f"\nAlertas dos ultimos 3 dias ({len(alertas)}):")
-            por_conta: dict = {}
-            for a in alertas:
-                por_conta.setdefault(a["nome"], []).append(a["motivo"].split(":")[0])
-            for nome, tipos in list(por_conta.items())[:6]:
-                linhas.append(f"  • {nome}: {', '.join(set(tipos))}")
-        else:
-            linhas.append("\nNenhum alerta nos ultimos 3 dias. Tudo tranquilo.")
-
-        linhas.append("\nSe precisar de ajuste em alguma conta antes do fim de semana, e so mandar.")
-        send_text(AUTHORIZED_NUMBER, "\n".join(linhas))
-        logger.info("_rotina_quarta: check enviado")
-    except Exception as e:
-        logger.error(f"_rotina_quarta error: {e}")
-
-
-def _noticias_diarias():
-    """
-    Roda todo dia às 8h05.
-    Busca as principais notícias de IA e marketing do dia via RSS,
-    filtra o que é relevante para gestor de tráfego Meta Ads e envia resumo.
-    """
-    if not AUTHORIZED_NUMBER:
-        return
-    try:
-        import urllib.request
-        import xml.etree.ElementTree as ET
-        from datetime import date as _date
-
-        feeds = [
-            "https://techcrunch.com/tag/artificial-intelligence/feed/",
-            "https://feeds.feedburner.com/socialmediaexaminer",
-            "https://www.searchenginejournal.com/feed/",
-            "https://www.jonloomer.com/feed/",
-            "https://www.artificialintelligence-news.com/feed/",
-        ]
-
-        noticias = []
-        for feed_url in feeds:
-            try:
-                req = urllib.request.Request(feed_url, headers={"User-Agent": "Jake-IA/1.0"})
-                with urllib.request.urlopen(req, timeout=8) as resp:
-                    xml_data = resp.read()
-                root = ET.fromstring(xml_data)
-                for item in root.findall(".//item")[:3]:
-                    titulo = item.findtext("title", "").strip()
-                    if titulo:
-                        noticias.append(titulo)
-            except Exception:
-                pass
-            if len(noticias) >= 8:
-                break
-
-        hoje = _date.today()
-        dias = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
-        dia_semana = dias[hoje.weekday()]
-
-        if noticias:
-            prompt = (
-                f"Você é Jake, assistente do Bruno — gestor de tráfego Meta Ads.\n"
-                f"Hoje é {dia_semana}, {hoje.strftime('%d/%m/%Y')}.\n"
-                "Com base nas notícias abaixo, selecione as 3 mais relevantes para quem "
-                "gerencia campanhas Meta Ads e agências de marketing digital no Brasil. "
-                "Para cada uma escreva: título adaptado ao contexto + 1 frase de impacto prático. "
-                "Formato: bullet point. Tom direto, sem enrolação, português.\n\n"
-                "Notícias disponíveis:\n"
-                + "\n".join(f"- {n}" for n in noticias)
-            )
-            try:
-                resumo = chamar_claude(prompt, "Resumo IA & Marketing:")
-            except Exception:
-                resumo = "\n".join(f"• {n}" for n in noticias[:3])
-        else:
-            resumo = "Não consegui acessar os feeds hoje. Tente verificar manualmente."
-
-        msg = (
-            f"📰 *IA & Marketing — {dia_semana} {hoje.strftime('%d/%m')}*\n\n"
-            f"{resumo}"
-        )
-        send_text(AUTHORIZED_NUMBER, msg)
-        logger.info("_noticias_diarias: resumo enviado")
-    except Exception as e:
-        logger.error(f"_noticias_diarias error: {e}")
-
-
-def _configurar_scheduler() -> BackgroundScheduler:
-    scheduler = BackgroundScheduler(timezone=SP_TZ)
-
-    # Limpeza de arquivos temporários de mídia a cada hora
-    scheduler.add_job(
-        _limpar_tmp_midia,
-        "interval", hours=1,
-        id="limpar_tmp_midia",
-        replace_existing=True,
-    )
-
-    # Expirar pendentes a cada 30min
-    scheduler.add_job(
-        _expirar_pendentes,
-        "interval", minutes=30,
-        id="expirar_pendentes",
-        replace_existing=True,
-    )
-
-    # Rotina de segunda-feira: briefing semanal às 7h30
-    scheduler.add_job(
-        _rotina_segunda,
-        CronTrigger(day_of_week="mon", hour=7, minute=30, timezone=SP_TZ),
-        id="rotina_segunda",
-        replace_existing=True,
-    )
-    logger.info("Agendado: briefing de segunda as 07:30")
-
-    # Auto-importar recorrentes no dia 1 de cada mês às 6h
-    def _auto_import_recorrentes():
-        try:
-            from core.sync_financeiro import auto_importar_recorrentes
-            n = auto_importar_recorrentes()
-            if n:
-                logger.info(f"auto_import_recorrentes: {n} transacoes importadas")
-        except Exception as e:
-            logger.error(f"auto_import_recorrentes error: {e}")
-
-    scheduler.add_job(
-        _auto_import_recorrentes,
-        CronTrigger(day=1, hour=6, minute=0, timezone=SP_TZ),
-        id="auto_import_recorrentes",
-        replace_existing=True,
-    )
-    logger.info("Agendado: auto-import financeiro no dia 1 de cada mes")
-
-    # Notícias diárias de IA & Marketing às 7h35
-    scheduler.add_job(
-        _noticias_diarias,
-        CronTrigger(hour=7, minute=35, timezone=SP_TZ),
-        id="noticias_diarias",
-        replace_existing=True,
-    )
-    logger.info("Agendado: noticias diarias IA & Marketing as 07:35")
-
-    # Relatório financeiro toda sexta às 17h
-    scheduler.add_job(
-        _rotina_sexta,
-        CronTrigger(day_of_week="fri", hour=17, minute=0, timezone=SP_TZ),
-        id="rotina_sexta",
-        replace_existing=True,
-    )
-    logger.info("Agendado: relatorio financeiro sexta as 17:00")
-
-    # Check de quarta-feira às 7h30
-    scheduler.add_job(
-        _rotina_quarta,
-        CronTrigger(day_of_week="wed", hour=7, minute=30, timezone=SP_TZ),
-        id="rotina_quarta",
-        replace_existing=True,
-    )
-    logger.info("Agendado: check de quarta as 07:30")
-
-    # Mensagens agendadas para grupos
-    grupos = get_grupos()
-    for grupo in grupos:
-        jid  = grupo.get("jid", "")
-        nome = grupo.get("nome", "")
-        # Suporta formato novo: lembretes=[{id, msg, cron}]
-        # e formato legado: {msg, cron: "HH:MM", dias: [...]}
-        lembretes = grupo.get("lembretes") or []
-        if not lembretes and grupo.get("msg") and grupo.get("cron"):
-            lembretes = [{"id": nome, "msg": grupo["msg"], "cron": grupo["cron"], "dias": grupo.get("dias", [])}]
-        for lembrete in lembretes:
-            lid = lembrete.get("id", lembrete.get("msg", "")[:20])
-            msg = lembrete.get("msg", "")
-            cron = lembrete.get("cron", "")
-            if not cron or not msg:
-                continue
-            try:
-                partes = cron.strip().split()
-                if len(partes) == 5:
-                    # Cron padrão 5 campos: minuto hora dia mes dia_semana
-                    minuto, hora, dia, mes, dia_sem = partes
-                    scheduler.add_job(
-                        _enviar_mensagem_grupo,
-                        CronTrigger(
-                            minute=minuto, hour=hora, day=dia,
-                            month=mes, day_of_week=dia_sem, timezone=SP_TZ
-                        ),
-                        args=[{"jid": jid, "nome": nome, "msg": msg}],
-                        id=f"grupo_{nome}_{lid}",
-                        replace_existing=True,
-                    )
-                else:
-                    # Formato legado HH:MM + dias
-                    hora_m, minuto_m = cron.split(":")
-                    dias = lembrete.get("dias", [])
-                    dia_semana = ",".join(dias) if dias else "*"
-                    scheduler.add_job(
-                        _enviar_mensagem_grupo,
-                        CronTrigger(day_of_week=dia_semana, hour=int(hora_m), minute=int(minuto_m), timezone=SP_TZ),
-                        args=[{"jid": jid, "nome": nome, "msg": msg}],
-                        id=f"grupo_{nome}_{lid}",
-                        replace_existing=True,
-                    )
-                logger.info(f"Agendado: lembrete '{lid}' para grupo '{nome}' | cron={cron}")
-            except Exception as e:
-                logger.error(f"Erro ao agendar lembrete '{lid}' do grupo '{nome}': {e}")
-
-    return scheduler
-
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -2170,7 +1714,7 @@ def main():
         logger.warning(f"WhatsApp status: {estado} (Evolution API pode estar inicializando)")
 
     # Iniciar scheduler
-    scheduler = _configurar_scheduler()
+    scheduler = configurar_scheduler()
     scheduler.start()
     logger.info(f"APScheduler iniciado com {len(scheduler.get_jobs())} job(s)")
 
