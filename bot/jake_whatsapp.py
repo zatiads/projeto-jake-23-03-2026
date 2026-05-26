@@ -21,8 +21,6 @@ except ImportError:
 
 from flask import Flask, request, jsonify
 import anthropic
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
 import pytz
 
 from bot.whatsapp_handlers import (
