@@ -150,7 +150,7 @@ def _rotina_segunda():
 
 def _noticias_diarias():
     """
-    Roda todo dia às 8h05.
+    Roda todo dia às 7h35.
     Busca as principais notícias de IA e marketing do dia via RSS,
     filtra o que é relevante para gestor de tráfego Meta Ads e envia resumo.
     """
