@@ -562,6 +562,28 @@
     .wa-float svg { width: 28px; height: 28px; fill: white; }
 
     /* ============================================================
+       VAGAS & SAÍDA
+    ============================================================ */
+    .vagas-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 10px; font-weight: 700; letter-spacing: 1px;
+      padding: 5px 12px; border-radius: 100px; text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .vagas-badge.disponivel {
+      background: rgba(95,170,46,0.15); color: #8edb55;
+      border: 1px solid rgba(95,170,46,0.35);
+    }
+    .vagas-badge.esgotado-badge {
+      background: rgba(255,255,255,0.05); color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .saida-pocos {
+      font-size: 11px; font-weight: 600; letter-spacing: 1px;
+      color: var(--gold); text-transform: uppercase;
+    }
+
+    /* ============================================================
        RESPONSIVE
     ============================================================ */
     @media (max-width: 1024px) { .exp-grid { grid-template-columns: repeat(2, 1fr); } }
@@ -670,7 +692,7 @@
             <div class="hero-stat-label">Estados explorados</div>
           </div>
           <div>
-            <div class="hero-stat-num" data-counter="11" data-suffix="+">0</div>
+            <div class="hero-stat-num" data-counter="13" data-suffix="+">0</div>
             <div class="hero-stat-label">Destinos em 2026</div>
           </div>
         </div>
@@ -689,12 +711,7 @@
       <div class="sobre-grid">
         <div data-anim>
           <div class="sobre-img-wrap">
-            <!-- Substitua pelo link da foto do Prof. Flávio:
-                 <img src="foto-flavio.jpg" alt="Prof. Flávio Pontes"> -->
-            <div class="sobre-img-placeholder">
-              <div class="ph-icon">🏔</div>
-              <p>Foto do Prof. Flávio</p>
-            </div>
+            <img src="img/flavio.jpg" alt="Prof. Flávio Pontes">
             <div class="sobre-accent"></div>
           </div>
         </div>
@@ -954,22 +971,24 @@
     var WA_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>';
 
     /* ─────────────────────────────────────────────────────────────
-       EVENTOS 2026 (apenas futuros — a partir de Maio/2026)
+       EVENTOS 2026 — Programação 2º Semestre
        Para adicionar fotos: preencha o array "fotos" com URLs das imagens.
        Exemplo: fotos: ['https://link-da-foto1.jpg', 'https://link-da-foto2.jpg']
     ───────────────────────────────────────────────────────────── */
     var EVENTOS = [
-      { mes:'Maio',     data:'30/05', nome:'Pico dos Marins',                              local:'Piquete · SP',                            tipo:'Bate e volta',              fotos:[] },
-      { mes:'Junho',    data:'04/06', nome:'Pico do Papagaio',                             local:'Aiuruoca · MG',                           tipo:'Bate e volta',              fotos:[] },
-      { mes:'Junho',    data:'06/06', nome:'Agulhas Negras',                               local:'Parque Nacional do Itatiaia · RJ',         tipo:'Bate e volta',              fotos:[] },
-      { mes:'Junho',    data:'20/06', nome:'Mirante do Inferno — PARNASO',                 local:'Teresópolis · RJ',                        tipo:'Bate e volta',              fotos:[] },
-      { mes:'Julho',    data:'04/07', nome:'Costão do Pão de Açúcar + Dia livre no RJ',   local:'Rio de Janeiro · RJ',                     tipo:'Bate e volta',              fotos:[] },
-      { mes:'Julho',    data:'18 e 19/07', nome:'Travessia Serra Negra',                   local:'Parque Nacional do Itatiaia · RJ',         tipo:'1 pernoite em Pousada',     fotos:[] },
-      { mes:'Agosto',   data:'01/08', nome:'Ibitipoca — Janela do Céu + Nascer do Sol',   local:'Ibitipoca · MG',                          tipo:'1 pernoite',                fotos:[] },
-      { mes:'Agosto',   data:'15/08', nome:'Travessia Ruy Braga',                          local:'Parque Nacional do Itatiaia · RJ',         tipo:'Travessia',                 fotos:[] },
-      { mes:'Setembro', data:'05/09', nome:'Itatiaia — Parte Baixa',                       local:'Itatiaia · RJ',                           tipo:'Passeio / Cachoeiras',       fotos:[] },
-      { mes:'Setembro', data:'19 e 20/09', nome:'Praias Selvagens',                        local:'Rio de Janeiro · RJ',                     tipo:'2 dias',                    fotos:[] },
-      { mes:'Outubro',  data:'03 e 04/10', nome:'Pedra da Gávea',                          local:'Rio de Janeiro · RJ',                     tipo:'1 pernoite',                fotos:[] }
+      { mes:'Junho',    ano:2026, data:'20/06',      nome:'Mirante do Inferno — PARNASO',                       local:'Teresópolis · RJ',                tipo:'Bate e volta',               transporte:'Van Executiva Luxo',    vagas:'3 vagas disponíveis',  esgotado:false, guias:'Guia Leo Silva + Prof. Flávio Pontes',          fotos:[], saidaPocos:false },
+      { mes:'Julho',    ano:2026, data:'04 e 05/07', nome:'Costão do Pão de Açúcar',                            local:'Rio de Janeiro · RJ',             tipo:'1 pernoite em Hotel',         transporte:'Van Executiva Luxo',    vagas:'Esgotado',             esgotado:true,  guias:'Guia Ana Paula + Prof. Flávio Pontes',          fotos:[], saidaPocos:false },
+      { mes:'Julho',    ano:2026, data:'12/07',      nome:'Serra da Tormenta',                                   local:'Carmo do Rio Claro · MG',         tipo:'Bate e volta',               transporte:'Microônibus Executivo', vagas:'Vagas abertas',        esgotado:false, guias:'Prof. Flávio Pontes e equipe',                  fotos:[], saidaPocos:false },
+      { mes:'Julho',    ano:2026, data:'18 e 19/07', nome:'Travessia Serra Negra',                               local:'Parque Nacional do Itatiaia · RJ', tipo:'1 pernoite em Pousada',      transporte:'Van Executiva Luxo',    vagas:'Esgotado',             esgotado:true,  guias:'Guia Leo Silva + Prof. Flávio Pontes',          fotos:[], saidaPocos:false },
+      { mes:'Agosto',   ano:2026, data:'01/08',      nome:'Canion Eldorado',                                     local:'Sobradinho · MG',                 tipo:'Bate e volta',               transporte:'Van Executiva Luxo',    vagas:'Esgotado',             esgotado:true,  guias:'Guia Carlinhos + Prof. Flávio Pontes',          fotos:[], saidaPocos:false },
+      { mes:'Agosto',   ano:2026, data:'15 e 16/08', nome:'Ibitipoca — Janela do Céu + Circuito das Águas',     local:'Ibitipoca · MG',                  tipo:'1 pernoite em Hotel/Pousada', transporte:'Van Executiva Luxo',    vagas:'2 vagas disponíveis',  esgotado:false, guias:'Guia Jamaica + Prof. Flávio Pontes',            fotos:[], saidaPocos:false },
+      { mes:'Agosto',   ano:2026, data:'29 e 30/08', nome:'Serra da Canastra — Complexo do Luquinha',           local:'Serra da Canastra · MG',          tipo:'1 pernoite',                 transporte:'Van Executiva Luxo',    vagas:'2 vagas disponíveis',  esgotado:false, guias:'Guia Nenego + Prof. Flávio Pontes',             fotos:[], saidaPocos:false },
+      { mes:'Setembro', ano:2026, data:'12/09',      nome:'Parte Baixa do Itatiaia',                             local:'Itatiaia · RJ',                   tipo:'Bate e volta',               transporte:'Microônibus Executivo', vagas:'10 vagas disponíveis', esgotado:false, guias:'Prof. Flávio Pontes e equipe',                  fotos:[], saidaPocos:false },
+      { mes:'Setembro', ano:2026, data:'19 e 20/09', nome:'Praias Selvagens',                                   local:'Rio de Janeiro · RJ',             tipo:'2 dias',                     transporte:'Ônibus Semi Leito',     vagas:'Esgotado',             esgotado:true,  guias:'Guia Leo Silva + Prof. Flávio Pontes',          fotos:[], saidaPocos:true  },
+      { mes:'Outubro',  ano:2026, data:'10 e 11/10', nome:'Pedra da Gávea',                                     local:'Rio de Janeiro · RJ',             tipo:'1 pernoite',                 transporte:'Microônibus',           vagas:'17 vagas disponíveis', esgotado:false, guias:'Guia Leo Silva + Prof. Flávio Pontes',          fotos:[], saidaPocos:false },
+      { mes:'Outubro',  ano:2026, data:'17 e 18/10', nome:'Cavernas de Petar',                                  local:'PETAR · SP',                      tipo:'1 pernoite',                 transporte:'Microônibus',           vagas:'10 vagas disponíveis', esgotado:false, guias:'Guia Sandra + Prof. Flávio Pontes',             fotos:[], saidaPocos:false },
+      { mes:'Novembro', ano:2026, data:'29 e 30/11', nome:'City Tour RJ — Cristo + Arco da Lapa',              local:'Rio de Janeiro · RJ',             tipo:'1 pernoite',                 transporte:'Microônibus Executivo', vagas:'30 vagas disponíveis', esgotado:false, guias:'Guia Leo Silva + Prof. Flávio Pontes',          fotos:[], saidaPocos:false },
+      { mes:'Março',    ano:2027, data:'07 e 08/03', nome:'Serra da Canastra — Paraíso Selvagem + Campo Claro', local:'Campo Claro · MG',                tipo:'1 pernoite',                 transporte:'Van Executiva Luxo',    vagas:'19 vagas disponíveis', esgotado:false, guias:'Guia Anderson Jacob + Prof. Flávio Pontes',     fotos:[], saidaPocos:true  }
     ];
 
     function waLink(nome, data) {
@@ -996,15 +1015,29 @@
         map[ev.mes].push(ev);
       });
       meses.forEach(function (mes) {
+        var ano = map[mes][0].ano || 2026;
         var g = document.createElement('div');
         g.className = 'month-group';
         g.setAttribute('data-anim', '');
-        g.innerHTML = '<div class="month-label">' + mes + ' · 2026</div>';
+        g.innerHTML = '<div class="month-label">' + mes + ' · ' + ano + '</div>';
         var grid = document.createElement('div');
         grid.className = 'month-events';
         map[mes].forEach(function (ev) {
           var c = document.createElement('div');
-          c.className = 'event-card';
+          c.className = 'event-card' + (ev.esgotado ? ' esgotado' : '');
+
+          var vagasBadge = ev.esgotado
+            ? '<div class="vagas-badge esgotado-badge">❌ Vagas Esgotadas</div>'
+            : '<div class="vagas-badge disponivel">🔥 ' + ev.vagas + '</div>';
+
+          var saidaPocos = ev.saidaPocos
+            ? '<span>📌 <span class="saida-pocos">Saída Poços + Varginha</span></span>'
+            : '';
+
+          var botao = ev.esgotado
+            ? '<div class="badge-esgotado">Vagas Esgotadas</div>'
+            : '<a class="btn-wa" href="' + waLink(ev.nome, ev.data) + '" target="_blank">' + WA_SVG + 'Consultar disponibilidade</a>';
+
           c.innerHTML =
             buildFotos(ev.fotos) +
             '<div class="event-body">' +
@@ -1013,8 +1046,12 @@
               '<div class="event-meta">' +
                 '<span>📍 ' + ev.local + '</span>' +
                 '<span>🕐 ' + ev.tipo + '</span>' +
+                '<span>🚐 ' + ev.transporte + '</span>' +
+                '<span>🧢 ' + ev.guias + '</span>' +
+                saidaPocos +
               '</div>' +
-              '<a class="btn-wa" href="' + waLink(ev.nome, ev.data) + '" target="_blank">' + WA_SVG + 'Consultar disponibilidade</a>' +
+              vagasBadge +
+              botao +
             '</div>';
           grid.appendChild(c);
         });
