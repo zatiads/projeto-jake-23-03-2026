@@ -104,6 +104,49 @@
     .sb-prog-fill { height: 100%; background: linear-gradient(90deg, #00e5ff, #69f0ae); border-radius: 20px; transition: width .4s; }
     .sb-prog-texto { font-size: 13px; color: rgba(255,255,255,.5); text-align: center; }
   </style>
+  <style id="ingles-styles">
+    .ing-page { padding: 28px; max-width: 900px; }
+    .ing-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .ing-title { font-family: 'Orbitron', sans-serif; font-size: 1.3rem; color: #00e5ff; }
+    .ing-tabs { display: flex; gap: 8px; margin-bottom: 28px; }
+    .ing-tab { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 20px; color: rgba(255,255,255,0.5); font-family: 'Rajdhani', sans-serif; font-size: 0.85rem; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; }
+    .ing-tab.active { background: rgba(0,229,255,0.12); border-color: rgba(0,229,255,0.4); color: #00e5ff; }
+    .ing-tab-content { display: none; }
+    .ing-tab-content.active { display: block; }
+    .ing-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(0,229,255,0.12); border-radius: 12px; padding: 28px; backdrop-filter: blur(12px); }
+    .ing-word { font-family: 'Orbitron', sans-serif; font-size: 2.2rem; color: #fff; margin-bottom: 8px; }
+    .ing-pos { display: inline-block; background: rgba(0,229,255,0.12); color: #00e5ff; border-radius: 20px; padding: 3px 12px; font-size: 0.75rem; font-family: 'Rajdhani', sans-serif; letter-spacing: 1px; margin-bottom: 16px; }
+    .ing-def { font-size: 1rem; color: rgba(255,255,255,0.8); margin-bottom: 12px; }
+    .ing-example { font-style: italic; color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-bottom: 16px; border-left: 2px solid rgba(0,229,255,0.3); padding-left: 12px; }
+    .ing-fonetica { font-size: 0.9rem; color: rgba(0,229,255,0.7); margin-bottom: 20px; font-family: monospace; }
+    .ing-actions { display: flex; gap: 10px; }
+    .ing-btn { padding: 8px 18px; border-radius: 8px; font-family: 'Rajdhani', sans-serif; font-size: 0.85rem; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; border: 1px solid rgba(0,229,255,0.3); background: rgba(0,229,255,0.08); color: #00e5ff; }
+    .ing-btn:hover { background: rgba(0,229,255,0.18); }
+    .ing-btn.done { background: rgba(0,229,255,0.2); color: #fff; cursor: default; }
+    .ing-loading { color: rgba(255,255,255,0.3); font-size: 0.9rem; padding: 20px 0; }
+    .ing-chat-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; height: 380px; overflow-y: auto; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .ing-msg { max-width: 80%; padding: 10px 14px; border-radius: 10px; font-size: 0.9rem; line-height: 1.5; }
+    .ing-msg.user { align-self: flex-end; background: rgba(0,229,255,0.12); color: #fff; border-bottom-right-radius: 2px; }
+    .ing-msg.assistant { align-self: flex-start; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); border-bottom-left-radius: 2px; }
+    .ing-chat-form { display: flex; gap: 10px; }
+    .ing-chat-input { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 10px 14px; color: #fff; font-size: 0.9rem; outline: none; }
+    .ing-chat-input:focus { border-color: rgba(0,229,255,0.4); }
+    .ing-chat-send { padding: 10px 20px; background: rgba(0,229,255,0.12); border: 1px solid rgba(0,229,255,0.3); border-radius: 8px; color: #00e5ff; font-family: 'Rajdhani', sans-serif; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; }
+    .ing-chat-send:hover { background: rgba(0,229,255,0.22); }
+    .ing-tema-badge { font-size: 0.75rem; color: rgba(0,229,255,0.6); font-family: 'Rajdhani', sans-serif; letter-spacing: 1px; margin-bottom: 12px; }
+    .ing-stats-row { display: flex; gap: 16px; margin-bottom: 24px; }
+    .ing-stat-card { flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(0,229,255,0.12); border-radius: 12px; padding: 20px; text-align: center; }
+    .ing-stat-val { font-family: 'Orbitron', sans-serif; font-size: 2rem; color: #00e5ff; }
+    .ing-stat-label { font-size: 0.75rem; color: rgba(255,255,255,0.4); font-family: 'Rajdhani', sans-serif; letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
+    .ing-cal { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 24px; }
+    .ing-cal-day { width: 32px; height: 32px; border-radius: 6px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: rgba(255,255,255,0.3); }
+    .ing-cal-day.studied { background: rgba(0,229,255,0.15); border-color: rgba(0,229,255,0.4); color: #00e5ff; }
+    .ing-sessions-list { display: flex; flex-direction: column; gap: 8px; }
+    .ing-session-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+    .ing-session-tema { font-size: 0.85rem; color: rgba(255,255,255,0.7); }
+    .ing-session-data { font-size: 0.75rem; color: rgba(255,255,255,0.3); }
+    .ing-section-title { font-family: 'Rajdhani', sans-serif; font-size: 0.8rem; letter-spacing: 2px; text-transform: uppercase; color: #00e5ff; margin-bottom: 12px; }
+  </style>
 </head>
 <body>
 
@@ -143,6 +186,10 @@
         <a class="nav-item" data-page="nutricao" href="#">
           <span class="nav-icon">🥗</span>
           <span class="nav-label">Nutrição</span>
+        </a>
+        <a class="nav-item" data-page="ingles" href="#">
+          <span class="nav-icon">🇺🇸</span>
+          <span class="nav-label">Inglês</span>
         </a>
         <!-- Direct Response desativado -->
       </nav>
@@ -515,7 +562,7 @@
                   <div class="anu-criacao hidden" id="anu-criacao">
                     <div class="anu-cliente-header">
                       <span class="anu-cliente-nome" id="anu-cliente-nome-display">—</span>
-                      <button class="anu-btn-icon" id="anu-btn-editar-cliente" title="Editar perfil">✎</button>
+                      <button class="anu-btn-secondary" id="anu-btn-editar-cliente" style="font-size:12px;padding:4px 10px">✎ Editar Perfil</button>
                     </div>
                     <div class="anu-bloco">
                       <div class="anu-bloco-header"><span class="anu-bloco-num">①</span><h3 class="anu-bloco-title">Campanha</h3><span class="anu-bloco-status" id="anu-status-campanha">—</span></div>
@@ -2189,6 +2236,72 @@
           </div>
         </div>
 
+      </section>
+
+      <section class="page" id="page-ingles" style="display:none">
+        <div class="ing-page">
+          <div class="ing-header">
+            <h1 class="ing-title">English Practice</h1>
+          </div>
+
+          <div class="ing-tabs">
+            <button class="ing-tab active" data-tab="palavra">📖 Palavra do Dia</button>
+            <button class="ing-tab" data-tab="conversar">💬 Conversar</button>
+            <button class="ing-tab" data-tab="progresso">📊 Progresso</button>
+          </div>
+
+          <!-- Aba: Palavra do Dia -->
+          <div class="ing-tab-content active" id="ing-tab-palavra">
+            <div id="ing-palavra-loading" class="ing-loading">Carregando palavra do dia...</div>
+            <div id="ing-palavra-card" class="ing-card" style="display:none">
+              <div class="ing-word" id="ing-word-text"></div>
+              <div class="ing-pos" id="ing-pos-text"></div>
+              <div class="ing-def" id="ing-def-text"></div>
+              <div class="ing-example" id="ing-example-text"></div>
+              <div class="ing-fonetica" id="ing-fonetica-text"></div>
+              <div class="ing-actions">
+                <button class="ing-btn" id="ing-btn-audio" onclick="inglesPlayAudio()">🔊 Ouvir</button>
+                <button class="ing-btn" id="ing-btn-estudada" onclick="inglesMarcarEstudada()">✓ Estudada</button>
+              </div>
+              <audio id="ing-audio-player" style="display:none"></audio>
+            </div>
+          </div>
+
+          <!-- Aba: Conversar -->
+          <div class="ing-tab-content" id="ing-tab-conversar">
+            <div class="ing-tema-badge" id="ing-tema-badge"></div>
+            <div class="ing-chat-box" id="ing-chat-box">
+              <div class="ing-loading">Iniciando sessão...</div>
+            </div>
+            <form class="ing-chat-form" onsubmit="return inglesEnviarMensagem(event)">
+              <input type="text" class="ing-chat-input" id="ing-chat-input"
+                     placeholder="Type in English..." autocomplete="off">
+              <button type="submit" class="ing-chat-send">Send →</button>
+            </form>
+            <div style="margin-top:10px;text-align:right">
+              <button class="ing-btn" style="font-size:0.75rem;padding:6px 12px"
+                      onclick="inglesNovaSessao()">+ Nova Sessão</button>
+            </div>
+          </div>
+
+          <!-- Aba: Progresso -->
+          <div class="ing-tab-content" id="ing-tab-progresso">
+            <div class="ing-stats-row">
+              <div class="ing-stat-card">
+                <div class="ing-stat-val" id="ing-streak-val">—</div>
+                <div class="ing-stat-label">🔥 Streak</div>
+              </div>
+              <div class="ing-stat-card">
+                <div class="ing-stat-val" id="ing-total-val">—</div>
+                <div class="ing-stat-label">📖 Palavras</div>
+              </div>
+            </div>
+            <div class="ing-section-title">Calendário do Mês</div>
+            <div class="ing-cal" id="ing-cal"></div>
+            <div class="ing-section-title">Sessões Recentes</div>
+            <div class="ing-sessions-list" id="ing-sessions-list"></div>
+          </div>
+        </div>
       </section>
 
       <!-- ── DIRECT RESPONSE ──────────────────────────────────────────── -->
