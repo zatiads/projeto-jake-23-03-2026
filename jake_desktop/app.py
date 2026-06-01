@@ -8327,7 +8327,12 @@ def ingles_palavra_do_dia():
         cur.execute("SELECT * FROM ingles_palavras WHERE data_exibicao = %s", (hoje,))
         row = cur.fetchone()
         if row:
-            return jsonify(dict(row))
+            r = dict(row)
+            if r.get("data_exibicao"):
+                r["data_exibicao"] = str(r["data_exibicao"])
+            if r.get("created_at"):
+                r["created_at"] = str(r["created_at"])
+            return jsonify(r)
         # Gerar nova palavra via Claude
         client = _anthropic_client()
         if not client:
@@ -8352,6 +8357,7 @@ def ingles_palavra_do_dia():
         cur.execute("""
             INSERT INTO ingles_palavras (palavra, classe_gramatical, definicao_pt, exemplo_en, fonetica, categoria, data_exibicao)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (data_exibicao) DO UPDATE SET palavra = EXCLUDED.palavra
             RETURNING id
         """, (
             dados.get("palavra"), dados.get("classe_gramatical"),

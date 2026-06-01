@@ -1,6 +1,6 @@
 import sys, pytest
 sys.path.insert(0, '/root/jake_desktop')
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 
 def _mock_conn(rows=None, one=None):
@@ -34,11 +34,13 @@ def test_palavra_do_dia_retorna_existente(client):
         "data_exibicao": "2026-06-01", "estudada": False
     }
     conn = _mock_conn(one=row)
-    with patch("app._get_db", return_value=conn):
+    with patch("app._get_db", return_value=conn), \
+         patch("app._anthropic_client") as mock_claude:
         resp = client.get("/api/ingles/palavra-do-dia")
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["palavra"] == "leverage"
+    mock_claude.assert_not_called()
 
 
 def test_palavra_do_dia_gera_quando_nao_existe(client):
@@ -65,6 +67,7 @@ def test_palavra_do_dia_gera_quando_nao_existe(client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["palavra"] == "nurture"
+    mock_anthropic.messages.create.assert_called_once()
 
 
 def test_init_ingles_tables_cria_tabelas():
