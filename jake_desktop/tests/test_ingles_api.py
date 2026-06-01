@@ -82,8 +82,9 @@ def test_audio_palavra(client):
         resp = client.get("/api/ingles/palavra/audio?palavra=leverage")
     assert resp.status_code == 200
     data = resp.get_json()
-    assert "audio" in data
-    assert len(data["audio"]) > 0
+    import base64
+    expected = base64.b64encode(b"fake-audio-bytes").decode()
+    assert data["audio"] == expected
 
 
 def test_init_ingles_tables_cria_tabelas():
@@ -108,6 +109,8 @@ def test_listar_sessoes(client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["tema"] == "marketing"
 
 
 def test_criar_sessao(client):
@@ -119,6 +122,8 @@ def test_criar_sessao(client):
     data = resp.get_json()
     assert data["id"] == 5
     assert "tema" in data
+    temas_validos = ["marketing and advertising", "travel and places", "business and entrepreneurship", "daily life and routines", "technology and innovation"]
+    assert data["tema"] in temas_validos
 
 
 def test_chat_sessao(client):

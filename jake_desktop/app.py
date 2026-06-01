@@ -8319,7 +8319,7 @@ Today's suggested topic: {tema}"""
 @app.route("/api/ingles/palavra-do-dia")
 @login_required
 def ingles_palavra_do_dia():
-    import datetime, json as _json
+    import datetime
     conn = _get_db()
     try:
         cur = conn.cursor()
@@ -8351,7 +8351,7 @@ def ingles_palavra_do_dia():
                 raw = raw.split("```")[1]
                 if raw.startswith("json"):
                     raw = raw[4:]
-            dados = _json.loads(raw)
+            dados = json.loads(raw)
         except Exception as e:
             return jsonify({"error": f"Erro ao gerar palavra: {e}"}), 503
         cur.execute("""
@@ -8417,7 +8417,7 @@ def ingles_listar_sessoes():
 @app.route("/api/ingles/sessoes", methods=["POST"])
 @login_required
 def ingles_criar_sessao():
-    import datetime, json as _json
+    import datetime
     day_of_year = datetime.date.today().timetuple().tm_yday
     tema = _INGLES_TEMAS_CONVERSA[day_of_year % len(_INGLES_TEMAS_CONVERSA)]
     conn = _get_db()
@@ -8425,7 +8425,7 @@ def ingles_criar_sessao():
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO ingles_sessoes (tema, mensagens) VALUES (%s, %s) RETURNING id",
-            (tema, _json.dumps([]))
+            (tema, json.dumps([]))
         )
         novo_id = cur.fetchone()["id"]
         conn.commit()
@@ -8437,7 +8437,7 @@ def ingles_criar_sessao():
 @app.route("/api/ingles/sessoes/<int:sid>/chat", methods=["POST"])
 @login_required
 def ingles_chat(sid):
-    import datetime, json as _json
+    import datetime
     data = request.get_json() or {}
     mensagem = (data.get("mensagem") or "").strip()
     if not mensagem:
@@ -8452,7 +8452,7 @@ def ingles_chat(sid):
         sessao = dict(sessao)
         historico = sessao.get("mensagens") or []
         if isinstance(historico, str):
-            historico = _json.loads(historico)
+            historico = json.loads(historico)
         client = _anthropic_client()
         if not client:
             return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
@@ -8470,7 +8470,7 @@ def ingles_chat(sid):
         historico.append({"role": "assistant", "content": resposta})
         cur.execute(
             "UPDATE ingles_sessoes SET mensagens = %s WHERE id = %s",
-            (_json.dumps(historico), sid)
+            (json.dumps(historico), sid)
         )
         cur.execute(
             "INSERT INTO ingles_atividades (tipo, data_atividade) VALUES (%s, %s)",
