@@ -70,6 +70,22 @@ def test_palavra_do_dia_gera_quando_nao_existe(client):
     mock_anthropic.messages.create.assert_called_once()
 
 
+def test_audio_palavra(client):
+    """GET /api/ingles/palavra/audio?palavra=leverage retorna base64 de áudio."""
+    mock_tts = MagicMock()
+    mock_tts.content = b"fake-audio-bytes"
+
+    mock_openai = MagicMock()
+    mock_openai.audio.speech.create.return_value = mock_tts
+
+    with patch("app._openai_client", return_value=mock_openai):
+        resp = client.get("/api/ingles/palavra/audio?palavra=leverage")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "audio" in data
+    assert len(data["audio"]) > 0
+
+
 def test_init_ingles_tables_cria_tabelas():
     """_init_ingles_tables() deve executar CREATE TABLE IF NOT EXISTS para as 3 tabelas."""
     conn = _mock_conn()

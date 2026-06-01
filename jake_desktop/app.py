@@ -8381,6 +8381,24 @@ def ingles_palavra_do_dia():
         conn.close()
 
 
+@app.route("/api/ingles/palavra/audio")
+@login_required
+def ingles_palavra_audio():
+    palavra = (request.args.get("palavra") or "").strip()
+    if not palavra:
+        return jsonify({"error": "Parâmetro 'palavra' obrigatório"}), 400
+    client = _openai_client()
+    if not client:
+        return jsonify({"error": "OPENAI_API_KEY não configurada"}), 500
+    try:
+        tts = client.audio.speech.create(model="tts-1", voice="onyx", input=palavra)
+        audio_bytes = (getattr(tts, "content", None)
+                       or (b"".join(tts.iter_bytes()) if hasattr(tts, "iter_bytes") else b""))
+        return jsonify({"audio": base64.b64encode(audio_bytes).decode()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ── DR: CRUD OFERTAS ──────────────────────────────────────────────────────────
 
 @app.route("/api/dr/ofertas", methods=["GET"])
