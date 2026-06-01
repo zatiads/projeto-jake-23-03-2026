@@ -268,6 +268,46 @@ def _init_nutricao_tables():
         conn.close()
 
 
+def _init_ingles_tables():
+    """Cria tabelas do módulo de inglês se não existirem."""
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ingles_palavras (
+                id SERIAL PRIMARY KEY,
+                palavra TEXT NOT NULL,
+                classe_gramatical TEXT,
+                definicao_pt TEXT NOT NULL,
+                exemplo_en TEXT NOT NULL,
+                fonetica TEXT,
+                categoria TEXT,
+                data_exibicao DATE UNIQUE,
+                estudada BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ingles_sessoes (
+                id SERIAL PRIMARY KEY,
+                tema TEXT,
+                mensagens JSONB DEFAULT '[]',
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ingles_atividades (
+                id SERIAL PRIMARY KEY,
+                tipo VARCHAR(30) NOT NULL,
+                data_atividade DATE NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _init_dr_tables():
     """Cria tabela dr_ofertas se não existir."""
     conn = _get_db()
@@ -8742,6 +8782,7 @@ if __name__ == "__main__":
     _init_dr_tables()
     _init_aportes_table()
     _init_ativos_personalizados_table()
+    _init_ingles_tables()
     # APScheduler: Social Brief automático toda segunda às 08h
     try:
         from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
