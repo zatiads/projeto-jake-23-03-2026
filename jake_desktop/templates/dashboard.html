@@ -189,6 +189,47 @@
 .ing-sessoes-lista { display: flex; flex-direction: column; gap: 8px; }
 .ing-sessao-item { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px 14px;
   color: #aaa; font-size: 13px; display: flex; justify-content: space-between; }
+/* ── TRILHA ─────────────────────────────────────── */
+.ing-modulo-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(0,229,255,0.15);
+  border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+.ing-modulo-header { padding: 16px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px;
+  transition: background 0.2s; }
+.ing-modulo-header:hover { background: rgba(0,229,255,0.05); }
+.ing-modulo-icone { font-size: 22px; flex-shrink: 0; }
+.ing-modulo-info { flex: 1; }
+.ing-modulo-titulo { font-family: Orbitron, sans-serif; font-size: 14px; color: #fff; margin-bottom: 2px; }
+.ing-modulo-desc { color: #888; font-size: 12px; }
+.ing-modulo-prog { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ing-modulo-prog-text { color: #00e5ff; font-family: Rajdhani, sans-serif; font-size: 13px; font-weight: 700; }
+.ing-modulo-prog-bar { width: 60px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+.ing-modulo-prog-fill { height: 100%; background: #00e5ff; border-radius: 2px; transition: width 0.4s; }
+.ing-modulo-arrow { color: #555; font-size: 12px; transition: transform 0.2s; }
+.ing-modulo-card.open .ing-modulo-arrow { transform: rotate(90deg); }
+.ing-licoes-lista { border-top: 1px solid rgba(0,229,255,0.08); display: none; }
+.ing-modulo-card.open .ing-licoes-lista { display: block; }
+.ing-licao-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.04); }
+.ing-licao-item:last-child { border-bottom: none; }
+.ing-licao-status { width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(0,229,255,0.3);
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+.ing-licao-status.completed { background: #00e5ff; border-color: #00e5ff; color: #000; }
+.ing-licao-info { flex: 1; }
+.ing-licao-titulo { color: #ddd; font-size: 14px; margin-bottom: 2px; }
+.ing-licao-obj { color: #666; font-size: 12px; }
+.ing-licao-btn { background: transparent; border: 1px solid rgba(0,229,255,0.3); color: #00e5ff;
+  padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: Rajdhani, sans-serif;
+  font-weight: 700; white-space: nowrap; transition: all 0.2s; }
+.ing-licao-btn:hover { background: rgba(0,229,255,0.1); }
+.ing-licao-btn.active-lesson { background: rgba(0,229,255,0.15); border-color: #00e5ff; }
+.ing-licao-context { background: rgba(0,229,255,0.06); border: 1px solid rgba(0,229,255,0.2);
+  border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; }
+.ing-licao-context-label { font-family: Rajdhani, sans-serif; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px; color: #00e5ff; margin-bottom: 4px; }
+.ing-licao-context-text { color: #ccc; font-size: 13px; }
+.ing-btn-completar { background: rgba(0,229,255,0.1); border: 1px solid rgba(0,229,255,0.4);
+  color: #00e5ff; padding: 8px 20px; border-radius: 8px; cursor: pointer;
+  font-family: Rajdhani, sans-serif; font-size: 14px; font-weight: 700; align-self: center; transition: all 0.2s; }
+.ing-btn-completar:hover { background: rgba(0,229,255,0.2); }
 </style>
 </head>
 <body>
@@ -2286,6 +2327,7 @@
           <button class="ing-tab-btn active" onclick="ingTab('palavras',this)">📚 Palavras do Dia</button>
           <button class="ing-tab-btn" onclick="ingTab('conversar',this)">🎤 Conversar</button>
           <button class="ing-tab-btn" onclick="ingTab('progresso',this)">📈 Progresso</button>
+          <button class="ing-tab-btn" onclick="ingTab('trilha',this)">🗺️ Trilha</button>
         </div>
 
         <!-- ABA PALAVRAS -->
@@ -2315,6 +2357,10 @@
               </div>
             </div>
             <div class="ing-conversa-area">
+              <div class="ing-licao-context" id="ing-licao-context" style="display:none">
+                <div class="ing-licao-context-label">Lição ativa</div>
+                <div class="ing-licao-context-text" id="ing-licao-context-text"></div>
+              </div>
               <div class="ing-speech-bubble">
                 <div class="ing-speech-label ing-speech-jake-label">Jake</div>
                 <div class="ing-speech-text" id="ing-jake-text">Click the mic button to start speaking with me!</div>
@@ -2325,6 +2371,7 @@
               </div>
               <button class="ing-mic-btn" id="ing-mic-btn" onclick="inglesToggleMic()">🎤 Falar com Jake</button>
               <div class="ing-conversa-actions">
+                <button class="ing-btn-completar" id="ing-btn-completar" style="display:none" onclick="ingCompletarLicao()">✓ Concluir lição</button>
                 <button class="ing-btn-link" onclick="inglesNovaSessao()">Nova sessão</button>
               </div>
             </div>
@@ -2345,6 +2392,12 @@
           </div>
           <div class="ing-cal" id="ing-cal"></div>
           <div class="ing-sessoes-lista" id="ing-sessoes-lista"></div>
+        </div>
+
+        <!-- ABA TRILHA -->
+        <div class="ing-tab-panel" id="ing-panel-trilha">
+          <div id="ing-trilha-loading" class="ing-loading">Carregando trilha...</div>
+          <div id="ing-trilha-lista"></div>
         </div>
       </section>
 
