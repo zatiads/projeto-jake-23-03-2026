@@ -7,7 +7,9 @@
     gravando: false,
     mediaRecorder: null,
     chunks: [],
-    silenceCheck: null
+    silenceCheck: null,
+    licaoAtiva: null,
+    trocasMensagens: 0
   };
 
   // ── Tab switching ────────────────────────────────
@@ -21,6 +23,7 @@
     document.getElementById('ing-panel-' + nome).classList.add('active');
     btn.classList.add('active');
     if (nome === 'progresso') carregarProgresso();
+    if (nome === 'trilha') carregarTrilha();
   };
 
   // ── Init ─────────────────────────────────────────
@@ -251,6 +254,9 @@
     var fd = new FormData();
     fd.append('audio', blob, 'audio.webm');
     fd.append('sessao_id', String(IState.sessaoId));
+    if (IState.licaoAtiva) {
+      fd.append('licao_context', IState.licaoAtiva.cenario + ' | Objetivo: ' + IState.licaoAtiva.objetivo);
+    }
 
     fetch('/api/ingles/conversar/voz', { method: 'POST', body: fd })
       .then(function (r) { return r.json(); })
@@ -272,6 +278,14 @@
 
         var jtext = document.getElementById('ing-jake-text');
         if (jtext) jtext.textContent = d.resposta_texto;
+
+        if (IState.licaoAtiva) {
+          IState.trocasMensagens += 1;
+          if (IState.trocasMensagens >= 3) {
+            var btnCompletar = document.getElementById('ing-btn-completar');
+            if (btnCompletar) btnCompletar.style.display = 'block';
+          }
+        }
 
         var wrap = document.getElementById('ing-avatar-wrap');
         var audio = new Audio('data:audio/mpeg;base64,' + d.audio_base64);
@@ -331,6 +345,111 @@
       return '<div class="ing-sessao-item"><span>' + esc(s.tema || 'Conversa livre') + '</span><span>' + esc((s.created_at || '').slice(0, 10)) + '</span></div>';
     }).join('');
   }
+
+  // ── Trilha ───────────────────────────────────────
+  function carregarTrilha() {
+    var loading = document.getElementById('ing-trilha-loading');
+    var lista = document.getElementById('ing-trilha-lista');
+    if (loading) loading.style.display = 'block';
+    if (lista) lista.innerHTML = '';
+    fetch('/api/ingles/trilha')
+      .then(function (r) { return r.json(); })
+      .then(function (modulos) {
+        if (loading) loading.style.display = 'none';
+        modulos.forEach(function (m) {
+          if (lista) lista.insertAdjacentHTML('beforeend', renderModulo(m));
+        });
+      })
+      .catch(function () {
+        if (loading) loading.textContent = 'Erro ao carregar trilha.';
+      });
+  }
+
+  function renderModulo(m) {
+    var pct = m.progresso.total > 0 ? Math.round(m.progresso.concluidas / m.progresso.total * 100) : 0;
+    var licoesHtml = m.licoes.map(function (l) {
+      var done = l.status === 'completed';
+      var isAtiva = IState.licaoAtiva && IState.licaoAtiva.moduloId === m.id && IState.licaoAtiva.licaoId === l.id;
+      return '<div class="ing-licao-item">' +
+        '<div class="ing-licao-status' + (done ? ' completed' : '') + '">' + (done ? '\u2713' : '') + '</div>' +
+        '<div class="ing-licao-info">' +
+        '<div class="ing-licao-titulo">' + esc(l.titulo) + '</div>' +
+        '<div class="ing-licao-obj">' + esc(l.objetivo) + '</div>' +
+        '</div>' +
+        '<button class="ing-licao-btn' + (isAtiva ? ' active-lesson' : '') + '" ' +
+        'onclick="ingPraticarLicao(' + m.id + ',' + l.id + ',' +
+        '\'' + esc(l.titulo).replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\',' +
+        '\'' + esc(l.cenario).replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\',' +
+        '\'' + esc(l.objetivo).replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')">' +
+        (isAtiva ? '\u25B6 Praticando' : (done ? '\u21A9 Repetir' : '\u25B6 Praticar')) +
+        '</button>' +
+        '</div>';
+    }).join('');
+    return '<div class="ing-modulo-card" id="ing-mod-' + m.id + '">' +
+      '<div class="ing-modulo-header" onclick="ingToggleModulo(' + m.id + ')">' +
+      '<span class="ing-modulo-icone">' + esc(m.icone) + '</span>' +
+      '<div class="ing-modulo-info">' +
+      '<div class="ing-modulo-titulo">' + m.id + '. ' + esc(m.titulo) + '</div>' +
+      '<div class="ing-modulo-desc">' + esc(m.descricao) + '</div>' +
+      '</div>' +
+      '<div class="ing-modulo-prog">' +
+      '<span class="ing-modulo-prog-text">' + m.progresso.concluidas + '/' + m.progresso.total + '</span>' +
+      '<div class="ing-modulo-prog-bar"><div class="ing-modulo-prog-fill" style="width:' + pct + '%"></div></div>' +
+      '</div>' +
+      '<span class="ing-modulo-arrow">\u25B6</span>' +
+      '</div>' +
+      '<div class="ing-licoes-lista">' + licoesHtml + '</div>' +
+      '</div>';
+  }
+
+  window.ingToggleModulo = function (id) {
+    var card = document.getElementById('ing-mod-' + id);
+    if (card) card.classList.toggle('open');
+  };
+
+  window.ingPraticarLicao = function (moduloId, licaoId, titulo, cenario, objetivo) {
+    IState.licaoAtiva = { moduloId: moduloId, licaoId: licaoId, titulo: titulo, cenario: cenario, objetivo: objetivo };
+    IState.trocasMensagens = 0;
+    var ctx = document.getElementById('ing-licao-context');
+    var ctxText = document.getElementById('ing-licao-context-text');
+    if (ctx) ctx.style.display = 'block';
+    if (ctxText) ctxText.textContent = titulo + ' \u2014 ' + cenario;
+    var btnCompletar = document.getElementById('ing-btn-completar');
+    if (btnCompletar) btnCompletar.style.display = 'none';
+    var jtext = document.getElementById('ing-jake-text');
+    if (jtext) jtext.textContent = 'Ready! ' + cenario + ' Start whenever you\'re ready!';
+    var ubub = document.getElementById('ing-bubble-user');
+    if (ubub) ubub.style.display = 'none';
+    IState.sessaoId = null;
+    iniciarSessao();
+    document.querySelectorAll('.ing-tab-panel').forEach(function (p) { p.classList.remove('active'); });
+    document.querySelectorAll('.ing-tab-btn').forEach(function (b) { b.classList.remove('active'); });
+    var conversar = document.getElementById('ing-panel-conversar');
+    if (conversar) conversar.classList.add('active');
+    document.querySelectorAll('.ing-tab-btn').forEach(function (b) {
+      if (b.textContent.indexOf('Conversar') !== -1) b.classList.add('active');
+    });
+  };
+
+  window.ingCompletarLicao = function () {
+    if (!IState.licaoAtiva) return;
+    fetch('/api/ingles/trilha/completar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modulo_id: IState.licaoAtiva.moduloId, licao_id: IState.licaoAtiva.licaoId })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          _ingShowToast('Li\u00e7\u00e3o conclu\u00edda! \uD83C\uDF89', 'success');
+          var btnCompletar = document.getElementById('ing-btn-completar');
+          if (btnCompletar) btnCompletar.style.display = 'none';
+          IState.licaoAtiva = null;
+          var ctx = document.getElementById('ing-licao-context');
+          if (ctx) ctx.style.display = 'none';
+        }
+      });
+  };
 
   function esc(s) {
     return String(s || '')
