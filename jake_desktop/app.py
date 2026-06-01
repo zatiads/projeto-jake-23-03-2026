@@ -8482,6 +8482,75 @@ def ingles_chat(sid):
         conn.close()
 
 
+_INGLES_TIPOS_ATIVIDADE = {"word_studied", "audio_played", "message_sent"}
+
+
+@app.route("/api/ingles/atividade", methods=["POST"])
+@login_required
+def ingles_registrar_atividade():
+    import datetime
+    data = request.get_json() or {}
+    tipo = data.get("tipo", "")
+    if tipo not in _INGLES_TIPOS_ATIVIDADE:
+        return jsonify({"error": f"tipo inválido. Use: {', '.join(_INGLES_TIPOS_ATIVIDADE)}"}), 400
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO ingles_atividades (tipo, data_atividade) VALUES (%s, %s)",
+            (tipo, datetime.date.today())
+        )
+        if tipo == "word_studied":
+            cur.execute(
+                "UPDATE ingles_palavras SET estudada = TRUE WHERE data_exibicao = %s",
+                (datetime.date.today(),)
+            )
+        conn.commit()
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+@app.route("/api/ingles/progresso")
+@login_required
+def ingles_progresso():
+    import datetime
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) as total FROM ingles_atividades WHERE tipo = 'word_studied'")
+        total_palavras = (cur.fetchone() or {}).get("total", 0)
+        cur.execute("""
+            SELECT DISTINCT data_atividade
+            FROM ingles_atividades
+            ORDER BY data_atividade DESC
+            LIMIT 60
+        """)
+        dias_ativos = [r["data_atividade"] for r in cur.fetchall()]
+        streak = 0
+        hoje = datetime.date.today()
+        data_check = hoje
+        for d in dias_ativos:
+            if d == data_check:
+                streak += 1
+                data_check = data_check - datetime.timedelta(days=1)
+            elif d < data_check:
+                break
+        mes_atual = hoje.month
+        ano_atual = hoje.year
+        calendario = [str(d) for d in dias_ativos if d.month == mes_atual and d.year == ano_atual]
+        cur.execute("SELECT id, tema, created_at FROM ingles_sessoes ORDER BY created_at DESC LIMIT 5")
+        sessoes = [{"id": r["id"], "tema": r["tema"], "created_at": str(r["created_at"])} for r in cur.fetchall()]
+        return jsonify({
+            "streak": streak,
+            "total_palavras": total_palavras,
+            "calendario": calendario,
+            "ultimas_sessoes": sessoes
+        })
+    finally:
+        conn.close()
+
+
 # ── DR: CRUD OFERTAS ──────────────────────────────────────────────────────────
 
 @app.route("/api/dr/ofertas", methods=["GET"])

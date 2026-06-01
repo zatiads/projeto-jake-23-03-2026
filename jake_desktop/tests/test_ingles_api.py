@@ -144,3 +144,41 @@ def test_chat_sessao(client):
     data = resp.get_json()
     assert "resposta" in data
     assert len(data["resposta"]) > 0
+
+
+def test_registrar_atividade(client):
+    """POST /api/ingles/atividade registra atividade."""
+    conn = _mock_conn()
+    with patch("app._get_db", return_value=conn):
+        resp = client.post("/api/ingles/atividade",
+                           json={"tipo": "word_studied"})
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+    conn.commit.assert_called_once()
+
+
+def test_registrar_atividade_tipo_invalido(client):
+    """POST /api/ingles/atividade rejeita tipo inválido."""
+    resp = client.post("/api/ingles/atividade",
+                       json={"tipo": "hacking_stuff"})
+    assert resp.status_code == 400
+
+
+def test_progresso(client):
+    """GET /api/ingles/progresso retorna streak, total e calendario."""
+    from datetime import date
+    conn_mock = _mock_conn()
+    conn_mock.cursor().fetchall.side_effect = [
+        [{"data_atividade": date.today()}],  # atividades para streak/calendario
+        [],                                    # sessoes
+    ]
+    conn_mock.cursor().fetchone.return_value = {"total": 5}
+    with patch("app._get_db", return_value=conn_mock):
+        resp = client.get("/api/ingles/progresso")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "streak" in data
+    assert "total_palavras" in data
+    assert "calendario" in data
+    assert data["streak"] == 1
+    assert data["total_palavras"] == 5
