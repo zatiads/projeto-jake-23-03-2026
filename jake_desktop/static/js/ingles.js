@@ -6,7 +6,8 @@
     sessaoId: null,
     gravando: false,
     mediaRecorder: null,
-    chunks: []
+    chunks: [],
+    silenceCheck: null
   };
 
   // ── Tab switching ────────────────────────────────
@@ -59,6 +60,9 @@
     var estClass = p.estudada ? ' estudada' : '';
     var btnLabel = p.estudada ? '&#10003; Estudada' : 'Marcar estudada';
     var btnDisabled = p.estudada ? ' disabled' : '';
+    var foneticaHtml = p.fonetica
+      ? '<span class="ing-fonetica"><span style="color:#555;font-size:11px">pronúncia </span>' + esc(p.fonetica) + '</span>'
+      : '<span class="ing-fonetica"></span>';
     return '<div class="ing-word-card' + estClass + '" id="ing-card-' + p.id + '">' +
       '<div class="ing-word-card-top">' +
       '<span class="ing-word-title">' + esc(p.palavra) + '</span>' +
@@ -68,22 +72,33 @@
       '<p class="ing-word-def">' + esc(p.definicao_pt) + '</p>' +
       '<p class="ing-word-ex">&ldquo;' + esc(p.exemplo_en) + '&rdquo;</p>' +
       '<div class="ing-word-footer">' +
-      '<span class="ing-fonetica">' + esc(p.fonetica || '') + '</span>' +
-      '<button class="ing-btn-sm" onclick="inglesPlayAudioWord(\'' + esc(p.palavra).replace(/'/g, "\\'") + '\',this)">&#128266;</button>' +
+      foneticaHtml +
+      '<button class="ing-btn-sm" onclick="inglesPlayAudioWord(\'' + esc(p.palavra).replace(/'/g, "\\'") + '\',this)" title="Ouvir pronúncia">&#128266;</button>' +
       '<button class="ing-btn-sm' + (p.estudada ? ' done' : '') + '" id="ing-estudada-' + p.id + '" onclick="inglesMarcarEstudada(' + p.id + ')"' + btnDisabled + '>' + btnLabel + '</button>' +
       '</div></div>';
   }
 
   window.inglesPlayAudioWord = function (palavra, btn) {
-    if (btn) btn.textContent = '...';
+    if (btn) { btn.textContent = '...'; }
     fetch('/api/ingles/palavra/audio?palavra=' + encodeURIComponent(palavra))
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (btn) btn.innerHTML = '&#128266;';
-        if (!d.audio) { if (btn) btn.textContent = '!'; return; }
+        if (!d.audio) {
+          if (btn) { btn.innerHTML = '&#128266;'; }
+          var msg = d.error || 'Erro ao gerar áudio';
+          if (msg.indexOf('Incorrect API key') !== -1 || msg.indexOf('invalid_api_key') !== -1) {
+            msg = 'Chave OpenAI inválida — atualize a OPENAI_API_KEY no .env';
+          }
+          _ingShowToast(msg, 'error');
+          return;
+        }
+        if (btn) { btn.innerHTML = '&#128266;'; }
         new Audio('data:audio/mpeg;base64,' + d.audio).play().catch(function () {});
       })
-      .catch(function () { if (btn) btn.innerHTML = '&#128266;'; });
+      .catch(function (e) {
+        if (btn) { btn.innerHTML = '&#128266;'; }
+        _ingShowToast('Erro de rede: ' + e.message, 'error');
+      });
   };
 
   window.inglesMarcarEstudada = function (id) {
@@ -109,6 +124,18 @@
       });
   };
 
+  // ── Toast notification ───────────────────────────
+  function _ingShowToast(msg, type) {
+    var t = document.createElement('div');
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
+      'background:' + (type === 'error' ? 'rgba(200,50,50,0.92)' : 'rgba(0,180,100,0.92)') + ';' +
+      'color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:9999;' +
+      'max-width:80%;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.4);';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 5000);
+  }
+
   // ── Voice conversation ───────────────────────────
   function iniciarSessao() {
     fetch('/api/ingles/sessoes', {
@@ -130,13 +157,11 @@
   };
 
   window.inglesToggleMic = function () {
-    var btn = document.getElementById('ing-mic-btn');
     if (IState.gravando) {
-      if (IState.mediaRecorder) IState.mediaRecorder.stop();
-      IState.gravando = false;
+      _pararGravacao();
     } else {
       if (!IState.sessaoId) {
-        alert('Aguarde a sessão carregar e tente novamente.');
+        _ingShowToast('Aguarde a sessão carregar e tente novamente.', 'error');
         return;
       }
       navigator.mediaDevices.getUserMedia({ audio: true })
@@ -148,20 +173,80 @@
           };
           IState.mediaRecorder.onstop = function () {
             stream.getTracks().forEach(function (t) { t.stop(); });
+            if (IState.silenceCheck) { clearInterval(IState.silenceCheck); IState.silenceCheck = null; }
             var blob = new Blob(IState.chunks, { type: 'audio/webm' });
             enviarVoz(blob);
           };
           IState.mediaRecorder.start();
           IState.gravando = true;
-          if (btn) { btn.textContent = '\u23F9 Parar'; btn.classList.add('gravando'); }
+          var btn = document.getElementById('ing-mic-btn');
+          if (btn) { btn.textContent = '\uD83D\uDD34 Gravando...'; btn.classList.add('gravando'); }
+
+          // ── Silence detection ───────────────────
+          try {
+            var AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            var audioCtx = new AudioCtx();
+            var analyser = audioCtx.createAnalyser();
+            var source = audioCtx.createMediaStreamSource(stream);
+            source.connect(analyser);
+            analyser.fftSize = 256;
+            var buf = new Uint8Array(analyser.frequencyBinCount);
+            var silenceStart = null;
+            var recordStart = Date.now();
+            var SILENCE_THRESH = 12;
+            var SILENCE_MS = 1800;
+            var MIN_REC_MS = 800;
+
+            IState.silenceCheck = setInterval(function () {
+              if (!IState.gravando) {
+                clearInterval(IState.silenceCheck);
+                IState.silenceCheck = null;
+                audioCtx.close();
+                return;
+              }
+              analyser.getByteTimeDomainData(buf);
+              var sum = 0;
+              for (var i = 0; i < buf.length; i++) {
+                var v = (buf[i] - 128) / 128;
+                sum += v * v;
+              }
+              var rms = Math.sqrt(sum / buf.length) * 100;
+              var elapsed = Date.now() - recordStart;
+
+              if (rms < SILENCE_THRESH) {
+                if (!silenceStart) silenceStart = Date.now();
+                else if (elapsed > MIN_REC_MS && (Date.now() - silenceStart) > SILENCE_MS) {
+                  clearInterval(IState.silenceCheck);
+                  IState.silenceCheck = null;
+                  audioCtx.close();
+                  _pararGravacao();
+                }
+              } else {
+                silenceStart = null;
+              }
+            }, 100);
+          } catch (e) {
+            // silence detection unavailable — manual stop only
+          }
         })
-        .catch(function (e) { alert('Microfone bloqueado: ' + e.message); });
+        .catch(function (e) { _ingShowToast('Microfone bloqueado: ' + e.message, 'error'); });
     }
   };
 
+  function _pararGravacao() {
+    IState.gravando = false;
+    if (IState.silenceCheck) { clearInterval(IState.silenceCheck); IState.silenceCheck = null; }
+    if (IState.mediaRecorder && IState.mediaRecorder.state !== 'inactive') {
+      IState.mediaRecorder.stop();
+    }
+    var btn = document.getElementById('ing-mic-btn');
+    if (btn) { btn.textContent = '\u23F3 Processando...'; btn.classList.remove('gravando'); }
+  }
+
   function enviarVoz(blob) {
     var btn = document.getElementById('ing-mic-btn');
-    if (btn) { btn.textContent = '\u23F3 Processando...'; btn.classList.remove('gravando'); btn.disabled = true; }
+    if (btn) { btn.disabled = true; }
 
     var fd = new FormData();
     fd.append('audio', blob, 'audio.webm');
@@ -171,7 +256,14 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (btn) { btn.textContent = '\uD83C\uDFA4 Falar com Jake'; btn.disabled = false; }
-        if (d.error) { alert('Erro: ' + d.error); return; }
+        if (d.error) {
+          var msg = d.error;
+          if (msg.indexOf('Incorrect API key') !== -1 || msg.indexOf('invalid_api_key') !== -1) {
+            msg = 'Chave OpenAI inválida — atualize a OPENAI_API_KEY no .env';
+          }
+          _ingShowToast(msg, 'error');
+          return;
+        }
 
         var ubub = document.getElementById('ing-bubble-user');
         var utext = document.getElementById('ing-user-text');
@@ -189,7 +281,7 @@
       })
       .catch(function (e) {
         if (btn) { btn.textContent = '\uD83C\uDFA4 Falar com Jake'; btn.disabled = false; }
-        alert('Erro de rede: ' + e.message);
+        _ingShowToast('Erro de rede: ' + e.message, 'error');
       });
   }
 
