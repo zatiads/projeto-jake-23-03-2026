@@ -8534,6 +8534,103 @@ def ingles_criar_sessao():
         conn.close()
 
 
+@app.route("/api/ingles/conversar/voz", methods=["POST"])
+@login_required
+def ingles_conversar_voz():
+    import datetime, tempfile, os
+    audio_file = request.files.get("audio")
+    sessao_id = request.form.get("sessao_id")
+    if not audio_file:
+        return jsonify({"error": "Campo 'audio' obrigatório"}), 400
+    if not sessao_id:
+        return jsonify({"error": "Campo 'sessao_id' obrigatório"}), 400
+
+    oai = _openai_client()
+    if not oai:
+        return jsonify({"error": "OPENAI_API_KEY não configurada"}), 500
+    ant = _anthropic_client()
+    if not ant:
+        return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
+
+    # Save audio to temp file for Whisper
+    suffix = ".webm"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        audio_file.save(tmp)
+        tmp_path = tmp.name
+    try:
+        with open(tmp_path, "rb") as f:
+            transcricao_obj = oai.audio.transcriptions.create(
+                model="whisper-1", file=f, language="pt"
+            )
+        transcricao = transcricao_obj.text.strip()
+    except Exception as e:
+        return jsonify({"error": f"Erro Whisper: {e}"}), 500
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+    # Load session and conversation history
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, tema, mensagens FROM ingles_sessoes WHERE id = %s", (int(sessao_id),))
+        sessao = cur.fetchone()
+        if not sessao:
+            return jsonify({"error": "Sessão não encontrada"}), 404
+        tema = sessao["tema"] or "daily life"
+        mensagens_raw = sessao["mensagens"]
+        if isinstance(mensagens_raw, list):
+            mensagens = mensagens_raw
+        else:
+            mensagens = json.loads(mensagens_raw or "[]")
+
+        # Call Claude
+        mensagens.append({"role": "user", "content": transcricao})
+        system = _INGLES_CONVERSA_SYSTEM.format(tema=tema)
+        try:
+            resp = ant.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=512,
+                system=system,
+                messages=mensagens
+            )
+            resposta_texto = resp.content[0].text.strip()
+        except Exception as e:
+            return jsonify({"error": f"Erro Claude: {e}"}), 500
+
+        mensagens.append({"role": "assistant", "content": resposta_texto})
+
+        # Save updated conversation
+        cur.execute(
+            "UPDATE ingles_sessoes SET mensagens = %s WHERE id = %s",
+            (json.dumps(mensagens), int(sessao_id))
+        )
+        # Register activity
+        cur.execute(
+            "INSERT INTO ingles_atividades (tipo, data_atividade) VALUES (%s, %s)",
+            ("message_sent", datetime.date.today())
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Generate TTS audio
+    try:
+        tts = oai.audio.speech.create(model="tts-1", voice="onyx", input=resposta_texto)
+        audio_bytes = (getattr(tts, "content", None)
+                       or (b"".join(tts.iter_bytes()) if hasattr(tts, "iter_bytes") else b""))
+    except Exception as e:
+        return jsonify({"error": f"Erro TTS: {e}"}), 500
+
+    return jsonify({
+        "transcricao": transcricao,
+        "resposta_texto": resposta_texto,
+        "audio_base64": base64.b64encode(audio_bytes).decode()
+    })
+
+
 @app.route("/api/ingles/sessoes/<int:sid>/chat", methods=["POST"])
 @login_required
 def ingles_chat(sid):

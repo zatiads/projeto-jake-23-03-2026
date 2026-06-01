@@ -254,3 +254,41 @@ def test_palavras_do_dia_gera_quando_vazio(app_client, mock_db):
     mock_claude.return_value.messages.create.assert_called_once()
     # Must have committed (DELETE + 10 INSERTs)
     mock_conn.commit.assert_called()
+
+
+def test_conversar_voz(app_client, mock_db):
+    """POST /api/ingles/conversar/voz recebe áudio, retorna transcricao + resposta + audio."""
+    mock_conn, mock_cur = mock_db
+    mock_cur.fetchone.return_value = {
+        "id": 1, "tema": "daily life", "mensagens": "[]"
+    }
+    with patch("app._openai_client") as mock_oai, \
+         patch("app._anthropic_client") as mock_claude:
+        # Whisper mock
+        mock_oai.return_value.audio.transcriptions.create.return_value.text = "Hello Jake"
+        # Claude mock
+        mock_claude.return_value.messages.create.return_value.content = [
+            MagicMock(text="Hello! Great to practice with you today.")
+        ]
+        # TTS mock
+        mock_tts = MagicMock()
+        mock_tts.content = b"fakeaudiobytes"
+        mock_oai.return_value.audio.speech.create.return_value = mock_tts
+
+        import io
+        audio_data = io.BytesIO(b"fake_webm_audio")
+        r = app_client.post("/api/ingles/conversar/voz", data={
+            "audio": (audio_data, "audio.webm", "audio/webm"),
+            "sessao_id": "1"
+        }, content_type="multipart/form-data")
+
+    assert r.status_code == 200
+    data = r.get_json()
+    assert "transcricao" in data
+    assert "resposta_texto" in data
+    assert "audio_base64" in data
+    assert data["transcricao"] == "Hello Jake"
+    assert len(data["audio_base64"]) > 0
+    mock_oai.return_value.audio.transcriptions.create.assert_called_once()
+    mock_claude.return_value.messages.create.assert_called_once()
+    mock_oai.return_value.audio.speech.create.assert_called_once()
