@@ -8449,19 +8449,23 @@ def ingles_palavras_do_dia():
         except Exception as e:
             return jsonify({"error": f"Erro ao gerar palavras: {e}"}), 503
         # Delete any partial entries for today and re-insert
-        cur.execute("DELETE FROM ingles_palavras WHERE data_exibicao = %s", (hoje,))
-        for i, p in enumerate(palavras[:10], start=1):
-            cur.execute("""
-                INSERT INTO ingles_palavras
-                  (palavra, classe_gramatical, definicao_pt, exemplo_en, fonetica, categoria, data_exibicao, posicao)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                p.get("palavra"), p.get("classe_gramatical"),
-                p.get("definicao_pt"), p.get("exemplo_en"),
-                p.get("fonetica"), p.get("categoria"),
-                hoje, i
-            ))
-        conn.commit()
+        try:
+            cur.execute("DELETE FROM ingles_palavras WHERE data_exibicao = %s", (hoje,))
+            for i, p in enumerate(palavras[:10], start=1):
+                cur.execute("""
+                    INSERT INTO ingles_palavras
+                      (palavra, classe_gramatical, definicao_pt, exemplo_en, fonetica, categoria, data_exibicao, posicao)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    p.get("palavra"), p.get("classe_gramatical"),
+                    p.get("definicao_pt"), p.get("exemplo_en"),
+                    p.get("fonetica"), p.get("categoria"),
+                    hoje, i
+                ))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"error": f"Erro ao salvar palavras: {e}"}), 500
         cur.execute(
             "SELECT * FROM ingles_palavras WHERE data_exibicao = %s ORDER BY posicao",
             (hoje,)

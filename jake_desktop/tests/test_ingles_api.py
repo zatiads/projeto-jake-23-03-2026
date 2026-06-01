@@ -252,3 +252,5 @@ def test_palavras_do_dia_gera_quando_vazio(app_client, mock_db):
         r = app_client.get("/api/ingles/palavras-do-dia")
     assert r.status_code == 200
     mock_claude.return_value.messages.create.assert_called_once()
+    # Must have committed (DELETE + 10 INSERTs)
+    mock_conn.commit.assert_called()
