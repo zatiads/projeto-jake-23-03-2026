@@ -24,4 +24,5 @@ def test_init_ingles_tables_cria_tabelas():
     assert "ingles_palavras" in sql_calls
     assert "ingles_sessoes" in sql_calls
     assert "ingles_atividades" in sql_calls
-    conn.commit.assert_called()
+    conn.commit.assert_called_once()
+    conn.close.assert_called_once()
