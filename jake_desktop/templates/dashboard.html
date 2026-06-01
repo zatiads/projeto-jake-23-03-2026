@@ -230,6 +230,10 @@
   color: #00e5ff; padding: 8px 20px; border-radius: 8px; cursor: pointer;
   font-family: Rajdhani, sans-serif; font-size: 14px; font-weight: 700; align-self: center; transition: all 0.2s; }
 .ing-btn-completar:hover { background: rgba(0,229,255,0.2); }
+.ing-jake-pt { color: #999; font-size: 13px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.07); font-style: italic; line-height: 1.5; }
+.ing-jake-versao { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(0,229,255,0.15); }
+.ing-jake-versao-label { font-family: Rajdhani, sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #00e5ff; opacity: 0.7; margin-bottom: 4px; }
+#ing-jake-versao-text { color: #00e5ff; font-size: 13px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -2364,6 +2368,11 @@
               <div class="ing-speech-bubble">
                 <div class="ing-speech-label ing-speech-jake-label">Jake</div>
                 <div class="ing-speech-text" id="ing-jake-text">Click the mic button to start speaking with me!</div>
+                <div class="ing-jake-pt" id="ing-jake-pt" style="display:none"></div>
+                <div class="ing-jake-versao" id="ing-jake-versao" style="display:none">
+                  <div class="ing-jake-versao-label">Como dizer em inglês</div>
+                  <div id="ing-jake-versao-text"></div>
+                </div>
               </div>
               <div class="ing-speech-bubble" id="ing-bubble-user" style="display:none">
                 <div class="ing-speech-label ing-speech-user-label">Você</div>

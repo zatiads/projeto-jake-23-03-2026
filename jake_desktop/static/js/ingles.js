@@ -277,7 +277,24 @@
         if (utext) utext.textContent = d.transcricao;
 
         var jtext = document.getElementById('ing-jake-text');
-        if (jtext) jtext.textContent = d.resposta_texto;
+        if (jtext) jtext.textContent = d.resposta_en || '';
+
+        var jpt = document.getElementById('ing-jake-pt');
+        if (jpt) {
+          if (d.resposta_pt) { jpt.textContent = d.resposta_pt; jpt.style.display = 'block'; }
+          else jpt.style.display = 'none';
+        }
+
+        var jversao = document.getElementById('ing-jake-versao');
+        var jversaoText = document.getElementById('ing-jake-versao-text');
+        if (jversao && jversaoText) {
+          if (d.versao_en) {
+            jversaoText.textContent = d.versao_en;
+            jversao.style.display = 'block';
+          } else {
+            jversao.style.display = 'none';
+          }
+        }
 
         if (IState.licaoAtiva) {
           IState.trocasMensagens += 1;

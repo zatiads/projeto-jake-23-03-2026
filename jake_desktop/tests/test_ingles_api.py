@@ -268,7 +268,7 @@ def test_conversar_voz(app_client, mock_db):
         mock_oai.return_value.audio.transcriptions.create.return_value.text = "Hello Jake"
         # Claude mock
         mock_claude.return_value.messages.create.return_value.content = [
-            MagicMock(text="Hello! Great to practice with you today.")
+            MagicMock(text='{"en": "Hello! Great to practice with you today.", "pt": "Ola! Otimo praticar com voce hoje.", "versao_en": ""}')
         ]
         # TTS mock
         mock_tts = MagicMock()
@@ -285,9 +285,13 @@ def test_conversar_voz(app_client, mock_db):
     assert r.status_code == 200
     data = r.get_json()
     assert "transcricao" in data
-    assert "resposta_texto" in data
+    assert "resposta_en" in data
+    assert "resposta_pt" in data
+    assert "versao_en" in data
     assert "audio_base64" in data
     assert data["transcricao"] == "Hello Jake"
+    assert data["resposta_en"] == "Hello! Great to practice with you today."
+    assert data["resposta_pt"] == "Ola! Otimo praticar com voce hoje."
     assert len(data["audio_base64"]) > 0
     mock_oai.return_value.audio.transcriptions.create.assert_called_once()
     mock_claude.return_value.messages.create.assert_called_once()

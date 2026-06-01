@@ -8402,11 +8402,16 @@ Retorne SOMENTE um JSON array com 10 objetos (sem markdown):
 
 _INGLES_TEMAS_CONVERSA = ['marketing and advertising', 'travel and places', 'business and entrepreneurship', 'daily life and routines', 'technology and innovation']
 
-_INGLES_CONVERSA_SYSTEM = """You are an English conversation partner for a Brazilian digital marketer at intermediate level.
-Your job: have natural, engaging conversations in English.
-When the user makes grammar or vocabulary mistakes, naturally use the correct form in your response without explicitly pointing it out — model correct English, don't correct.
-Keep messages concise (2-4 sentences). Always end with a follow-up question to keep the conversation going.
-Today's suggested topic: {tema}"""
+_INGLES_CONVERSA_SYSTEM = """You are Jake, an English teacher for a Brazilian digital marketer at intermediate level.
+
+Always respond with this EXACT JSON (no markdown, raw JSON only):
+{{"en": "Your response in English (2-4 sentences, always end with a follow-up question)", "pt": "Tradução fiel em português do que você disse em 'en'", "versao_en": "If the user spoke Portuguese or mixed languages, show the correct English version of what they said. Format: You could say: '...'. If they spoke full English, return empty string."}}
+
+Rules:
+- 'en': natural English at intermediate level. When user makes grammar mistakes, model correct English in your response naturally without pointing out the error.
+- 'pt': direct Portuguese translation of 'en' only — no extra text.
+- 'versao_en': ONLY when user used Portuguese or Portuñol. Example: You could say: 'I've been working with paid traffic for 3 years.'
+Today's topic: {tema}"""
 
 
 @app.route("/api/ingles/palavra-do-dia")
@@ -8670,11 +8675,15 @@ def ingles_conversar_voz():
         licao_context = request.form.get("licao_context", "").strip()
         if licao_context:
             system = (
-                "You are Jake, an English teacher and conversation partner for a Brazilian at intermediate level.\n"
-                "Lesson context: " + licao_context + "\n"
-                "Rules: respond ONLY in English. When the student makes grammar mistakes, naturally use the correct form in your response without pointing it out. "
-                "Keep replies concise (2-4 sentences). Guide conversation toward the lesson objectives. "
-                "You understand Portuguese but always respond in English."
+                "You are Jake, an English teacher for a Brazilian at intermediate level.\n"
+                "Lesson context: " + licao_context + "\n\n"
+                "Always respond with this EXACT JSON (no markdown, raw JSON only):\n"
+                "{\"en\": \"Your response in English (2-4 sentences + follow-up question)\", "
+                "\"pt\": \"Tradução fiel em português do que você disse em 'en'\", "
+                "\"versao_en\": \"If user spoke Portuguese or mixed, the correct English version. Format: You could say: '...'. Otherwise empty string.\"}\n\n"
+                "Rules: 'en' = natural English, model correct grammar without pointing out errors. "
+                "'pt' = direct translation of 'en'. 'versao_en' = only when user used Portuguese/Portuñol. "
+                "You understand Portuguese but always respond in the JSON format above."
             )
         else:
             system = _INGLES_CONVERSA_SYSTEM.format(tema=tema)
@@ -8685,11 +8694,25 @@ def ingles_conversar_voz():
                 system=system,
                 messages=mensagens
             )
-            resposta_texto = resp.content[0].text.strip()
+            raw_resp = resp.content[0].text.strip()
+            # Parse bilingual JSON response
+            try:
+                if raw_resp.startswith("```"):
+                    raw_resp = raw_resp.split("```")[1]
+                    if raw_resp.startswith("json"):
+                        raw_resp = raw_resp[4:]
+                parsed = json.loads(raw_resp)
+                resposta_en = parsed.get("en", raw_resp)
+                resposta_pt = parsed.get("pt", "")
+                versao_en = parsed.get("versao_en", "")
+            except Exception:
+                resposta_en = raw_resp
+                resposta_pt = ""
+                versao_en = ""
         except Exception as e:
             return jsonify({"error": f"Erro Claude: {e}"}), 500
 
-        mensagens.append({"role": "assistant", "content": resposta_texto})
+        mensagens.append({"role": "assistant", "content": resposta_en})
 
         # Save updated conversation
         cur.execute(
@@ -8707,7 +8730,7 @@ def ingles_conversar_voz():
 
     # Generate TTS audio
     try:
-        tts = oai.audio.speech.create(model="tts-1", voice="onyx", input=resposta_texto)
+        tts = oai.audio.speech.create(model="tts-1", voice="onyx", input=resposta_en)
         audio_bytes = (getattr(tts, "content", None)
                        or (b"".join(tts.iter_bytes()) if hasattr(tts, "iter_bytes") else b""))
     except Exception as e:
@@ -8715,7 +8738,9 @@ def ingles_conversar_voz():
 
     return jsonify({
         "transcricao": transcricao,
-        "resposta_texto": resposta_texto,
+        "resposta_en": resposta_en,
+        "resposta_pt": resposta_pt,
+        "versao_en": versao_en,
         "audio_base64": base64.b64encode(audio_bytes).decode()
     })
 
