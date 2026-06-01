@@ -104,49 +104,92 @@
     .sb-prog-fill { height: 100%; background: linear-gradient(90deg, #00e5ff, #69f0ae); border-radius: 20px; transition: width .4s; }
     .sb-prog-texto { font-size: 13px; color: rgba(255,255,255,.5); text-align: center; }
   </style>
-  <style id="ingles-styles">
-    .ing-page { padding: 28px; max-width: 900px; }
-    .ing-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-    .ing-title { font-family: 'Orbitron', sans-serif; font-size: 1.3rem; color: #00e5ff; }
-    .ing-tabs { display: flex; gap: 8px; margin-bottom: 28px; }
-    .ing-tab { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 20px; color: rgba(255,255,255,0.5); font-family: 'Rajdhani', sans-serif; font-size: 0.85rem; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; }
-    .ing-tab.active { background: rgba(0,229,255,0.12); border-color: rgba(0,229,255,0.4); color: #00e5ff; }
-    .ing-tab-content { display: none; }
-    .ing-tab-content.active { display: block; }
-    .ing-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(0,229,255,0.12); border-radius: 12px; padding: 28px; backdrop-filter: blur(12px); }
-    .ing-word { font-family: 'Orbitron', sans-serif; font-size: 2.2rem; color: #fff; margin-bottom: 8px; }
-    .ing-pos { display: inline-block; background: rgba(0,229,255,0.12); color: #00e5ff; border-radius: 20px; padding: 3px 12px; font-size: 0.75rem; font-family: 'Rajdhani', sans-serif; letter-spacing: 1px; margin-bottom: 16px; }
-    .ing-def { font-size: 1rem; color: rgba(255,255,255,0.8); margin-bottom: 12px; }
-    .ing-example { font-style: italic; color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-bottom: 16px; border-left: 2px solid rgba(0,229,255,0.3); padding-left: 12px; }
-    .ing-fonetica { font-size: 0.9rem; color: rgba(0,229,255,0.7); margin-bottom: 20px; font-family: monospace; }
-    .ing-actions { display: flex; gap: 10px; }
-    .ing-btn { padding: 8px 18px; border-radius: 8px; font-family: 'Rajdhani', sans-serif; font-size: 0.85rem; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; border: 1px solid rgba(0,229,255,0.3); background: rgba(0,229,255,0.08); color: #00e5ff; }
-    .ing-btn:hover { background: rgba(0,229,255,0.18); }
-    .ing-btn.done { background: rgba(0,229,255,0.2); color: #fff; cursor: default; }
-    .ing-loading { color: rgba(255,255,255,0.3); font-size: 0.9rem; padding: 20px 0; }
-    .ing-chat-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; height: 380px; overflow-y: auto; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px; }
-    .ing-msg { max-width: 80%; padding: 10px 14px; border-radius: 10px; font-size: 0.9rem; line-height: 1.5; }
-    .ing-msg.user { align-self: flex-end; background: rgba(0,229,255,0.12); color: #fff; border-bottom-right-radius: 2px; }
-    .ing-msg.assistant { align-self: flex-start; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); border-bottom-left-radius: 2px; }
-    .ing-chat-form { display: flex; gap: 10px; }
-    .ing-chat-input { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 10px 14px; color: #fff; font-size: 0.9rem; outline: none; }
-    .ing-chat-input:focus { border-color: rgba(0,229,255,0.4); }
-    .ing-chat-send { padding: 10px 20px; background: rgba(0,229,255,0.12); border: 1px solid rgba(0,229,255,0.3); border-radius: 8px; color: #00e5ff; font-family: 'Rajdhani', sans-serif; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; }
-    .ing-chat-send:hover { background: rgba(0,229,255,0.22); }
-    .ing-tema-badge { font-size: 0.75rem; color: rgba(0,229,255,0.6); font-family: 'Rajdhani', sans-serif; letter-spacing: 1px; margin-bottom: 12px; }
-    .ing-stats-row { display: flex; gap: 16px; margin-bottom: 24px; }
-    .ing-stat-card { flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(0,229,255,0.12); border-radius: 12px; padding: 20px; text-align: center; }
-    .ing-stat-val { font-family: 'Orbitron', sans-serif; font-size: 2rem; color: #00e5ff; }
-    .ing-stat-label { font-size: 0.75rem; color: rgba(255,255,255,0.4); font-family: 'Rajdhani', sans-serif; letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
-    .ing-cal { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 24px; }
-    .ing-cal-day { width: 32px; height: 32px; border-radius: 6px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: rgba(255,255,255,0.3); }
-    .ing-cal-day.studied { background: rgba(0,229,255,0.15); border-color: rgba(0,229,255,0.4); color: #00e5ff; }
-    .ing-sessions-list { display: flex; flex-direction: column; gap: 8px; }
-    .ing-session-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
-    .ing-session-tema { font-size: 0.85rem; color: rgba(255,255,255,0.7); }
-    .ing-session-data { font-size: 0.75rem; color: rgba(255,255,255,0.3); }
-    .ing-section-title { font-family: 'Rajdhani', sans-serif; font-size: 0.8rem; letter-spacing: 2px; text-transform: uppercase; color: #00e5ff; margin-bottom: 12px; }
-  </style>
+<style id="ingles-styles">
+/* ── INGLÊS v2 ─────────────────────────────────── */
+#page-ingles { padding: 24px; max-width: 900px; margin: 0 auto; }
+.ing-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.ing-tab-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(0,229,255,0.2);
+  color: #aaa; padding: 8px 20px; border-radius: 8px; cursor: pointer; font-family: Rajdhani, sans-serif;
+  font-size: 14px; font-weight: 600; letter-spacing: 0.5px; transition: all 0.2s; }
+.ing-tab-btn.active { border-color: #00e5ff; color: #00e5ff; background: rgba(0,229,255,0.08); }
+.ing-tab-panel { display: none; }
+.ing-tab-panel.active { display: block; }
+/* ── PALAVRAS ───────────────────────────────────── */
+.ing-palavras-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.ing-palavras-progresso { color: #00e5ff; font-family: Rajdhani, sans-serif; font-size: 14px; font-weight: 600; }
+.ing-palavras-lista { display: flex; flex-direction: column; gap: 12px; }
+.ing-word-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(0,229,255,0.15);
+  border-radius: 12px; padding: 16px; transition: border-color 0.2s; }
+.ing-word-card.estudada { border-color: rgba(0,229,255,0.08); opacity: 0.6; }
+.ing-word-card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.ing-word-title { font-family: Orbitron, sans-serif; font-size: 18px; color: #fff; }
+.ing-pos-badge { background: rgba(0,229,255,0.12); color: #00e5ff; font-size: 11px;
+  padding: 2px 8px; border-radius: 4px; font-family: Rajdhani, sans-serif; font-weight: 700; text-transform: uppercase; }
+.ing-cat-badge { background: rgba(255,255,255,0.06); color: #888; font-size: 11px;
+  padding: 2px 8px; border-radius: 4px; font-family: Rajdhani, sans-serif; }
+.ing-word-def { color: #ccc; font-size: 14px; margin: 0 0 6px 0; }
+.ing-word-ex { color: #aaa; font-size: 13px; font-style: italic; margin: 0 0 10px 0; }
+.ing-word-footer { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ing-fonetica { color: #00e5ff; font-size: 13px; opacity: 0.7; flex: 1; }
+.ing-btn-sm { background: transparent; border: 1px solid rgba(0,229,255,0.3); color: #00e5ff;
+  padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: Rajdhani, sans-serif;
+  font-weight: 600; transition: all 0.2s; white-space: nowrap; }
+.ing-btn-sm:hover { background: rgba(0,229,255,0.1); }
+.ing-btn-sm.done { border-color: rgba(0,229,255,0.15); color: #555; cursor: default; }
+.ing-loading { color: #aaa; font-size: 14px; text-align: center; padding: 40px 0; }
+/* ── AVATAR / CONVERSAR ─────────────────────────── */
+.ing-avatar-section { display: flex; flex-direction: column; align-items: center; gap: 20px; padding-top: 10px; }
+.ing-avatar-wrap { position: relative; width: 180px; }
+.ing-avatar-img { width: 180px; height: 180px; border-radius: 50%; object-fit: cover;
+  border: 3px solid rgba(0,229,255,0.35); transition: box-shadow 0.3s; display: block; }
+.ing-avatar-wrap.speaking .ing-avatar-img { border-color: #00e5ff; box-shadow: 0 0 24px rgba(0,229,255,0.6);
+  animation: ing-pulse 1.2s ease-in-out infinite; }
+@keyframes ing-pulse { 0%,100% { box-shadow: 0 0 12px rgba(0,229,255,0.4); } 50% { box-shadow: 0 0 32px rgba(0,229,255,0.85); } }
+.ing-waveform { display: flex; align-items: center; justify-content: center; gap: 4px; height: 36px; margin-top: 10px; }
+.ing-wave-bar { width: 4px; background: #00e5ff; border-radius: 3px; opacity: 0.2; }
+.ing-avatar-wrap.speaking .ing-wave-bar { opacity: 1; }
+.ing-wave-bar:nth-child(1) { animation: ing-wave 0.9s ease-in-out infinite 0.0s; }
+.ing-wave-bar:nth-child(2) { animation: ing-wave 0.9s ease-in-out infinite 0.1s; }
+.ing-wave-bar:nth-child(3) { animation: ing-wave 0.9s ease-in-out infinite 0.2s; }
+.ing-wave-bar:nth-child(4) { animation: ing-wave 0.9s ease-in-out infinite 0.1s; }
+.ing-wave-bar:nth-child(5) { animation: ing-wave 0.9s ease-in-out infinite 0.0s; }
+@keyframes ing-wave { 0%,100% { height: 8px; } 50% { height: 28px; } }
+.ing-conversa-area { width: 100%; max-width: 540px; display: flex; flex-direction: column; gap: 12px; }
+.ing-speech-bubble { background: rgba(255,255,255,0.04); border: 1px solid rgba(0,229,255,0.15);
+  border-radius: 10px; padding: 12px 16px; min-height: 40px; }
+.ing-speech-label { font-family: Rajdhani, sans-serif; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+.ing-speech-jake-label { color: #00e5ff; }
+.ing-speech-user-label { color: #888; }
+.ing-speech-text { color: #ddd; font-size: 14px; line-height: 1.5; }
+.ing-mic-btn { background: rgba(0,229,255,0.1); border: 2px solid rgba(0,229,255,0.4);
+  color: #00e5ff; padding: 12px 28px; border-radius: 50px; cursor: pointer;
+  font-family: Rajdhani, sans-serif; font-size: 16px; font-weight: 700;
+  letter-spacing: 1px; transition: all 0.2s; align-self: center; }
+.ing-mic-btn:hover { background: rgba(0,229,255,0.2); }
+.ing-mic-btn.gravando { background: rgba(255,80,80,0.15); border-color: rgba(255,80,80,0.6);
+  color: #ff5050; animation: ing-rec-blink 1s ease-in-out infinite; }
+@keyframes ing-rec-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+.ing-conversa-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.ing-btn-link { background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #666;
+  padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: Rajdhani, sans-serif; }
+.ing-btn-link:hover { color: #aaa; border-color: rgba(255,255,255,0.2); }
+.ing-jake-name { font-family: Orbitron, sans-serif; font-size: 16px; color: #fff; text-align: center; margin-bottom: 2px; }
+.ing-jake-role { color: #00e5ff; font-family: Rajdhani, sans-serif; font-size: 13px; text-align: center; opacity: 0.8; }
+/* ── PROGRESSO ───────────────────────────────────── */
+.ing-prog-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.ing-stat-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(0,229,255,0.15);
+  border-radius: 12px; padding: 20px; text-align: center; }
+.ing-stat-num { font-family: Orbitron, sans-serif; font-size: 36px; color: #00e5ff; }
+.ing-stat-label { color: #aaa; font-size: 13px; font-family: Rajdhani, sans-serif; margin-top: 4px; }
+.ing-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 16px; }
+.ing-cal-day { aspect-ratio: 1; border-radius: 4px; background: rgba(255,255,255,0.04); }
+.ing-cal-day.active { background: #00e5ff; }
+.ing-cal-day.today { border: 1px solid #00e5ff; }
+.ing-sessoes-lista { display: flex; flex-direction: column; gap: 8px; }
+.ing-sessao-item { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px 14px;
+  color: #aaa; font-size: 13px; display: flex; justify-content: space-between; }
+</style>
 </head>
 <body>
 
@@ -2238,69 +2281,70 @@
 
       </section>
 
-      <section class="page" id="page-ingles" style="display:none">
-        <div class="ing-page">
-          <div class="ing-header">
-            <h1 class="ing-title">English Practice</h1>
-          </div>
+      <section class="page" id="page-ingles">
+        <div class="ing-tabs">
+          <button class="ing-tab-btn active" onclick="ingTab('palavras',this)">📚 Palavras do Dia</button>
+          <button class="ing-tab-btn" onclick="ingTab('conversar',this)">🎤 Conversar</button>
+          <button class="ing-tab-btn" onclick="ingTab('progresso',this)">📈 Progresso</button>
+        </div>
 
-          <div class="ing-tabs">
-            <button class="ing-tab active" data-tab="palavra">📖 Palavra do Dia</button>
-            <button class="ing-tab" data-tab="conversar">💬 Conversar</button>
-            <button class="ing-tab" data-tab="progresso">📊 Progresso</button>
+        <!-- ABA PALAVRAS -->
+        <div class="ing-tab-panel active" id="ing-panel-palavras">
+          <div class="ing-palavras-header">
+            <span class="ing-palavras-progresso" id="ing-prog-count">Carregando...</span>
           </div>
+          <div id="ing-palavras-loading" class="ing-loading">Gerando palavras de hoje com IA...</div>
+          <div id="ing-palavras-lista" class="ing-palavras-lista"></div>
+        </div>
 
-          <!-- Aba: Palavra do Dia -->
-          <div class="ing-tab-content active" id="ing-tab-palavra">
-            <div id="ing-palavra-loading" class="ing-loading">Carregando palavra do dia...</div>
-            <div id="ing-palavra-card" class="ing-card" style="display:none">
-              <div class="ing-word" id="ing-word-text"></div>
-              <div class="ing-pos" id="ing-pos-text"></div>
-              <div class="ing-def" id="ing-def-text"></div>
-              <div class="ing-example" id="ing-example-text"></div>
-              <div class="ing-fonetica" id="ing-fonetica-text"></div>
-              <div class="ing-actions">
-                <button class="ing-btn" id="ing-btn-audio" onclick="inglesPlayAudio()">🔊 Ouvir</button>
-                <button class="ing-btn" id="ing-btn-estudada" onclick="inglesMarcarEstudada()">✓ Estudada</button>
-              </div>
-              <audio id="ing-audio-player" style="display:none"></audio>
+        <!-- ABA CONVERSAR -->
+        <div class="ing-tab-panel" id="ing-panel-conversar">
+          <div class="ing-avatar-section">
+            <div>
+              <div class="ing-jake-name">Jake</div>
+              <div class="ing-jake-role">English Teacher · AI</div>
             </div>
-          </div>
-
-          <!-- Aba: Conversar -->
-          <div class="ing-tab-content" id="ing-tab-conversar">
-            <div class="ing-tema-badge" id="ing-tema-badge"></div>
-            <div class="ing-chat-box" id="ing-chat-box">
-              <div class="ing-loading">Iniciando sessão...</div>
-            </div>
-            <form class="ing-chat-form" onsubmit="return inglesEnviarMensagem(event)">
-              <input type="text" class="ing-chat-input" id="ing-chat-input"
-                     placeholder="Type in English..." autocomplete="off">
-              <button type="submit" class="ing-chat-send">Send →</button>
-            </form>
-            <div style="margin-top:10px;text-align:right">
-              <button class="ing-btn" style="font-size:0.75rem;padding:6px 12px"
-                      onclick="inglesNovaSessao()">+ Nova Sessão</button>
-            </div>
-          </div>
-
-          <!-- Aba: Progresso -->
-          <div class="ing-tab-content" id="ing-tab-progresso">
-            <div class="ing-stats-row">
-              <div class="ing-stat-card">
-                <div class="ing-stat-val" id="ing-streak-val">—</div>
-                <div class="ing-stat-label">🔥 Streak</div>
-              </div>
-              <div class="ing-stat-card">
-                <div class="ing-stat-val" id="ing-total-val">—</div>
-                <div class="ing-stat-label">📖 Palavras</div>
+            <div class="ing-avatar-wrap" id="ing-avatar-wrap">
+              <img src="/static/img/jake-avatar.png" class="ing-avatar-img" alt="Jake">
+              <div class="ing-waveform">
+                <div class="ing-wave-bar"></div>
+                <div class="ing-wave-bar"></div>
+                <div class="ing-wave-bar"></div>
+                <div class="ing-wave-bar"></div>
+                <div class="ing-wave-bar"></div>
               </div>
             </div>
-            <div class="ing-section-title">Calendário do Mês</div>
-            <div class="ing-cal" id="ing-cal"></div>
-            <div class="ing-section-title">Sessões Recentes</div>
-            <div class="ing-sessions-list" id="ing-sessions-list"></div>
+            <div class="ing-conversa-area">
+              <div class="ing-speech-bubble">
+                <div class="ing-speech-label ing-speech-jake-label">Jake</div>
+                <div class="ing-speech-text" id="ing-jake-text">Click the mic button to start speaking with me!</div>
+              </div>
+              <div class="ing-speech-bubble" id="ing-bubble-user" style="display:none">
+                <div class="ing-speech-label ing-speech-user-label">Você</div>
+                <div class="ing-speech-text" id="ing-user-text"></div>
+              </div>
+              <button class="ing-mic-btn" id="ing-mic-btn" onclick="inglesToggleMic()">🎤 Falar com Jake</button>
+              <div class="ing-conversa-actions">
+                <button class="ing-btn-link" onclick="inglesNovaSessao()">Nova sessão</button>
+              </div>
+            </div>
           </div>
+        </div>
+
+        <!-- ABA PROGRESSO -->
+        <div class="ing-tab-panel" id="ing-panel-progresso">
+          <div class="ing-prog-grid">
+            <div class="ing-stat-card">
+              <div class="ing-stat-num" id="ing-streak">-</div>
+              <div class="ing-stat-label">dias seguidos</div>
+            </div>
+            <div class="ing-stat-card">
+              <div class="ing-stat-num" id="ing-total-palavras">-</div>
+              <div class="ing-stat-label">palavras estudadas</div>
+            </div>
+          </div>
+          <div class="ing-cal" id="ing-cal"></div>
+          <div class="ing-sessoes-lista" id="ing-sessoes-lista"></div>
         </div>
       </section>
 
