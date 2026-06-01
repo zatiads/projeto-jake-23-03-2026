@@ -8399,6 +8399,89 @@ def ingles_palavra_audio():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/ingles/sessoes")
+@login_required
+def ingles_listar_sessoes():
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, tema, mensagens, created_at FROM ingles_sessoes ORDER BY created_at DESC LIMIT 10")
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            r["created_at"] = str(r["created_at"])
+        return jsonify(rows)
+    finally:
+        conn.close()
+
+
+@app.route("/api/ingles/sessoes", methods=["POST"])
+@login_required
+def ingles_criar_sessao():
+    import datetime, json as _json
+    day_of_year = datetime.date.today().timetuple().tm_yday
+    tema = _INGLES_TEMAS_CONVERSA[day_of_year % len(_INGLES_TEMAS_CONVERSA)]
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO ingles_sessoes (tema, mensagens) VALUES (%s, %s) RETURNING id",
+            (tema, _json.dumps([]))
+        )
+        novo_id = cur.fetchone()["id"]
+        conn.commit()
+        return jsonify({"id": novo_id, "tema": tema, "mensagens": []})
+    finally:
+        conn.close()
+
+
+@app.route("/api/ingles/sessoes/<int:sid>/chat", methods=["POST"])
+@login_required
+def ingles_chat(sid):
+    import datetime, json as _json
+    data = request.get_json() or {}
+    mensagem = (data.get("mensagem") or "").strip()
+    if not mensagem:
+        return jsonify({"error": "mensagem obrigatória"}), 400
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM ingles_sessoes WHERE id = %s", (sid,))
+        sessao = cur.fetchone()
+        if not sessao:
+            return jsonify({"error": "sessão não encontrada"}), 404
+        sessao = dict(sessao)
+        historico = sessao.get("mensagens") or []
+        if isinstance(historico, str):
+            historico = _json.loads(historico)
+        client = _anthropic_client()
+        if not client:
+            return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
+        system = _INGLES_CONVERSA_SYSTEM.format(tema=sessao.get("tema", "general conversation"))
+        msgs_api = [{"role": m["role"], "content": m["content"]} for m in historico]
+        msgs_api.append({"role": "user", "content": mensagem})
+        resp_claude = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=512,
+            system=system,
+            messages=msgs_api
+        )
+        resposta = resp_claude.content[0].text.strip()
+        historico.append({"role": "user", "content": mensagem})
+        historico.append({"role": "assistant", "content": resposta})
+        cur.execute(
+            "UPDATE ingles_sessoes SET mensagens = %s WHERE id = %s",
+            (_json.dumps(historico), sid)
+        )
+        cur.execute(
+            "INSERT INTO ingles_atividades (tipo, data_atividade) VALUES (%s, %s)",
+            ("message_sent", datetime.date.today())
+        )
+        conn.commit()
+        return jsonify({"resposta": resposta, "mensagens": historico})
+    finally:
+        conn.close()
+
+
 # ── DR: CRUD OFERTAS ──────────────────────────────────────────────────────────
 
 @app.route("/api/dr/ofertas", methods=["GET"])

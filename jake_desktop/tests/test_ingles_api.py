@@ -98,3 +98,44 @@ def test_init_ingles_tables_cria_tabelas():
     assert "ingles_atividades" in sql_calls
     conn.commit.assert_called_once()
     conn.close.assert_called_once()
+
+
+def test_listar_sessoes(client):
+    """GET /api/ingles/sessoes retorna lista."""
+    rows = [{"id": 1, "tema": "marketing", "mensagens": [], "created_at": "2026-06-01"}]
+    with patch("app._get_db", return_value=_mock_conn(rows=rows)):
+        resp = client.get("/api/ingles/sessoes")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert isinstance(data, list)
+
+
+def test_criar_sessao(client):
+    """POST /api/ingles/sessoes cria sessão com tema."""
+    conn = _mock_conn(one={"id": 5})
+    with patch("app._get_db", return_value=conn):
+        resp = client.post("/api/ingles/sessoes")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["id"] == 5
+    assert "tema" in data
+
+
+def test_chat_sessao(client):
+    """POST /api/ingles/sessoes/1/chat retorna resposta da IA."""
+    sessao = {"id": 1, "tema": "marketing", "mensagens": []}
+    conn = _mock_conn(one=sessao)
+
+    mock_msg = MagicMock()
+    mock_msg.content = [MagicMock(text="That's a great question about marketing!")]
+    mock_anthropic = MagicMock()
+    mock_anthropic.messages.create.return_value = mock_msg
+
+    with patch("app._get_db", return_value=conn), \
+         patch("app._anthropic_client", return_value=mock_anthropic):
+        resp = client.post("/api/ingles/sessoes/1/chat",
+                           json={"mensagem": "What do you think about paid traffic?"})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "resposta" in data
+    assert len(data["resposta"]) > 0
