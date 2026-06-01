@@ -23,6 +23,9 @@
     if (id === "planejador" && typeof window.planejadorInit === "function") {
       window.planejadorInit();
     }
+    if (id === "ingles" && typeof window.initIngles === "function") {
+      window.initIngles();
+    }
   }
 
   document.querySelectorAll(".nav-item").forEach(function (item) {
@@ -34,7 +37,7 @@
 
   // Carrega a página correta se houver hash na URL
   var hash = location.hash.replace("#", "");
-  var valid = ["painel","architect","gestor","planejador","copys","criativos","financeiro","agenda","rotina","social-brief","nutricao","dr"];
+  var valid = ["painel","architect","gestor","planejador","copys","criativos","financeiro","agenda","rotina","social-brief","nutricao","dr","ingles"];
   var redirectGestor = ["performance","anuncios","relatorios"];
   var redirectCriativos = ["carrossel"];
   if (redirectGestor.indexOf(hash) !== -1) showPage("gestor");
