@@ -292,3 +292,27 @@ def test_conversar_voz(app_client, mock_db):
     mock_oai.return_value.audio.transcriptions.create.assert_called_once()
     mock_claude.return_value.messages.create.assert_called_once()
     mock_oai.return_value.audio.speech.create.assert_called_once()
+
+
+def test_trilha_retorna_modulos(app_client, mock_db):
+    """GET /api/ingles/trilha retorna 12 módulos com lições e progresso."""
+    mock_conn, mock_cur = mock_db
+    mock_cur.fetchall.return_value = []
+    r = app_client.get("/api/ingles/trilha")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert isinstance(data, list)
+    assert len(data) == 12
+    assert "licoes" in data[0]
+    assert len(data[0]["licoes"]) >= 3
+
+
+def test_trilha_completar_licao(app_client, mock_db):
+    """POST /api/ingles/trilha/completar marca lição como concluída."""
+    mock_conn, mock_cur = mock_db
+    r = app_client.post("/api/ingles/trilha/completar",
+        json={"modulo_id": 1, "licao_id": 1})
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data.get("ok") is True
+    mock_conn.commit.assert_called_once()

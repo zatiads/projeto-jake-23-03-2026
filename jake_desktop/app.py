@@ -318,6 +318,18 @@ def _init_ingles_tables():
             ON ingles_palavras (data_exibicao, posicao)
         """)
         conn.commit()
+        # Migration v3: trilha de aprendizado
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ingles_trilha_progresso (
+                id SERIAL PRIMARY KEY,
+                modulo_id INTEGER NOT NULL,
+                licao_id INTEGER NOT NULL,
+                status VARCHAR(20) DEFAULT 'completed',
+                completed_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(modulo_id, licao_id)
+            )
+        """)
+        conn.commit()
     finally:
         conn.close()
 
@@ -8313,6 +8325,73 @@ def nutricao_exportar_pdf(cardapio_id):
         conn.close()
 
 
+INGLES_TRILHA = [
+  {"id":1,"titulo":"Greetings & Introductions","descricao":"Como se apresentar e quebrar o gelo","icone":"👋","licoes":[
+    {"id":1,"titulo":"First Meeting","objetivo":"Introduce yourself professionally","cenario":"You're meeting a new international business contact for the first time at a conference."},
+    {"id":2,"titulo":"Small Talk","objetivo":"Keep a light conversation going","cenario":"You're waiting for a business meeting to start and chatting with someone you just met."},
+    {"id":3,"titulo":"Video Call Intro","objetivo":"Introduce yourself on a video call","cenario":"You're starting a Zoom call with an international client for the first time."}
+  ]},
+  {"id":2,"titulo":"Daily Life","descricao":"Cotidiano, rotina e situações do dia a dia","icone":"🏠","licoes":[
+    {"id":1,"titulo":"Your Routine","objetivo":"Describe your daily schedule","cenario":"A new English friend asks what your typical workday looks like."},
+    {"id":2,"titulo":"Food & Cooking","objetivo":"Talk about food preferences and habits","cenario":"You're having lunch with an international colleague who asks about Brazilian food."},
+    {"id":3,"titulo":"Weekend Plans","objetivo":"Make and discuss plans","cenario":"A friend asks what you did last weekend and what you plan to do next."}
+  ]},
+  {"id":3,"titulo":"Ordering & Service","descricao":"Pedir, reclamar e interagir com serviços","icone":"🍽️","licoes":[
+    {"id":1,"titulo":"Restaurant","objetivo":"Order food and handle restaurant situations","cenario":"You're at a restaurant in New York. Order your meal, ask about the menu, and handle a wrong order."},
+    {"id":2,"titulo":"Hotel","objetivo":"Check in and request hotel services","cenario":"You're checking into a hotel in Miami. Handle the check-in and request extra towels and a wake-up call."},
+    {"id":3,"titulo":"Shopping","objetivo":"Shop, ask prices, handle problems","cenario":"You're shopping at a mall in the US. Find what you need, ask about sizes, and return an item."}
+  ]},
+  {"id":4,"titulo":"Travel","descricao":"Aeroporto, transporte e navegação","icone":"✈️","licoes":[
+    {"id":1,"titulo":"At the Airport","objetivo":"Navigate check-in, security, boarding","cenario":"You're at JFK airport checking in for a flight. Handle check-in, baggage, and boarding questions."},
+    {"id":2,"titulo":"Transportation","objetivo":"Use taxis, Uber, subway","cenario":"You just landed in London. Ask for directions to the hotel and use public transportation."},
+    {"id":3,"titulo":"Asking Directions","objetivo":"Ask for and understand directions","cenario":"You're lost in downtown Chicago and need to find the nearest subway station."},
+    {"id":4,"titulo":"Problem Solving","objetivo":"Handle travel problems (lost luggage, delays)","cenario":"Your luggage did not arrive and your connecting flight was delayed. Talk to airline staff."}
+  ]},
+  {"id":5,"titulo":"Work & Business","descricao":"Reuniões, apresentações e e-mails","icone":"💼","licoes":[
+    {"id":1,"titulo":"Starting a Meeting","objetivo":"Open, manage and close business meetings","cenario":"You're running a video call with international partners. Open the meeting, set the agenda, manage turns."},
+    {"id":2,"titulo":"Presenting Ideas","objetivo":"Present a proposal or campaign results","cenario":"You're presenting last month's ad campaign results to an international client."},
+    {"id":3,"titulo":"Professional Emails","objetivo":"Discuss email writing and tone","cenario":"Your colleague asks you to help write a follow-up email to a client who did not respond."},
+    {"id":4,"titulo":"Conference Calls","objetivo":"Participate actively in calls","cenario":"You're on a call with 3 international team members. Speak up, ask questions, summarize decisions."}
+  ]},
+  {"id":6,"titulo":"Job Interview","descricao":"Entrevistas e negociação de salário","icone":"🤝","licoes":[
+    {"id":1,"titulo":"Tell Me About Yourself","objetivo":"Give a polished professional introduction","cenario":"You're in a job interview for a Senior Digital Marketing Manager role at a US company."},
+    {"id":2,"titulo":"Strengths & Experience","objetivo":"Talk about skills and past work","cenario":"The interviewer asks about your biggest achievement and how you handled a difficult campaign."},
+    {"id":3,"titulo":"Salary & Closing","objetivo":"Negotiate salary and ask questions","cenario":"The interview is ending. Discuss salary expectations and ask smart questions about the role."}
+  ]},
+  {"id":7,"titulo":"Health & Emergencies","descricao":"Médico, farmácia e situações de emergência","icone":"🏥","licoes":[
+    {"id":1,"titulo":"Doctor Appointment","objetivo":"Describe symptoms and understand diagnosis","cenario":"You're at a clinic in the US with a bad headache and fever. Describe your symptoms to the doctor."},
+    {"id":2,"titulo":"Pharmacy","objetivo":"Buy medicine and understand instructions","cenario":"You're at a pharmacy. Ask for medicine for a cold and understand the dosage instructions."},
+    {"id":3,"titulo":"Emergency","objetivo":"Handle urgent situations clearly","cenario":"There has been a minor car accident. Call for help, explain the situation, and talk to police."}
+  ]},
+  {"id":8,"titulo":"Social & Entertainment","descricao":"Lazer, planos e conversas informais","icone":"🎉","licoes":[
+    {"id":1,"titulo":"Making Plans","objetivo":"Suggest, accept and decline invitations","cenario":"An English-speaking friend wants to make weekend plans. Suggest activities, negotiate times."},
+    {"id":2,"titulo":"Talking About Culture","objetivo":"Discuss movies, music, sports","cenario":"You're at a party and someone asks about your taste in movies, music and sports."},
+    {"id":3,"titulo":"Dining Out","objetivo":"Socialize at events and dinners","cenario":"You're at a business dinner with international clients. Keep the conversation fun and professional."}
+  ]},
+  {"id":9,"titulo":"Digital Marketing in English","descricao":"Vocabulário e situações do marketing digital","icone":"📱","licoes":[
+    {"id":1,"titulo":"Client Meeting","objetivo":"Present strategy to an international client","cenario":"You're meeting a US client to present a new paid traffic strategy for their brand."},
+    {"id":2,"titulo":"Campaign Results","objetivo":"Report KPIs and metrics in English","cenario":"Present last month's Meta Ads results: CTR, ROAS, CPM. Explain what worked and what did not."},
+    {"id":3,"titulo":"Creative Brief","objetivo":"Brief a creative team in English","cenario":"You're briefing a US-based creative team on a new campaign. Describe the audience, tone, and goals."},
+    {"id":4,"titulo":"Tech & Tools","objetivo":"Discuss platforms and tools in English","cenario":"A new client asks you to explain how you use Meta Ads Manager and your reporting process."}
+  ]},
+  {"id":10,"titulo":"Advanced Business","descricao":"Negociação, pitching e situações difíceis","icone":"🚀","licoes":[
+    {"id":1,"titulo":"Negotiation","objetivo":"Negotiate prices, terms, and contracts","cenario":"You're negotiating your agency's monthly retainer with a potential US client who wants a lower price."},
+    {"id":2,"titulo":"Pitching","objetivo":"Pitch a project or your agency","cenario":"You have 5 minutes to pitch your digital marketing agency to a US investor. Make it compelling."},
+    {"id":3,"titulo":"Handling Complaints","objetivo":"Manage difficult client situations","cenario":"A client is unhappy with last month's campaign results and threatens to leave. Handle it professionally."}
+  ]},
+  {"id":11,"titulo":"Idioms & Phrasal Verbs","descricao":"Expressões naturais do inglês falado","icone":"💡","licoes":[
+    {"id":1,"titulo":"Business Idioms","objetivo":"Use common business idioms naturally","cenario":"You're in a casual meeting. Practice idioms: think outside the box, ballpark figure, touch base."},
+    {"id":2,"titulo":"Phrasal Verbs","objetivo":"Use phrasal verbs in conversation","cenario":"Chat about work and life using: follow up, bring up, figure out, come up with."},
+    {"id":3,"titulo":"Formal vs Informal","objetivo":"Switch between registers","cenario":"Talk casually with a friend, then shift to a formal tone for a client email on the same topic."}
+  ]},
+  {"id":12,"titulo":"Fluency Polish","descricao":"Storytelling, opinião e humor — nível avançado","icone":"🌟","licoes":[
+    {"id":1,"titulo":"Storytelling","objetivo":"Tell engaging stories with detail and flow","cenario":"Tell a story about an interesting experience: a trip, a difficult client, or a funny situation."},
+    {"id":2,"titulo":"Expressing Opinions","objetivo":"Argue and discuss confidently","cenario":"Debate: Is remote work better than office work? Give your opinion, support it, respond to counterpoints."},
+    {"id":3,"titulo":"Natural & Humorous","objetivo":"Be relaxed and natural in English","cenario":"Have a completely free, casual conversation as if with a friend. No agenda - just be yourself."}
+  ]}
+]
+
+
 # ── INGLÊS ─────────────────────────────────────────────────────────────────
 
 _INGLES_PALAVRAS_PROMPT = """Gere exatamente 10 palavras em inglês variadas e úteis para um brasileiro de nível intermediário que quer ser fluente.
@@ -8588,7 +8667,17 @@ def ingles_conversar_voz():
 
         # Call Claude
         mensagens.append({"role": "user", "content": transcricao})
-        system = _INGLES_CONVERSA_SYSTEM.format(tema=tema)
+        licao_context = request.form.get("licao_context", "").strip()
+        if licao_context:
+            system = (
+                "You are Jake, an English teacher and conversation partner for a Brazilian at intermediate level.\n"
+                "Lesson context: " + licao_context + "\n"
+                "Rules: respond ONLY in English. When the student makes grammar mistakes, naturally use the correct form in your response without pointing it out. "
+                "Keep replies concise (2-4 sentences). Guide conversation toward the lesson objectives. "
+                "You understand Portuguese but always respond in English."
+            )
+        else:
+            system = _INGLES_CONVERSA_SYSTEM.format(tema=tema)
         try:
             resp = ant.messages.create(
                 model="claude-sonnet-4-6",
@@ -8744,6 +8833,54 @@ def ingles_progresso():
             "calendario": calendario,
             "ultimas_sessoes": sessoes
         })
+    finally:
+        conn.close()
+
+
+@app.route("/api/ingles/trilha")
+@login_required
+def ingles_get_trilha():
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT modulo_id, licao_id, status FROM ingles_trilha_progresso")
+        progresso = {(r["modulo_id"], r["licao_id"]): r["status"] for r in cur.fetchall()}
+    finally:
+        conn.close()
+    resultado = []
+    for modulo in INGLES_TRILHA:
+        m = dict(modulo)
+        licoes = []
+        for l in modulo["licoes"]:
+            li = dict(l)
+            li["status"] = progresso.get((modulo["id"], l["id"]), "pending")
+            licoes.append(li)
+        m["licoes"] = licoes
+        total = len(licoes)
+        concluidas = sum(1 for li in licoes if li["status"] == "completed")
+        m["progresso"] = {"total": total, "concluidas": concluidas}
+        resultado.append(m)
+    return jsonify(resultado)
+
+
+@app.route("/api/ingles/trilha/completar", methods=["POST"])
+@login_required
+def ingles_completar_licao():
+    data = request.get_json() or {}
+    modulo_id = data.get("modulo_id")
+    licao_id = data.get("licao_id")
+    if not modulo_id or not licao_id:
+        return jsonify({"error": "modulo_id e licao_id obrigatorios"}), 400
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO ingles_trilha_progresso (modulo_id, licao_id, status)
+            VALUES (%s, %s, 'completed')
+            ON CONFLICT (modulo_id, licao_id) DO UPDATE SET status = 'completed', completed_at = NOW()
+        """, (int(modulo_id), int(licao_id)))
+        conn.commit()
+        return jsonify({"ok": True})
     finally:
         conn.close()
 
