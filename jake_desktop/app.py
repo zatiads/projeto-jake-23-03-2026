@@ -304,6 +304,20 @@ def _init_ingles_tables():
             )
         """)
         conn.commit()
+        # Migration v2: allow multiple words per day
+        cur.execute("""
+            ALTER TABLE ingles_palavras
+            DROP CONSTRAINT IF EXISTS ingles_palavras_data_exibicao_key
+        """)
+        cur.execute("""
+            ALTER TABLE ingles_palavras
+            ADD COLUMN IF NOT EXISTS posicao SMALLINT DEFAULT 1
+        """)
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS ingles_palavras_data_posicao_uidx
+            ON ingles_palavras (data_exibicao, posicao)
+        """)
+        conn.commit()
     finally:
         conn.close()
 
@@ -8301,13 +8315,13 @@ def nutricao_exportar_pdf(cardapio_id):
 
 # ── INGLÊS ─────────────────────────────────────────────────────────────────
 
-_INGLES_CATEGORIAS = ['marketing', 'negocios', 'cotidiano', 'tecnologia']
-_INGLES_TEMAS_CONVERSA = ['marketing and advertising', 'travel and places', 'business and entrepreneurship', 'daily life and routines', 'technology and innovation']
+_INGLES_PALAVRAS_PROMPT = """Gere exatamente 10 palavras em inglês variadas e úteis para um brasileiro de nível intermediário que quer ser fluente.
+Misture categorias: cotidiano, emoções, negócios, tecnologia, viagem, comida, natureza, idioms, phrasal verbs, relacionamentos.
+Não repita categorias consecutivamente. Escolha palavras realmente úteis, não as mais óbvias.
+Retorne SOMENTE um JSON array com 10 objetos (sem markdown):
+[{"palavra": "...", "classe_gramatical": "noun|verb|adj|adv|phrase|idiom", "definicao_pt": "Definição clara em 1 frase", "exemplo_en": "Frase completa de exemplo", "fonetica": "/IPA/", "categoria": "..."}]"""
 
-_INGLES_PALAVRA_PROMPT = """Gere UMA palavra em inglês do vocabulário de {categoria} para um profissional de marketing digital brasileiro de nível intermediário.
-Retorne SOMENTE este JSON (sem markdown):
-{{"palavra": "...", "classe_gramatical": "noun|verb|adj|adv|phrase", "definicao_pt": "Definição clara em português (1 frase)", "exemplo_en": "Exemplo de frase completa em inglês usando a palavra em contexto profissional", "fonetica": "/transcrição IPA/"}}
-Escolha uma palavra útil mas não óbvia — não use palavras como 'marketing' ou 'business' que qualquer pessoa já conhece."""
+_INGLES_TEMAS_CONVERSA = ['marketing and advertising', 'travel and places', 'business and entrepreneurship', 'daily life and routines', 'technology and innovation']
 
 _INGLES_CONVERSA_SYSTEM = """You are an English conversation partner for a Brazilian digital marketer at intermediate level.
 Your job: have natural, engaging conversations in English.
@@ -8337,13 +8351,23 @@ def ingles_palavra_do_dia():
         client = _anthropic_client()
         if not client:
             return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
+        _categorias_legado = ['marketing', 'negocios', 'cotidiano', 'tecnologia']
         day_of_year = hoje.timetuple().tm_yday
-        categoria = _INGLES_CATEGORIAS[day_of_year % len(_INGLES_CATEGORIAS)]
+        categoria = _categorias_legado[day_of_year % len(_categorias_legado)]
+        _palavra_prompt_legado = (
+            "Gere UMA palavra em inglês do vocabulário de {categoria} para um profissional de marketing digital "
+            "brasileiro de nível intermediário.\nRetorne SOMENTE este JSON (sem markdown):\n"
+            '{{\"palavra\": \"...\", \"classe_gramatical\": \"noun|verb|adj|adv|phrase\", '
+            '\"definicao_pt\": \"Definição clara em português (1 frase)\", '
+            '\"exemplo_en\": \"Exemplo de frase completa em inglês usando a palavra em contexto profissional\", '
+            '\"fonetica\": \"/transcrição IPA/\"}}\n'
+            "Escolha uma palavra útil mas não óbvia — não use palavras como 'marketing' ou 'business' que qualquer pessoa já conhece."
+        )
         try:
             msg = client.messages.create(
                 model="claude-sonnet-4-6",
                 max_tokens=512,
-                messages=[{"role": "user", "content": _INGLES_PALAVRA_PROMPT.format(categoria=categoria)}]
+                messages=[{"role": "user", "content": _palavra_prompt_legado.format(categoria=categoria)}]
             )
             raw = msg.content[0].text.strip()
             # limpa possível markdown ```json
@@ -8377,6 +8401,78 @@ def ingles_palavra_do_dia():
             "data_exibicao": str(hoje),
             "estudada": False
         })
+    finally:
+        conn.close()
+
+
+@app.route("/api/ingles/palavras-do-dia")
+@login_required
+def ingles_palavras_do_dia():
+    import datetime
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        hoje = datetime.date.today()
+        cur.execute("SELECT COUNT(*) as count FROM ingles_palavras WHERE data_exibicao = %s", (hoje,))
+        row = cur.fetchone()
+        count = row["count"] if row else 0
+        if count >= 10:
+            cur.execute(
+                "SELECT * FROM ingles_palavras WHERE data_exibicao = %s ORDER BY posicao",
+                (hoje,)
+            )
+            rows = []
+            for r in cur.fetchall():
+                d = dict(r)
+                d["data_exibicao"] = str(d["data_exibicao"])
+                d["created_at"] = str(d["created_at"])
+                rows.append(d)
+            return jsonify(rows)
+        # Generate 10 words via Claude
+        client = _anthropic_client()
+        if not client:
+            return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
+        try:
+            msg = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=2048,
+                messages=[{"role": "user", "content": _INGLES_PALAVRAS_PROMPT}]
+            )
+            raw = msg.content[0].text.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            palavras = json.loads(raw)
+            if not isinstance(palavras, list):
+                raise ValueError("Resposta não é array")
+        except Exception as e:
+            return jsonify({"error": f"Erro ao gerar palavras: {e}"}), 503
+        # Delete any partial entries for today and re-insert
+        cur.execute("DELETE FROM ingles_palavras WHERE data_exibicao = %s", (hoje,))
+        for i, p in enumerate(palavras[:10], start=1):
+            cur.execute("""
+                INSERT INTO ingles_palavras
+                  (palavra, classe_gramatical, definicao_pt, exemplo_en, fonetica, categoria, data_exibicao, posicao)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                p.get("palavra"), p.get("classe_gramatical"),
+                p.get("definicao_pt"), p.get("exemplo_en"),
+                p.get("fonetica"), p.get("categoria"),
+                hoje, i
+            ))
+        conn.commit()
+        cur.execute(
+            "SELECT * FROM ingles_palavras WHERE data_exibicao = %s ORDER BY posicao",
+            (hoje,)
+        )
+        rows = []
+        for r in cur.fetchall():
+            d = dict(r)
+            d["data_exibicao"] = str(d["data_exibicao"])
+            d["created_at"] = str(d["created_at"])
+            rows.append(d)
+        return jsonify(rows)
     finally:
         conn.close()
 

@@ -1,4 +1,4 @@
-import sys, pytest
+import sys, pytest, json
 sys.path.insert(0, '/root/jake_desktop')
 from unittest.mock import MagicMock, patch
 
@@ -97,7 +97,8 @@ def test_init_ingles_tables_cria_tabelas():
     assert "ingles_palavras" in sql_calls
     assert "ingles_sessoes" in sql_calls
     assert "ingles_atividades" in sql_calls
-    conn.commit.assert_called_once()
+    # Migration v2 adds a second commit (one for CREATE TABLE, one for ALTER/INDEX)
+    assert conn.commit.call_count >= 2
     conn.close.assert_called_once()
 
 
@@ -182,3 +183,72 @@ def test_progresso(client):
     assert "calendario" in data
     assert data["streak"] == 1
     assert data["total_palavras"] == 5
+
+
+# ── Fixtures for palavras-do-dia tests ────────────────────────────────────────
+
+@pytest.fixture
+def app_client():
+    import app as flask_app
+    flask_app.app.config['TESTING'] = True
+    flask_app.app.secret_key = 'test-secret'
+    with flask_app.app.test_client() as c:
+        with c.session_transaction() as sess:
+            sess['logged_in'] = True
+        yield c
+
+
+@pytest.fixture
+def mock_db():
+    conn = MagicMock()
+    cur = MagicMock()
+    conn.cursor.return_value = cur
+    with patch("app._get_db", return_value=conn):
+        yield conn, cur
+
+
+def test_palavras_do_dia_retorna_lista(app_client, mock_db):
+    """GET /api/ingles/palavras-do-dia retorna lista de até 10 palavras."""
+    mock_conn, mock_cur = mock_db
+    import datetime
+    hoje = datetime.date.today()
+    mock_cur.fetchone.return_value = {"count": 10}
+    mock_cur.fetchall.return_value = [
+        {"id": i, "palavra": f"word{i}", "classe_gramatical": "noun",
+         "definicao_pt": f"def{i}", "exemplo_en": f"ex{i}",
+         "fonetica": f"/w{i}/", "categoria": "cotidiano",
+         "data_exibicao": hoje, "estudada": False, "created_at": "2026-06-01", "posicao": i}
+        for i in range(1, 11)
+    ]
+    r = app_client.get("/api/ingles/palavras-do-dia")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert isinstance(data, list)
+    assert len(data) == 10
+    assert data[0]["palavra"] == "word1"
+
+
+def test_palavras_do_dia_gera_quando_vazio(app_client, mock_db):
+    """GET /api/ingles/palavras-do-dia chama Claude quando banco está vazio."""
+    mock_conn, mock_cur = mock_db
+    mock_cur.fetchone.return_value = {"count": 0}
+    words_json = json.dumps([
+        {"palavra": f"word{i}", "classe_gramatical": "noun",
+         "definicao_pt": f"def{i}", "exemplo_en": f"ex{i}",
+         "fonetica": f"/w{i}/", "categoria": "cotidiano"}
+        for i in range(1, 11)
+    ])
+    mock_cur.fetchall.return_value = [
+        {"id": i, "palavra": f"word{i}", "classe_gramatical": "noun",
+         "definicao_pt": f"def{i}", "exemplo_en": f"ex{i}",
+         "fonetica": f"/w{i}/", "categoria": "cotidiano",
+         "data_exibicao": "2026-06-01", "estudada": False, "created_at": "2026-06-01", "posicao": i}
+        for i in range(1, 11)
+    ]
+    with patch("app._anthropic_client") as mock_claude:
+        mock_claude.return_value.messages.create.return_value.content = [
+            MagicMock(text=words_json)
+        ]
+        r = app_client.get("/api/ingles/palavras-do-dia")
+    assert r.status_code == 200
+    mock_claude.return_value.messages.create.assert_called_once()
