@@ -8299,6 +8299,82 @@ def nutricao_exportar_pdf(cardapio_id):
         conn.close()
 
 
+# ── INGLÊS ─────────────────────────────────────────────────────────────────
+
+_INGLES_CATEGORIAS = ['marketing', 'negocios', 'cotidiano', 'tecnologia']
+_INGLES_TEMAS_CONVERSA = ['marketing and advertising', 'travel and places', 'business and entrepreneurship', 'daily life and routines', 'technology and innovation']
+
+_INGLES_PALAVRA_PROMPT = """Gere UMA palavra em inglês do vocabulário de {categoria} para um profissional de marketing digital brasileiro de nível intermediário.
+Retorne SOMENTE este JSON (sem markdown):
+{{"palavra": "...", "classe_gramatical": "noun|verb|adj|adv|phrase", "definicao_pt": "Definição clara em português (1 frase)", "exemplo_en": "Exemplo de frase completa em inglês usando a palavra em contexto profissional", "fonetica": "/transcrição IPA/"}}
+Escolha uma palavra útil mas não óbvia — não use palavras como 'marketing' ou 'business' que qualquer pessoa já conhece."""
+
+_INGLES_CONVERSA_SYSTEM = """You are an English conversation partner for a Brazilian digital marketer at intermediate level.
+Your job: have natural, engaging conversations in English.
+When the user makes grammar or vocabulary mistakes, naturally use the correct form in your response without explicitly pointing it out — model correct English, don't correct.
+Keep messages concise (2-4 sentences). Always end with a follow-up question to keep the conversation going.
+Today's suggested topic: {tema}"""
+
+
+@app.route("/api/ingles/palavra-do-dia")
+@login_required
+def ingles_palavra_do_dia():
+    import datetime, json as _json
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        hoje = datetime.date.today()
+        cur.execute("SELECT * FROM ingles_palavras WHERE data_exibicao = %s", (hoje,))
+        row = cur.fetchone()
+        if row:
+            return jsonify(dict(row))
+        # Gerar nova palavra via Claude
+        client = _anthropic_client()
+        if not client:
+            return jsonify({"error": "ANTHROPIC_API_KEY não configurada"}), 500
+        day_of_year = hoje.timetuple().tm_yday
+        categoria = _INGLES_CATEGORIAS[day_of_year % len(_INGLES_CATEGORIAS)]
+        try:
+            msg = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=512,
+                messages=[{"role": "user", "content": _INGLES_PALAVRA_PROMPT.format(categoria=categoria)}]
+            )
+            raw = msg.content[0].text.strip()
+            # limpa possível markdown ```json
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            dados = _json.loads(raw)
+        except Exception as e:
+            return jsonify({"error": f"Erro ao gerar palavra: {e}"}), 503
+        cur.execute("""
+            INSERT INTO ingles_palavras (palavra, classe_gramatical, definicao_pt, exemplo_en, fonetica, categoria, data_exibicao)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            dados.get("palavra"), dados.get("classe_gramatical"),
+            dados.get("definicao_pt"), dados.get("exemplo_en"),
+            dados.get("fonetica"), categoria, hoje
+        ))
+        novo_id = cur.fetchone()["id"]
+        conn.commit()
+        return jsonify({
+            "id": novo_id,
+            "palavra": dados.get("palavra"),
+            "classe_gramatical": dados.get("classe_gramatical"),
+            "definicao_pt": dados.get("definicao_pt"),
+            "exemplo_en": dados.get("exemplo_en"),
+            "fonetica": dados.get("fonetica"),
+            "categoria": categoria,
+            "data_exibicao": str(hoje),
+            "estudada": False
+        })
+    finally:
+        conn.close()
+
+
 # ── DR: CRUD OFERTAS ──────────────────────────────────────────────────────────
 
 @app.route("/api/dr/ofertas", methods=["GET"])
