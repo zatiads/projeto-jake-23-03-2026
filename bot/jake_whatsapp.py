@@ -303,7 +303,7 @@ _KEYWORDS_LISTA_COMPRAS = ["lista do mercado", "lista de compras", "lista do sup
 _KEYWORDS_CLIENTES = [
     "cliente", "clientes", "carteira", "orçamento", "orcamento", "investimento",
     "objetivo", "meta ads", "campanha", "campanhas", "agencia", "agência",
-    "dentto", "piloti", "quanto investe", "quanto tá investindo", "quanto ta investindo",
+    "piloti", "quanto investe", "quanto tá investindo", "quanto ta investindo",
     "quais clientes", "lista de clientes", "meus clientes", "portfólio", "portfolio",
 ]
 
@@ -1338,11 +1338,10 @@ def _contexto_rotinas() -> str:
     """Retorna descrição das rotinas para injetar no prompt quando perguntado."""
     return (
         "ROTINAS JA CONFIGURADAS NO SISTEMA (responda sempre com base nisso):\n"
-        "TODA SEGUNDA 7h30: briefing semanal (Meta perf + noticias IA + financeiro)\n"
+        "TODA SEGUNDA 7h30: briefing semanal (Meta perf + financeiro)\n"
         "TODA QUARTA 8h30: check de meio de semana (contas travadas, sem conversao)\n"
         "TODA SEXTA 17h: relatorio financeiro pessoal vs meta R$1M\n"
         "TODO DIA 8h: alerta saldo baixo Meta (< R$300)\n"
-        "TODO DIA 8h05: noticias de IA e marketing (resumo Claude, feeds RSS)\n"
         "DIA 1 DE CADA MES 6h: auto-import transacoes recorrentes financeiro\n"
         "GESTOR IA continuo: monitora contas Meta (frequencia, conversao, saldo critico)\n"
         "IMPORTANTE: NAO diga que nao ha tarefas. NAO diga que nao recebeu nada. "

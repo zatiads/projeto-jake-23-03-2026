@@ -21,7 +21,6 @@
       { id: "act_510054631964792",  name: "RunWay"               },
       { id: "act_1076847820195449", name: "Saucker"              }
     ],
-    dentto: []
   };
 
   var currentAgency = "piloti";

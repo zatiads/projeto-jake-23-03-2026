@@ -294,16 +294,11 @@
         }
 
         var piloti = _contas.filter(function(c){ return c.agencia === 'piloti'; });
-        var dentto = _contas.filter(function(c){ return c.agencia === 'dentto'; });
 
         el.innerHTML =
           '<div class="gs-contas-col">' +
             '<div class="gs-contas-col-header">Piloti <span class="gs-contas-col-count">(' + piloti.length + ')</span></div>' +
             piloti.map(_cardHtml).join('') +
-          '</div>' +
-          '<div class="gs-contas-col">' +
-            '<div class="gs-contas-col-header">Dentto <span class="gs-contas-col-count">(' + dentto.length + ')</span></div>' +
-            dentto.map(_cardHtml).join('') +
           '</div>';
       });
   }

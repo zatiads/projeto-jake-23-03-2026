@@ -595,13 +595,11 @@
                 <div class="anu-header-actions">
                   <button class="anu-btn-icon" id="anu-btn-refresh-clientes" title="Recarregar clientes">↺</button>
                   <button class="anu-btn-novo-cliente" data-agencia="piloti" title="Novo cliente Piloti" style="font-size:.7rem;padding:0 8px;width:auto;border-radius:6px">+ Piloti</button>
-                  <button class="anu-btn-novo-cliente" data-agencia="dentto" title="Novo cliente Dentto" style="font-size:.7rem;padding:0 8px;width:auto;border-radius:6px">+ Dentto</button>
                   <button class="anu-btn-novo-cliente" data-agencia="freelance" title="Novo cliente Freelance" style="font-size:.7rem;padding:0 8px;width:auto;border-radius:6px">+ Free</button>
                 </div>
               </div>
               <aside class="anu-sidebar" aria-hidden="true">
                 <ul class="anu-cliente-list" id="anu-lista-piloti"></ul>
-                <ul class="anu-cliente-list" id="anu-lista-dentto"></ul>
                 <ul class="anu-cliente-list" id="anu-lista-freelance"></ul>
               </aside>
               <main class="anu-main">
@@ -618,9 +616,9 @@
                       </div>
                       <div class="anu-perfil-grid">
                         <label class="anu-label">Nome do cliente<input type="text" id="anu-pf-nome" class="anu-input" placeholder="Ex: Clínica Odonto"></label>
-                        <label class="anu-label">Agência<select id="anu-pf-agencia" class="anu-select"><option value="piloti">Piloti</option><option value="dentto">Dentto</option><option value="freelance">Freelance</option></select></label>
+                        <label class="anu-label">Agência<select id="anu-pf-agencia" class="anu-select"><option value="piloti">Piloti</option><option value="freelance">Freelance</option></select></label>
                         <label class="anu-label">Account ID (Meta)<input type="text" id="anu-pf-account-id" class="anu-input" placeholder="act_XXXXXXXXX"></label>
-                        <label class="anu-label">Token<select id="anu-pf-token-key" class="anu-select"><option value="META_TOKEN_PILOTI">META_TOKEN_PILOTI</option><option value="META_TOKEN_DENTTO">META_TOKEN_DENTTO</option><option value="META_ACCESS_TOKEN">META_ACCESS_TOKEN</option><option value="META_TOKEN_VIELIFE">META_TOKEN_VIELIFE</option></select></label>
+                        <label class="anu-label">Token<select id="anu-pf-token-key" class="anu-select"><option value="META_TOKEN_PILOTI">META_TOKEN_PILOTI</option><option value="META_ACCESS_TOKEN">META_ACCESS_TOKEN</option><option value="META_TOKEN_VIELIFE">META_TOKEN_VIELIFE</option></select></label>
                         <label class="anu-label">Business ID (BM)<input type="text" id="anu-pf-business-id" class="anu-input" placeholder="Ex: 1083321289184097"><span class="anu-hint">Necessário para buscar páginas de usuário de sistema</span></label>
                         <label class="anu-label">Page ID (Facebook)
                           <div style="display:flex;gap:8px;align-items:center;">
@@ -801,7 +799,7 @@
                     <div class="mc-step" data-step="3"><span class="mc-step-num">3</span> Revisar</div>
                   </div>
                   <div id="mc-passo-1">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><span style="font-weight:600;font-size:14px">Selecione os clientes</span><div style="display:flex;gap:8px;"><button class="anu-btn-secondary" style="font-size:12px" onclick="mcSelecionarAgencia('dentto')">Todos Dentto</button><button class="anu-btn-secondary" style="font-size:12px" onclick="mcSelecionarAgencia('piloti')">Todos Piloti</button><button class="anu-btn-secondary" style="font-size:12px" onclick="mcLimparSelecao()">Limpar</button></div></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><span style="font-weight:600;font-size:14px">Selecione os clientes</span><div style="display:flex;gap:8px;"><button class="anu-btn-secondary" style="font-size:12px" onclick="mcSelecionarAgencia('piloti')">Todos Piloti</button><button class="anu-btn-secondary" style="font-size:12px" onclick="mcLimparSelecao()">Limpar</button></div></div>
                     <div id="mc-lista-clientes" style="display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;margin-bottom:16px;"></div>
                     <button class="anu-btn-primary" onclick="mcIrPasso(2)" id="mc-btn-passo2" disabled>Próximo →</button>
                   </div>
@@ -896,7 +894,6 @@
               </header>
               <div class="rel-tabs">
                 <button class="rel-tab active" data-agency="piloti">Piloti</button>
-                <button class="rel-tab" data-agency="dentto">Dentto</button>
               </div>
               <div class="rel-table-wrap">
                 <table class="rel-table">
@@ -948,7 +945,6 @@
               <!-- Tabs agência -->
               <div class="rel-tabs" style="margin-bottom:1.5rem;">
                 <button class="rel-tab active" data-agency="piloti">Piloti</button>
-                <button class="rel-tab" data-agency="dentto">Dentto</button>
               </div>
               <!-- Cards globais -->
               <div class="perf-cards" id="perf-cards">

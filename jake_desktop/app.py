@@ -40,7 +40,7 @@ import brain
 
 import glob as _glob
 
-_VALID_TOKEN_KEYS = {"META_TOKEN_PILOTI", "META_TOKEN_DENTTO", "META_ACCESS_TOKEN", "META_TOKEN_VIELIFE"}
+_VALID_TOKEN_KEYS = {"META_TOKEN_PILOTI", "META_ACCESS_TOKEN", "META_TOKEN_VIELIFE"}
 _lote_payloads: dict = {}   # lote_token → payload dict (em memória)
 _TMP_DIR = "/tmp"           # diretório para arquivos temporários de preview
 
@@ -617,7 +617,7 @@ META_MCP_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "token_key":  {"type": "string", "description": "Token da conta: META_TOKEN_PILOTI | META_TOKEN_DENTTO | META_ACCESS_TOKEN"},
+                    "token_key":  {"type": "string", "description": "Token da conta: META_TOKEN_PILOTI | META_ACCESS_TOKEN"},
                     "account_id": {"type": "string"},
                 },
                 "required": ["token_key", "account_id"],
@@ -1029,7 +1029,6 @@ _META_CACHE_TTL = 1800            # 30 minutos
 # Tokens por agência (expansível)
 _META_TOKENS = {
     "piloti": lambda: os.environ.get("META_TOKEN_PILOTI", "").strip(),
-    "dentto": lambda: os.environ.get("META_TOKEN_DENTTO", "").strip(),
 }
 
 @app.route("/api/relatorios/insights/<agency>/<account_id>")
@@ -3098,8 +3097,8 @@ def anuncios_criar_cliente():
         return jsonify({"error": f"Campos obrigatórios: {faltando}"}), 400
     if d["token_key"] not in _VALID_TOKEN_KEYS:
         return jsonify({"error": f"token_key inválido. Válidos: {list(_VALID_TOKEN_KEYS)}"}), 400
-    if d["agencia"] not in ("piloti", "dentto", "freelance"):
-        return jsonify({"error": "agencia deve ser piloti, dentto ou freelance"}), 400
+    if d["agencia"] not in ("piloti", "freelance"):
+        return jsonify({"error": "agencia deve ser piloti ou freelance"}), 400
 
     try:
         conn = _get_db()

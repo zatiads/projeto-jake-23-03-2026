@@ -52,9 +52,9 @@
 
   function renderSidebar() {
     // Popular listas ocultas (compatibilidade)
-    var grupos = { piloti:[], dentto:[], freelance:[] };
+    var grupos = { piloti:[], freelance:[] };
     _clientes.forEach(function(c){ if(grupos[c.agencia]) grupos[c.agencia].push(c); });
-    ['piloti','dentto','freelance'].forEach(function(ag) {
+    ['piloti','freelance'].forEach(function(ag) {
       var ul = document.getElementById('anu-lista-'+ag);
       if (!ul) return;
       ul.innerHTML = grupos[ag].map(function(c) {
@@ -65,8 +65,8 @@
     var sel = document.getElementById('anu-select-cliente');
     if (!sel) return;
     var atvId = _clienteAtivo ? _clienteAtivo.id : null;
-    var agencias = ['piloti','dentto','freelance'];
-    var labels = {piloti:'Piloti', dentto:'Dentto', freelance:'Freelance'};
+    var agencias = ['piloti','freelance'];
+    var labels = {piloti:'Piloti', freelance:'Freelance'};
     sel.innerHTML = '<option value="">— selecione —</option>';
     agencias.forEach(function(ag) {
       if (!grupos[ag].length) return;

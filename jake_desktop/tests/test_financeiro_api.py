@@ -39,14 +39,14 @@ def client_anonimo():
 # ── GET /api/financeiro/transacoes ──────────────────────────────────────────
 
 def test_listar_transacoes(client):
-    row = {"id": 1, "descricao": "Dentto", "valor": 4300.0,
+    row = {"id": 1, "descricao": "Piloti", "valor": 3250.0,
            "tipo": "Entrada", "categoria": "Fixa", "recorrente": True, "data": "2026-01-05"}
     with patch("app._get_db", return_value=_mock_conn(rows=[row])):
         resp = client.get("/api/financeiro/transacoes")
     assert resp.status_code == 200
     data = resp.get_json()
     assert isinstance(data, list)
-    assert data[0]["descricao"] == "Dentto"
+    assert data[0]["descricao"] == "Piloti"
 
 
 # ── POST /api/financeiro/transacoes ─────────────────────────────────────────
@@ -91,21 +91,21 @@ def test_deletar_transacao(client):
 # ── GET /api/financeiro/raiox ────────────────────────────────────────────────
 
 def test_get_raiox(client):
-    rows = [{"id": 1, "nome": "Dentto", "grupo": "entradas",
-             "valores": [4300,4950,4950,4950,4950,4950,4950,4950,4950,4950,4950,4950]}]
+    rows = [{"id": 1, "nome": "Piloti", "grupo": "entradas",
+             "valores": [3250,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500]}]
     with patch("app._get_db", return_value=_mock_conn(rows=rows)):
         resp = client.get("/api/financeiro/raiox")
     assert resp.status_code == 200
     data = resp.get_json()
     assert "entradas" in data and "fixas" in data and "variaveis" in data
-    assert data["entradas"][0]["nome"] == "Dentto"
+    assert data["entradas"][0]["nome"] == "Piloti"
 
 
 # ── PUT /api/financeiro/raiox ────────────────────────────────────────────────
 
 def test_salvar_raiox(client):
     payload = {
-        "entradas": [{"nome": "Dentto", "valores": [4300,4950,4950,4950,4950,4950,4950,4950,4950,4950,4950,4950]}],
+        "entradas": [{"nome": "Piloti", "valores": [3250,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500]}],
         "fixas": [],
         "variaveis": []
     }

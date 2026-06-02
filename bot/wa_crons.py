@@ -40,9 +40,6 @@ def _rotina_segunda():
     if not AUTHORIZED_NUMBER:
         return
 
-    import urllib.request
-    import xml.etree.ElementTree as ET
-
     destino = AUTHORIZED_NUMBER
 
     # 1. Performance Meta da semana anterior
@@ -92,42 +89,7 @@ def _rotina_segunda():
     else:
         linhas_meta.append("Nenhuma acao executada na semana.")
 
-    # 2. Notícias de IA (RSS)
-    noticias = []
-    feeds = [
-        "https://techcrunch.com/tag/artificial-intelligence/feed/",
-        "https://www.artificialintelligence-news.com/feed/",
-    ]
-    for feed_url in feeds:
-        try:
-            req = urllib.request.Request(feed_url, headers={"User-Agent": "Jake-IA/1.0"})
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                xml_data = resp.read()
-            root = ET.fromstring(xml_data)
-            for item in root.findall(".//item")[:3]:
-                titulo = item.findtext("title", "").strip()
-                if titulo:
-                    noticias.append(titulo)
-        except Exception:
-            pass
-        if len(noticias) >= 5:
-            break
-
-    if noticias:
-        prompt_noticias = (
-            "Você é Jake, assistente de tráfego pago do Bruno.\n"
-            "Filtre e resuma em 3-4 frases curtas (português) as notícias de IA abaixo "
-            "focando no que é relevante para um gestor de tráfego Meta Ads:\n\n"
-            + "\n".join(f"- {n}" for n in noticias)
-        )
-        try:
-            resumo_ia = _chamar_claude(prompt_noticias, "Resumo para gestor de tráfego:")
-        except Exception:
-            resumo_ia = "\n".join(f"• {n}" for n in noticias[:3])
-    else:
-        resumo_ia = "Nao consegui buscar noticias desta semana."
-
-    # 3. Financeiro
+    # 2. Financeiro
     try:
         from bot.whatsapp_handlers import resumo_financeiro_wa
         fin_linha = resumo_financeiro_wa()
@@ -140,81 +102,11 @@ def _rotina_segunda():
     msg = (
         f"Bom dia, Patrao! Segunda-feira {hoje} — aqui esta o seu briefing:\n\n"
         + "\n".join(linhas_meta)
-        + f"\n\n*IA & Trafego — novidades:*\n{resumo_ia}"
         + f"\n\n{fin_linha}"
         + "\n\nBoa semana!"
     )
     send_text(destino, msg)
     logger.info("_rotina_segunda: briefing enviado")
-
-
-def _noticias_diarias():
-    """
-    Roda todo dia às 7h35.
-    Busca as principais notícias de IA e marketing do dia via RSS,
-    filtra o que é relevante para gestor de tráfego Meta Ads e envia resumo.
-    """
-    if not AUTHORIZED_NUMBER:
-        return
-    try:
-        import urllib.request
-        import xml.etree.ElementTree as ET
-        from datetime import date as _date
-
-        feeds = [
-            "https://techcrunch.com/tag/artificial-intelligence/feed/",
-            "https://feeds.feedburner.com/socialmediaexaminer",
-            "https://www.searchenginejournal.com/feed/",
-            "https://www.jonloomer.com/feed/",
-            "https://www.artificialintelligence-news.com/feed/",
-        ]
-
-        noticias = []
-        for feed_url in feeds:
-            try:
-                req = urllib.request.Request(feed_url, headers={"User-Agent": "Jake-IA/1.0"})
-                with urllib.request.urlopen(req, timeout=8) as resp:
-                    xml_data = resp.read()
-                root = ET.fromstring(xml_data)
-                for item in root.findall(".//item")[:3]:
-                    titulo = item.findtext("title", "").strip()
-                    if titulo:
-                        noticias.append(titulo)
-            except Exception:
-                pass
-            if len(noticias) >= 8:
-                break
-
-        hoje = _date.today()
-        dias = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
-        dia_semana = dias[hoje.weekday()]
-
-        if noticias:
-            prompt = (
-                f"Você é Jake, assistente do Bruno — gestor de tráfego Meta Ads.\n"
-                f"Hoje é {dia_semana}, {hoje.strftime('%d/%m/%Y')}.\n"
-                "Com base nas notícias abaixo, selecione as 3 mais relevantes para quem "
-                "gerencia campanhas Meta Ads e agências de marketing digital no Brasil. "
-                "Para cada uma escreva: título adaptado ao contexto + 1 frase de impacto prático. "
-                "Formato: bullet point. Tom direto, sem enrolação, português.\n\n"
-                "Notícias disponíveis:\n"
-                + "\n".join(f"- {n}" for n in noticias)
-            )
-            try:
-                resumo = _chamar_claude(prompt, "Resumo IA & Marketing:")
-            except Exception:
-                resumo = "\n".join(f"• {n}" for n in noticias[:3])
-        else:
-            resumo = "Não consegui acessar os feeds hoje. Tente verificar manualmente."
-
-        msg = (
-            f"📰 *IA & Marketing — {dia_semana} {hoje.strftime('%d/%m')}*\n\n"
-            f"{resumo}"
-        )
-        send_text(AUTHORIZED_NUMBER, msg)
-        logger.info("_noticias_diarias: resumo enviado")
-    except Exception as e:
-        logger.error(f"_noticias_diarias error: {e}")
 
 
 def _rotina_quarta():
@@ -367,7 +259,6 @@ def _alerta_saldo_baixo():
     CARTAO = {"Maíra Castaldi", "RD Contabilidade"}
 
     alertas_piloti = []
-    alertas_dentto = []
 
     for conta in contas:
         try:
@@ -404,10 +295,7 @@ def _alerta_saldo_baixo():
                     continue
                 linha = f"  • {nome}: R${remaining:.2f} restante"
 
-            if agencia == "dentto":
-                alertas_dentto.append(linha)
-            else:
-                alertas_piloti.append(linha)
+            alertas_piloti.append(linha)
 
         except Exception:
             pass
@@ -415,13 +303,11 @@ def _alerta_saldo_baixo():
     partes = []
     if alertas_piloti:
         partes.append("🟠🟣 *Piloti:*\n" + "\n".join(alertas_piloti))
-    if alertas_dentto:
-        partes.append("🔵 *Dentto:*\n" + "\n".join(alertas_dentto))
 
     if partes:
         msg = "⚠️ *Saldo baixo — Contas Meta:*\n\n" + "\n\n".join(partes)
         send_text(AUTHORIZED_NUMBER, msg)
-        logger.info(f"_alerta_saldo_baixo: Piloti={len(alertas_piloti)} Dentto={len(alertas_dentto)}")
+        logger.info(f"_alerta_saldo_baixo: Piloti={len(alertas_piloti)}")
 
 
 def _enviar_resumo_gestor():
@@ -534,15 +420,6 @@ def configurar_scheduler() -> BackgroundScheduler:
         replace_existing=True,
     )
     logger.info("Agendado: auto-import financeiro no dia 1 de cada mes")
-
-    # Notícias diárias de IA & Marketing às 7h35
-    scheduler.add_job(
-        _noticias_diarias,
-        CronTrigger(hour=7, minute=35, timezone=SP_TZ),
-        id="noticias_diarias",
-        replace_existing=True,
-    )
-    logger.info("Agendado: noticias diarias IA & Marketing as 07:35")
 
     # Relatório financeiro toda sexta às 17h
     scheduler.add_job(
