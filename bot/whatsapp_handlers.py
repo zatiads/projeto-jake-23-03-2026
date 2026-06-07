@@ -333,7 +333,7 @@ def formatar_resumo_gestor(acoes: list, alertas: list, total_contas: int, varred
     from datetime import date as _date
     hoje = _date.today().strftime("%d/%m")
 
-    if not acoes and not alertas and not monitorando:
+    if not acoes and not alertas:
         return None
 
     linhas = [f"🤖 *Gestor IA — {hoje}*"]

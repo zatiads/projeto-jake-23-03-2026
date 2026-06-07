@@ -6,12 +6,12 @@
       {
         "id": "compras_segunda",
         "msg": "Fala galera! 🛒✨ Segunda chegou e eu vim fazer minha pergunta semanal favorita: o que tá faltando em casa? 👀\n\nJoga os itens aqui embaixo que eu guardo tudo. Quando quiserem a lista, é só o Bruno me pedir no privado! 😄",
-        "cron": "0 9 * * 1"
+        "cron": "0 9 * * mon"
       },
       {
         "id": "gastos_sexta",
         "msg": "Sexta-feira, pessoal! 🎉 Antes de entrar no modo fim de semana, bora registrar os gastos da semana? 💸\n\nJoga aqui o que vocês gastaram que eu anoto tudo. Assim a gente não chega no fim do mês perdido 😅📊",
-        "cron": "0 9 * * 5"
+        "cron": "0 9 * * fri"
       },
       {
         "id": "sofa_aviso",

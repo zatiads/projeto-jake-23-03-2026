@@ -254,6 +254,9 @@ def _alerta_saldo_baixo():
     }
     LIMITE_PADRAO = 300.0
 
+    # Clientes ignorados no alerta de saldo baixo (substring, case-insensitive)
+    IGNORAR = {"massaranduba", "tijucas", "ilhota", "vielife", "odontouberaba", "barra velha"}
+
     # Contas de cartão de crédito: não têm saldo pré-pago.
     # Se estiverem pausadas, o motivo é falta de pagamento — exibir isso.
     CARTAO = {"Maíra Castaldi", "RD Contabilidade"}
@@ -275,6 +278,8 @@ def _alerta_saldo_baixo():
             )
             data = resp.json()
             nome     = conta["nome"]
+            if any(ig in nome.lower() for ig in IGNORAR):
+                continue
             agencia  = (conta.get("agencia") or "piloti").lower()
             # account_status: 1=ativa, 2=desativada, 3=não paga (unsettled), 9=período de graça
             status   = int(data.get("account_status", 1))
@@ -420,15 +425,6 @@ def configurar_scheduler() -> BackgroundScheduler:
         replace_existing=True,
     )
     logger.info("Agendado: auto-import financeiro no dia 1 de cada mes")
-
-    # Relatório financeiro toda sexta às 17h
-    scheduler.add_job(
-        _rotina_sexta,
-        CronTrigger(day_of_week="fri", hour=17, minute=0, timezone=SP_TZ),
-        id="rotina_sexta",
-        replace_existing=True,
-    )
-    logger.info("Agendado: relatorio financeiro sexta as 17:00")
 
     # Check de quarta-feira às 7h30
     scheduler.add_job(
