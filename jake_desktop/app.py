@@ -9518,7 +9518,8 @@ if __name__ == "__main__":
                     # Gera PDF e envia via WhatsApp
                     try:
                         import sys as _sys
-                        _sys.path.insert(0, '/root')
+                        if '/root' not in _sys.path:
+                            _sys.path.insert(0, '/root')
                         from bot.whatsapp_handlers import send_document as _send_doc
                         pdf_bytes = _sb_gerar_pdf(html)
                         authorized_number = os.environ.get("WA_AUTHORIZED_NUMBER", "")

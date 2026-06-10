@@ -4,6 +4,7 @@ Sem estado global — todas as funções são puras ou usam conexões efêmeras.
 """
 import os
 import json
+import base64
 import logging
 from datetime import date, datetime
 
@@ -51,7 +52,6 @@ def send_text(jid: str, text: str) -> bool:
 
 def send_document(jid: str, pdf_bytes: bytes, filename: str, caption: str = "") -> bool:
     """Envia arquivo PDF para um JID via Evolution API. Retorna True se OK."""
-    import base64
     url = f"{_evo_base()}/message/sendMedia/{_wa_instance()}"
     number = jid.split("@")[0] if "@" in jid else jid
     pdf_b64 = base64.b64encode(pdf_bytes).decode()
@@ -287,8 +287,7 @@ def download_media_bytes(msg_key: dict, msg_content: dict) -> tuple[bytes, str] 
         if not b64:
             logger.error(f"download_media: sem base64 na resposta: {data}")
             return None
-        import base64 as _b64
-        return _b64.b64decode(b64), mimetype
+        return base64.b64decode(b64), mimetype
     except Exception as e:
         logger.error(f"download_media error: {e}")
         return None
