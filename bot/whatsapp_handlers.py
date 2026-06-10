@@ -48,6 +48,34 @@ def send_text(jid: str, text: str) -> bool:
         logger.error(f"send_text failed to {jid}: {e}")
         return False
 
+
+def send_document(jid: str, pdf_bytes: bytes, filename: str, caption: str = "") -> bool:
+    """Envia arquivo PDF para um JID via Evolution API. Retorna True se OK."""
+    import base64
+    url = f"{_evo_base()}/message/sendMedia/{_wa_instance()}"
+    number = jid.split("@")[0] if "@" in jid else jid
+    pdf_b64 = base64.b64encode(pdf_bytes).decode()
+    try:
+        resp = requests.post(
+            url,
+            headers={"apikey": _evo_key(), "Content-Type": "application/json"},
+            json={
+                "number": number,
+                "mediatype": "document",
+                "mimetype": "application/pdf",
+                "caption": caption,
+                "media": pdf_b64,
+                "fileName": filename,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return True
+    except Exception as e:
+        logger.error(f"send_document failed to {jid}: {e}")
+        return False
+
+
 # ── Histórico no DB ───────────────────────────────────────────────────────────
 
 def jid_to_chat_id(jid: str) -> int:
