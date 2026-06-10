@@ -36,3 +36,4 @@ venv/
 .npm/
 .superpowers/
 .worktrees/
+credenciais.json
