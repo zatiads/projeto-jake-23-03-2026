@@ -336,4 +336,28 @@
     if (url) navigator.clipboard.writeText(url).then(function () { alert('Link copiado!'); });
   };
 
+  window.sbExportarPDF = function () {
+    var btn = document.querySelector('[onclick="sbExportarPDF()"]');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando...'; }
+    fetch('/api/social-brief/exportar-pdf')
+      .then(function (r) {
+        if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Erro'); });
+        return r.blob();
+      })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'social-brief.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      })
+      .catch(function (e) { alert('Erro ao exportar PDF: ' + e.message); })
+      .finally(function () {
+        if (btn) { btn.disabled = false; btn.textContent = '📄 Exportar PDF'; }
+      });
+  };
+
 })();
