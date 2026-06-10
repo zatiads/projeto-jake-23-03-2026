@@ -458,10 +458,16 @@ from blueprints.nutricao import bp as bp_nutricao
 from blueprints.ingles import bp as bp_ingles
 from blueprints.social_brief import bp as bp_social_brief
 from blueprints.financeiro import bp as bp_financeiro
+from blueprints.criativos import bp as bp_criativos
+from blueprints.gestor import bp as bp_gestor
+from blueprints.dr import bp as bp_dr
 app.register_blueprint(bp_nutricao)
 app.register_blueprint(bp_ingles)
 app.register_blueprint(bp_social_brief)
 app.register_blueprint(bp_financeiro)
+app.register_blueprint(bp_criativos)
+app.register_blueprint(bp_gestor)
+app.register_blueprint(bp_dr)
 
 # ── Error handlers ────────────────────────────────────────────────────────────
 @app.errorhandler(404)
@@ -4373,8 +4379,6 @@ def _gestor_db():
     return _get_db()
 
 
-@app.route("/api/gestor/varreduras")
-@login_required
 def gestor_varreduras():
     """Lista execuções do gestor com status e contadores."""
     conn = None
@@ -4399,8 +4403,6 @@ def gestor_varreduras():
         except Exception: pass
 
 
-@app.route("/api/gestor/varreduras/<int:varredura_id>/resumo")
-@login_required
 def gestor_varredura_resumo(varredura_id):
     """Retorna resumo completo de uma varredura: cabeçalho + ações + alertas agrupados por conta."""
     conn = None
@@ -4455,8 +4457,6 @@ def gestor_varredura_resumo(varredura_id):
         except Exception: pass
 
 
-@app.route("/api/gestor/acoes")
-@login_required
 def gestor_acoes():
     """Lista ações com filtros opcionais: ?agencia=piloti&tipo=pausar_ad&cliente_id=5&limit=50"""
     agencia    = request.args.get("agencia")
@@ -4504,8 +4504,6 @@ def gestor_acoes():
         except Exception: pass
 
 
-@app.route("/api/gestor/reverter/<int:acao_id>", methods=["POST"])
-@login_required
 def gestor_reverter(acao_id):
     """Reverte uma ação individual pelo ID."""
     try:
@@ -4519,8 +4517,6 @@ def gestor_reverter(acao_id):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/gestor/reverter-evento/<int:varredura_id>", methods=["POST"])
-@login_required
 def gestor_reverter_evento(varredura_id):
     """Reverte todas as ações reversíveis de uma varredura."""
     conn = None
@@ -4557,8 +4553,6 @@ def gestor_reverter_evento(varredura_id):
             except Exception: pass
 
 
-@app.route("/api/gestor/rodar", methods=["POST"])
-@login_required
 def gestor_rodar():
     """Dispara varredura manual em background. Retorna 202 imediatamente."""
     import sys as _sys
@@ -4577,8 +4571,6 @@ def gestor_rodar():
     return jsonify({"ok": True, "msg": "Varredura iniciada em background"}), 202
 
 
-@app.route("/api/gestor/relatorios")
-@login_required
 def gestor_relatorios():
     """Lista PDFs gerados."""
     conn = None
@@ -4605,8 +4597,6 @@ def gestor_relatorios():
         except Exception: pass
 
 
-@app.route("/api/gestor/relatorios/<int:rel_id>/download")
-@login_required
 def gestor_relatorio_download(rel_id):
     """Download de um PDF pelo ID."""
     conn = None
@@ -4629,8 +4619,6 @@ def gestor_relatorio_download(rel_id):
         except Exception: pass
 
 
-@app.route("/api/gestor/contas")
-@login_required
 def gestor_contas():
     """Lista contas com saúde atual baseada nas últimas ações."""
     conn = None
@@ -4668,8 +4656,6 @@ def gestor_contas():
         except Exception: pass
 
 
-@app.route("/api/gestor/contas/<int:cliente_id>", methods=["PATCH"])
-@login_required
 def gestor_conta_patch(cliente_id):
     """Atualiza gestor_config_json ou gestor_ativo de uma conta."""
     d = request.get_json() or {}
@@ -6172,7 +6158,6 @@ def _replicate_headers():
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 
-@app.route("/api/criativos/upload-imagem", methods=["POST"])
 @login_required
 def criativos_upload_imagem():
     if "arquivo" not in request.files:
@@ -6219,7 +6204,6 @@ _CRIATIVOS_SYSTEM_PROMPT_KONTEXT = (
 )
 
 
-@app.route("/api/criativos/expandir-prompt", methods=["POST"])
 @login_required
 def criativos_expandir_prompt():
     d = request.get_json() or {}
@@ -6264,7 +6248,6 @@ def criativos_expandir_prompt():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/criativos/analisar-referencia", methods=["POST"])
 @login_required
 def criativos_analisar_referencia():
     d = request.get_json() or {}
@@ -6310,7 +6293,6 @@ def criativos_analisar_referencia():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/criativos/gerar-imagem", methods=["POST"])
 @login_required
 def criativos_gerar_imagem():
     d = request.get_json() or {}
@@ -6392,7 +6374,6 @@ def criativos_gerar_imagem():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/criativos/gerar-video", methods=["POST"])
 @login_required
 def criativos_gerar_video():
     d = request.get_json() or {}
@@ -6438,7 +6419,6 @@ def criativos_gerar_video():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/criativos/status/<prediction_id>")
 @login_required
 def criativos_status(prediction_id):
     import re as _re
@@ -6475,7 +6455,6 @@ def criativos_status(prediction_id):
         return jsonify({"status": "failed", "error": str(e)}), 500
 
 
-@app.route("/api/criativos/pastas", methods=["GET"])
 @login_required
 def criativos_listar_pastas():
     conn = _get_db()
@@ -6490,7 +6469,6 @@ def criativos_listar_pastas():
         conn.close()
 
 
-@app.route("/api/criativos/pastas", methods=["POST"])
 @login_required
 def criativos_criar_pasta():
     d = request.get_json() or {}
@@ -6511,7 +6489,6 @@ def criativos_criar_pasta():
         conn.close()
 
 
-@app.route("/api/criativos/pastas/<int:pid>", methods=["DELETE"])
 @login_required
 def criativos_deletar_pasta(pid):
     conn = _get_db()
@@ -6529,7 +6506,6 @@ def criativos_deletar_pasta(pid):
         conn.close()
 
 
-@app.route("/api/criativos/historico", methods=["GET"])
 @login_required
 def criativos_listar_historico():
     folder_id = request.args.get("folder_id")
@@ -6566,7 +6542,6 @@ def criativos_listar_historico():
         conn.close()
 
 
-@app.route("/api/criativos/historico", methods=["POST"])
 @login_required
 def criativos_salvar_historico():
     d = request.get_json() or {}
@@ -6598,7 +6573,6 @@ def criativos_salvar_historico():
         conn.close()
 
 
-@app.route("/api/criativos/custos")
 @login_required
 def criativos_custos():
     conn = _get_db()
@@ -6631,7 +6605,6 @@ def criativos_custos():
         conn.close()
 
 
-@app.route("/api/criativos/historico/<int:hid>", methods=["DELETE"])
 @login_required
 def criativos_deletar_historico(hid):
     conn = _get_db()
@@ -6647,7 +6620,6 @@ def criativos_deletar_historico(hid):
         conn.close()
 
 
-@app.route("/api/criativos/historico/<int:hid>/pasta", methods=["PATCH"])
 @login_required
 def criativos_mover_pasta(hid):
     d = request.get_json() or {}
@@ -9036,8 +9008,6 @@ def ingles_completar_licao():
 
 # ── DR: CRUD OFERTAS ──────────────────────────────────────────────────────────
 
-@app.route("/api/dr/ofertas", methods=["GET"])
-@login_required
 def dr_listar_ofertas():
     try:
         conn = _get_db()
@@ -9053,8 +9023,6 @@ def dr_listar_ofertas():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/dr/ofertas", methods=["POST"])
-@login_required
 def dr_criar_oferta():
     d = request.get_json() or {}
     if not d.get("nome"):
@@ -9077,8 +9045,6 @@ def dr_criar_oferta():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/dr/ofertas/<int:oid>", methods=["GET"])
-@login_required
 def dr_carregar_oferta(oid):
     try:
         conn = _get_db()
@@ -9093,8 +9059,6 @@ def dr_carregar_oferta(oid):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/dr/ofertas/<int:oid>", methods=["DELETE"])
-@login_required
 def dr_deletar_oferta(oid):
     try:
         conn = _get_db()
@@ -9107,8 +9071,6 @@ def dr_deletar_oferta(oid):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/dr/gerar-copy", methods=["POST"])
-@login_required
 def dr_gerar_copy():
     import json as _json
     d = request.get_json() or {}
@@ -9263,8 +9225,6 @@ Retorne APENAS o código HTML completo, começando com <!DOCTYPE html> e termina
 Sem texto antes ou depois, sem markdown, sem explicações."""
 
 
-@app.route("/api/dr/clonar-lp", methods=["POST"])
-@login_required
 def dr_clonar_lp():
     import json as _json
     d = request.get_json() or {}
@@ -9321,8 +9281,6 @@ def dr_clonar_lp():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/dr/gerar-lp", methods=["POST"])
-@login_required
 def dr_gerar_lp():
     import json as _json
     d = request.get_json() or {}
@@ -9374,8 +9332,6 @@ def dr_gerar_lp():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/dr/deploy-lp", methods=["POST"])
-@login_required
 def dr_deploy_lp():
     d = request.get_json() or {}
     html = d.get("html", "")
@@ -9424,8 +9380,6 @@ Retorne APENAS o código HTML completo começando com <!DOCTYPE html>.
 Sem texto antes ou depois, sem markdown."""
 
 
-@app.route("/api/dr/clonar-quiz", methods=["POST"])
-@login_required
 def dr_clonar_quiz():
     d = request.get_json() or {}
     url_original = d.get("url_original", "")
@@ -9478,8 +9432,6 @@ def dr_clonar_quiz():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/dr/deploy-quiz", methods=["POST"])
-@login_required
 def dr_deploy_quiz():
     d = request.get_json() or {}
     html = d.get("html", "")
