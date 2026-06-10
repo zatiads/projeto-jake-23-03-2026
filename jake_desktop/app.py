@@ -146,6 +146,7 @@ def _init_social_brief_tables():
                 meta_agency VARCHAR(50) DEFAULT 'piloti',
                 concorrentes TEXT[] DEFAULT '{}',
                 tipos_campanha JSONB DEFAULT '{}',
+                squad INT,
                 ativo BOOLEAN DEFAULT TRUE,
                 criado_em TIMESTAMP DEFAULT NOW()
             )
@@ -6999,8 +7000,10 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
     import html as _html_mod
     _e = _html_mod.escape
 
-    login_user = os.environ.get("SOCIAL_BRIEF_LOGIN", "social")
-    login_senha = os.environ.get("SOCIAL_BRIEF_SENHA", "piloti2026")
+    def _squad_sort_key(it):
+        s = it["cliente"].get("squad")
+        return (0 if s else 1, s if s else 0)
+    todos_dados = sorted(todos_dados, key=_squad_sort_key)
     primeiro_slug = todos_dados[0]["cliente"]["slug"] if todos_dados else "cliente"
 
     from datetime import date as _date_html
@@ -7008,12 +7011,19 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
 
     secoes_html = ""
     menu_items_html = ""
+    _cur_sq = object()  # sentinel para detectar mudança de squad
 
     for item in todos_dados:
         cl = item["cliente"]
         an = item["analise"]
         dm = item["dados_meta"]
         slug = cl["slug"]
+        sq = cl.get("squad")
+
+        if sq != _cur_sq:
+            _cur_sq = sq
+            label = f"Squad {sq}" if sq else "Geral"
+            menu_items_html += f'<div class="sidebar-section">{_e(label)}</div>'
 
         menu_items_html += (
             f'<a class="menu-item" data-slug="{_e(slug)}" href="#" '
@@ -7233,28 +7243,7 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
         'html{scroll-behavior:smooth;}'
         "body{font-family:'Barlow',sans-serif;background:#0D0D0D;color:#F5F5F0;overflow-x:hidden;}"
         'a{text-decoration:none;color:inherit;}'
-        '#tela-login{position:fixed;inset:0;background:#0D0D0D;display:flex;align-items:center;'
-        'justify-content:center;z-index:9999;}'
-        '.login-bg{position:absolute;inset:0;background-image:'
-        'linear-gradient(rgba(255,107,0,0.05) 1px,transparent 1px),'
-        'linear-gradient(90deg,rgba(255,107,0,0.05) 1px,transparent 1px);'
-        'background-size:60px 60px;}'
-        '.login-box{position:relative;z-index:1;width:360px;text-align:center;}'
-        ".login-kicker{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:5px;"
-        'text-transform:uppercase;color:#FF6B00;margin-bottom:16px;}'
-        ".login-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:52px;"
-        'text-transform:uppercase;letter-spacing:-1px;color:#F5F5F0;line-height:1;margin-bottom:32px;}'
-        '.login-line{width:40px;height:2px;background:#FF6B00;margin:0 auto 32px;}'
-        '.login-input{width:100%;background:#141414;border:1px solid rgba(255,107,0,0.3);border-radius:4px;'
-        "padding:14px 16px;font-size:14px;color:#F5F5F0;margin-bottom:12px;outline:none;font-family:'Barlow',sans-serif;}"
-        '.login-input::placeholder{color:#444;}'
-        '.login-input:focus{border-color:#FF6B00;}'
-        '.login-btn{width:100%;background:#FF6B00;color:#0D0D0D;border:none;border-radius:4px;padding:14px;'
-        "font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:3px;"
-        'text-transform:uppercase;cursor:pointer;transition:opacity .2s;}'
-        '.login-btn:hover{opacity:.85;}'
-        '#erro-login{display:none;color:#FF6B00;font-size:12px;margin-top:10px;letter-spacing:1px;}'
-        '#app{display:none;min-height:100vh;}'
+        '#app{min-height:100vh;}'
         '.sidebar{width:220px;background:#0a0a0a;border-right:1px solid rgba(255,107,0,0.15);'
         'padding:0;position:fixed;height:100vh;overflow-y:auto;left:0;top:0;display:flex;flex-direction:column;}'
         '.sidebar-logo{padding:24px 20px;border-bottom:1px solid #1a1a1a;}'
@@ -7270,10 +7259,6 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
         '.menu-item:hover{color:#F5F5F0;background:rgba(255,107,0,0.06);border-left-color:rgba(255,107,0,0.4);}'
         '.menu-item.ativo{color:#FF6B00;background:rgba(255,107,0,0.08);border-left-color:#FF6B00;}'
         '.sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid #1a1a1a;}'
-        '.btn-logout{background:transparent;color:#444;border:1px solid #2a2a2a;border-radius:3px;'
-        'padding:8px 16px;cursor:pointer;font-size:11px;letter-spacing:2px;text-transform:uppercase;'
-        "width:100%;font-family:'Barlow Condensed',sans-serif;font-weight:600;transition:all .2s;}"
-        '.btn-logout:hover{color:#FF6B00;border-color:#FF6B00;}'
         '.main-content{margin-left:220px;padding:32px;min-height:100vh;background:#0D0D0D;}'
         '@media(max-width:900px){'
         '.sidebar{display:none;}'
@@ -7289,57 +7274,23 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
         '<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">\n'
         f'<style>{css}</style>\n'
         '</head>\n<body>\n\n'
-        '<!-- LOGIN -->\n'
-        '<div id="tela-login">\n'
-        '  <div class="login-bg"></div>\n'
-        '  <div class="login-box">\n'
-        '    <div class="login-kicker">Piloti Agency</div>\n'
-        '    <div class="login-title">Social Brief</div>\n'
-        '    <div class="login-line"></div>\n'
-        '    <input id="inp-login" class="login-input" type="text" placeholder="Usuário" autocomplete="username" />\n'
-        '    <input id="inp-senha" class="login-input" type="password" placeholder="Senha"\n'
-        '      onkeydown="if(event.key===\'Enter\')tentarLogin()" autocomplete="current-password" />\n'
-        '    <button class="login-btn" onclick="tentarLogin()">Entrar</button>\n'
-        '    <div id="erro-login">Credenciais inválidas.</div>\n'
-        '  </div>\n'
-        '</div>\n\n'
         '<!-- APP -->\n'
-        '<div id="app">\n'
+        '<div id="app" style="display:flex;">\n'
         '  <div class="sidebar">\n'
         '    <div class="sidebar-logo">\n'
         '      <div class="sidebar-brand">Piloti</div>\n'
         '      <div class="sidebar-tagline">Social Brief Semanal</div>\n'
         '    </div>\n'
         f'    <div class="sidebar-week">📅 {_e(semana_inicio)} — {_e(semana_fim)}</div>\n'
-        '    <div class="sidebar-section">Clientes</div>\n'
         f'    {menu_items_html}\n'
         '    <div class="sidebar-footer">\n'
-        '      <button class="btn-logout" onclick="logout()">↩ Sair</button>\n'
+        f'      <div style="font-size:10px;color:#333;letter-spacing:1px;text-transform:uppercase;">Gerado em {hoje_str}</div>\n'
         '    </div>\n'
         '  </div>\n'
         f'  <div class="main-content">{secoes_html}</div>\n'
         '</div>\n\n'
         '<script>\n'
-        f'var LOGIN="{_e(login_user)}";var SENHA="{_e(login_senha)}";\n'
         f'var PRIMEIRO="{_e(primeiro_slug)}";\n'
-        'function tentarLogin(){{\n'
-        '  var u=document.getElementById("inp-login").value;\n'
-        '  var s=document.getElementById("inp-senha").value;\n'
-        '  if(u===LOGIN&&s===SENHA){{\n'
-        '    localStorage.setItem("piloti_brief_auth","ok");\n'
-        '    document.getElementById("tela-login").style.display="none";\n'
-        '    document.getElementById("app").style.display="flex";\n'
-        '    mostrarCliente(PRIMEIRO);\n'
-        '  }}else{{document.getElementById("erro-login").style.display="block";}}\n'
-        '}}\n'
-        'function verificarLogin(){{\n'
-        '  if(localStorage.getItem("piloti_brief_auth")==="ok"){{\n'
-        '    document.getElementById("tela-login").style.display="none";\n'
-        '    document.getElementById("app").style.display="flex";\n'
-        '    mostrarCliente(PRIMEIRO);\n'
-        '  }}\n'
-        '}}\n'
-        'function logout(){{localStorage.removeItem("piloti_brief_auth");location.reload();}}\n'
         'function mostrarCliente(slug){{\n'
         '  document.querySelectorAll(".cliente-secao").forEach(function(s){{s.style.display="none";}});\n'
         '  var el=document.getElementById("cliente-"+slug);if(el)el.style.display="block";\n'
@@ -7353,7 +7304,7 @@ def _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim):
         '    setTimeout(function(){{btn.innerHTML=o;}},2000);\n'
         '  }});\n'
         '}}\n'
-        'window.onload=function(){{verificarLogin();}};\n'
+        'window.onload=function(){{mostrarCliente(PRIMEIRO);}};\n'
         '</script>\n</body>\n</html>'
     )
     return html
@@ -7759,6 +7710,32 @@ def sb_exportar_pdf():
     filename = f"social-brief-{semana}.pdf"
     response = _make_response(pdf_bytes)
     response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@app.route("/api/social-brief/exportar-html", methods=["GET"])
+@login_required
+def sb_exportar_html():
+    """Retorna o HTML da última geração para download."""
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT html_completo, semana_inicio FROM social_brief_geracoes ORDER BY criado_em DESC LIMIT 1"
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row or not row["html_completo"]:
+        return jsonify({"error": "Nenhuma geração disponível. Gere o portal primeiro."}), 404
+
+    from flask import make_response as _make_response
+    semana = str(row["semana_inicio"]).replace("/", "-") if row["semana_inicio"] else "semana"
+    filename = f"social-brief-{semana}.html"
+    response = _make_response(row["html_completo"].encode("utf-8"))
+    response.headers["Content-Type"] = "text/html; charset=utf-8"
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 
