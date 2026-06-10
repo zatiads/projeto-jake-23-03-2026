@@ -7717,24 +7717,49 @@ def sb_exportar_pdf():
 @app.route("/api/social-brief/exportar-html", methods=["GET"])
 @login_required
 def sb_exportar_html():
-    """Retorna o HTML da última geração para download."""
+    """Regenera o HTML da última geração a partir dos dados salvos e retorna para download."""
     conn = _get_db()
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT html_completo, semana_inicio FROM social_brief_geracoes ORDER BY criado_em DESC LIMIT 1"
+            "SELECT id, semana_inicio, semana_fim FROM social_brief_geracoes ORDER BY criado_em DESC LIMIT 1"
         )
-        row = cur.fetchone()
+        geracao = cur.fetchone()
+        if not geracao:
+            return jsonify({"error": "Nenhuma geração disponível. Gere o portal primeiro."}), 404
+
+        cur.execute(
+            """SELECT sbd.analise_json, sbd.dados_meta, sbc.*
+               FROM social_brief_cliente_dados sbd
+               JOIN social_brief_clientes sbc ON sbc.id = sbd.cliente_id
+               WHERE sbd.geracao_id = %s
+               ORDER BY sbc.nome""",
+            (geracao["id"],)
+        )
+        rows = cur.fetchall()
     finally:
         conn.close()
 
-    if not row or not row["html_completo"]:
-        return jsonify({"error": "Nenhuma geração disponível. Gere o portal primeiro."}), 404
+    if not rows:
+        return jsonify({"error": "Dados da última geração não encontrados. Gere o portal novamente."}), 404
+
+    todos_dados = [
+        {
+            "cliente": {k: v for k, v in dict(r).items() if k not in ("analise_json", "dados_meta")},
+            "analise": r["analise_json"] or {},
+            "dados_meta": r["dados_meta"] or {},
+        }
+        for r in rows
+    ]
+
+    semana_inicio = geracao["semana_inicio"].strftime("%d/%m/%Y") if geracao["semana_inicio"] else ""
+    semana_fim = geracao["semana_fim"].strftime("%d/%m/%Y") if geracao["semana_fim"] else ""
+    html = _sb_gerar_html_portal(todos_dados, semana_inicio, semana_fim)
 
     from flask import make_response as _make_response
-    semana = str(row["semana_inicio"]).replace("/", "-") if row["semana_inicio"] else "semana"
+    semana = str(geracao["semana_inicio"]).replace("-", "") if geracao["semana_inicio"] else "semana"
     filename = f"social-brief-{semana}.html"
-    response = _make_response(row["html_completo"].encode("utf-8"))
+    response = _make_response(html.encode("utf-8"))
     response.headers["Content-Type"] = "text/html; charset=utf-8"
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
