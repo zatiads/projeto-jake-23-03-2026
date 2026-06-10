@@ -27,15 +27,14 @@ Novo objetivo: reativar na sidebar + substituir Surge por exportação de PDF ge
 
 ### Backend (`jake_desktop/app.py`)
 
-**Nova função** `_sb_gerar_pdf(todos_dados, semana_inicio, semana_fim) -> bytes`
-- Chama `_sb_gerar_html_portal()` (já existe) para obter o HTML
+**Nova função** `_sb_gerar_pdf(html: str) -> bytes`
+- Recebe HTML já renderizado como string
 - Converte para PDF via `weasyprint.HTML(string=html).write_pdf()`
 - Retorna bytes do PDF
 
 **Novo endpoint** `GET /api/social-brief/exportar-pdf`
-- Busca dados da última geração salva no banco (`social_brief_geracoes` + `social_brief_cliente_dados`)
-- Regera o HTML com os dados salvos
-- Gera PDF via `_sb_gerar_pdf()`
+- Lê coluna `html_completo` da última linha de `social_brief_geracoes` (coluna TEXT confirmada no schema)
+- Passa o HTML diretamente para `_sb_gerar_pdf(html)`
 - Retorna `application/pdf` com header `Content-Disposition: attachment; filename=social-brief-SEMANA.pdf`
 
 **Cron quarta às 8h** (em `_init_scheduler()`)
