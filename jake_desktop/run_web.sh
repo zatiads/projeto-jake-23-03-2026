@@ -1,5 +1,5 @@
 #!/bin/bash
+# Sobe o Jake OS em modo dev (fora do systemd).
+# Em produção, use: systemctl restart jake-ia
 cd "$(dirname "$0")"
-[ -f venv/bin/python ] || python3 -m venv venv
-venv/bin/pip install -q flask requests 2>/dev/null
-venv/bin/python app.py
+exec /root/venv/bin/python app.py
