@@ -9515,10 +9515,28 @@ if __name__ == "__main__":
                                 conn3.close()
                     except Exception as e:
                         print(f"[Social Brief] Erro ao publicar: {e}")
+                    # Gera PDF e envia via WhatsApp
+                    try:
+                        import sys as _sys
+                        _sys.path.insert(0, '/root')
+                        from bot.whatsapp_handlers import send_document as _send_doc
+                        pdf_bytes = _sb_gerar_pdf(html)
+                        authorized_number = os.environ.get("WA_AUTHORIZED_NUMBER", "")
+                        if authorized_number and pdf_bytes:
+                            semana_label = seg.strftime("%d/%m") + " a " + (seg + _tdj(days=6)).strftime("%d/%m/%Y")
+                            _send_doc(
+                                jid=authorized_number,
+                                pdf_bytes=pdf_bytes,
+                                filename=f"social-brief-{seg.strftime('%Y-%m-%d')}.pdf",
+                                caption=f"Social Brief — semana {semana_label}",
+                            )
+                            print(f"[Social Brief] PDF enviado via WhatsApp")
+                    except Exception as e:
+                        print(f"[Social Brief] Erro ao enviar PDF: {e}")
         _sched = _BGScheduler(timezone="America/Sao_Paulo")
-        _sched.add_job(_job_social_brief, "cron", day_of_week="mon", hour=8, minute=0)
+        _sched.add_job(_job_social_brief, "cron", day_of_week="wed", hour=8, minute=0)
         _sched.start()
-        print("[Social Brief] Agendador ativo — toda segunda às 08h")
+        print("[Social Brief] Agendador ativo — toda quarta às 08h")
     except Exception as _sched_err:
         print(f"[Social Brief] Aviso: agendador não iniciado — {_sched_err}")
     app.run(host="0.0.0.0", port=port, debug=debug)
