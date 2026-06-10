@@ -453,6 +453,31 @@ def _calcular_macros(objetivo, get, peso):
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.environ.get("SESSION_SECRET") or _secrets.token_hex(32)
 
+# ── Error handlers ────────────────────────────────────────────────────────────
+@app.errorhandler(404)
+def _err_404(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Rota não encontrada", "path": request.path}), 404
+    return redirect(url_for("login_page"))
+
+@app.errorhandler(405)
+def _err_405(e):
+    return jsonify({"error": "Método não permitido"}), 405
+
+@app.errorhandler(500)
+def _err_500(e):
+    import traceback as _tb
+    print(f"[500] {request.method} {request.path}\n{_tb.format_exc()}")
+    return jsonify({"error": "Erro interno do servidor. Verifique os logs."}), 500
+
+@app.errorhandler(Exception)
+def _err_unhandled(e):
+    import traceback as _tb
+    print(f"[UNHANDLED] {type(e).__name__}: {e}\n{_tb.format_exc()}")
+    if request.path.startswith("/api/"):
+        return jsonify({"error": f"{type(e).__name__}: {str(e)}"}), 500
+    return redirect(url_for("login_page"))
+
 # ── Credenciais de acesso ────────────────────────────────────────────────────
 _ADMIN_EMAIL    = os.environ.get("ADMIN_EMAIL",    "admin@jakeos.local")
 _ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Jake@2024!")
@@ -478,6 +503,93 @@ def login_page():
         return redirect(url_for("index"))
     error = request.args.get("error")
     return render_template("login.html", error=error)
+
+
+@app.route("/status")
+@login_required
+def status_page():
+    """Painel de saúde do sistema — verifica todas as integrações."""
+    import time as _time
+    checks = {}
+
+    # Banco de dados
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        conn.close()
+        checks["database"] = {"ok": True, "msg": "Neon/PostgreSQL conectado"}
+    except Exception as e:
+        checks["database"] = {"ok": False, "msg": str(e)}
+
+    # Anthropic
+    try:
+        key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        checks["anthropic"] = {"ok": bool(key), "msg": "API key presente" if key else "ANTHROPIC_API_KEY não configurada"}
+    except Exception as e:
+        checks["anthropic"] = {"ok": False, "msg": str(e)}
+
+    # OpenAI
+    try:
+        key = os.environ.get("OPENAI_API_KEY", "").strip()
+        checks["openai"] = {"ok": bool(key), "msg": "API key presente" if key else "OPENAI_API_KEY não configurada"}
+    except Exception as e:
+        checks["openai"] = {"ok": False, "msg": str(e)}
+
+    # Meta Ads
+    try:
+        token = os.environ.get("META_TOKEN_PILOTI", "").strip()
+        checks["meta_ads"] = {"ok": bool(token), "msg": "Token Piloti presente" if token else "META_TOKEN_PILOTI não configurado"}
+    except Exception as e:
+        checks["meta_ads"] = {"ok": False, "msg": str(e)}
+
+    # Evolution API (WhatsApp)
+    try:
+        import urllib.request as _ur
+        base = os.environ.get("EVOLUTION_BASE_URL", "http://localhost:8081")
+        req = _ur.Request(f"{base}/instance/fetchInstances",
+                          headers={"apikey": os.environ.get("EVOLUTION_API_KEY", "")})
+        with _ur.urlopen(req, timeout=3) as r:
+            checks["evolution_api"] = {"ok": r.status == 200, "msg": f"HTTP {r.status}"}
+    except Exception as e:
+        checks["evolution_api"] = {"ok": False, "msg": str(e)}
+
+    # APScheduler (cron Social Brief)
+    try:
+        sched_ok = "_sched" in dir() or any(
+            "APScheduler" in str(type(v)) for v in globals().values()
+        )
+        # Verifica via variável global do módulo
+        import sys as _sys_s
+        app_mod = _sys_s.modules.get("__main__") or _sys_s.modules.get("app")
+        sched = getattr(app_mod, "_sched", None)
+        if sched and sched.running:
+            jobs = sched.get_jobs()
+            next_run = jobs[0].next_run_time.strftime("%d/%m/%Y %H:%M") if jobs else "—"
+            checks["scheduler"] = {"ok": True, "msg": f"Ativo — próximo job: {next_run}"}
+        else:
+            checks["scheduler"] = {"ok": False, "msg": "APScheduler não está rodando"}
+    except Exception as e:
+        checks["scheduler"] = {"ok": False, "msg": f"Não verificável: {e}"}
+
+    # Replicate
+    try:
+        token = os.environ.get("REPLICATE_API_TOKEN", "").strip()
+        checks["replicate"] = {"ok": bool(token), "msg": "Token presente" if token else "REPLICATE_API_TOKEN não configurado"}
+    except Exception as e:
+        checks["replicate"] = {"ok": False, "msg": str(e)}
+
+    all_ok = all(v["ok"] for v in checks.values())
+    total_ok = sum(1 for v in checks.values() if v["ok"])
+    total = len(checks)
+
+    from datetime import datetime as _dt
+    return jsonify({
+        "status": "ok" if all_ok else "degradado",
+        "score": f"{total_ok}/{total}",
+        "timestamp": _dt.now().strftime("%d/%m/%Y %H:%M:%S"),
+        "checks": checks
+    })
 
 @app.route("/auth/login", methods=["POST"])
 def auth_login():
