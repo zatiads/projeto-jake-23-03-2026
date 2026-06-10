@@ -461,6 +461,10 @@ from blueprints.financeiro import bp as bp_financeiro
 from blueprints.criativos import bp as bp_criativos
 from blueprints.gestor import bp as bp_gestor
 from blueprints.dr import bp as bp_dr
+from blueprints.relatorios import bp as bp_relatorios
+from blueprints.performance import bp as bp_performance
+from blueprints.planejador import bp as bp_planejador
+from blueprints.rotina import bp as bp_rotina
 app.register_blueprint(bp_nutricao)
 app.register_blueprint(bp_ingles)
 app.register_blueprint(bp_social_brief)
@@ -468,6 +472,10 @@ app.register_blueprint(bp_financeiro)
 app.register_blueprint(bp_criativos)
 app.register_blueprint(bp_gestor)
 app.register_blueprint(bp_dr)
+app.register_blueprint(bp_relatorios)
+app.register_blueprint(bp_performance)
+app.register_blueprint(bp_planejador)
+app.register_blueprint(bp_rotina)
 
 # ── Error handlers ────────────────────────────────────────────────────────────
 @app.errorhandler(404)
@@ -1160,8 +1168,6 @@ _META_TOKENS = {
     "piloti": lambda: os.environ.get("META_TOKEN_PILOTI", "").strip(),
 }
 
-@app.route("/api/relatorios/insights/<agency>/<account_id>")
-@login_required
 def api_relatorios_insights(agency, account_id):
     if not _re.match(r'^act_\d+$', account_id):
         return jsonify({"error": "ID de conta inválido"}), 400
@@ -1305,8 +1311,6 @@ def api_relatorios_insights(agency, account_id):
         return jsonify({"error": str(exc)}), 500
 
 # ── API: Debug — action_types brutos de uma conta Meta ──────────────────────
-@app.route("/api/relatorios/debug/<agency>/<account_id>")
-@login_required
 def api_relatorios_debug(agency, account_id):
     import re as _re2
     if not _re2.match(r'^act_\d+$', account_id):
@@ -1421,8 +1425,6 @@ def _vault_salvar_snapshot(nome: str, metricas: dict, metricas_anterior: dict, d
         print(f"[Jake vault] erro ao salvar snapshot: {e}")
 
 # ── API: Análise IA para Relatórios ──────────────────────────────────────────
-@app.route("/api/relatorios/analise", methods=["POST"])
-@login_required
 def api_relatorios_analise():
     data              = request.get_json() or {}
     nome              = (data.get("nome") or "").strip()
@@ -1482,8 +1484,6 @@ def api_relatorios_analise():
 _perf_saldo_cache: dict = {}
 _PERF_SALDO_TTL = 1800  # 30 min
 
-@app.route("/api/performance/saldo/<agency>/<account_id>")
-@login_required
 def api_performance_saldo(agency, account_id):
     if not _re.match(r'^act_\d+$', account_id):
         return jsonify({"error": "ID de conta inválido"}), 400
@@ -1536,8 +1536,6 @@ def api_performance_saldo(agency, account_id):
 _alerta_sent_cache: dict = {}  # account_id -> timestamp último envio
 _ALERTA_TTL = 3600  # 1 hora
 
-@app.route("/api/performance/alerta-saldo", methods=["POST"])
-@login_required
 def api_performance_alerta_saldo():
     data       = request.get_json() or {}
     account_id = (data.get("account_id") or "").strip()
@@ -1616,8 +1614,6 @@ def _fetch_meta_period(account_id: str, token: str, since: str, until: str) -> d
     return _extract_insights_row(data[0])
 
 
-@app.route("/api/performance/semana-anterior/<agency>/<account_id>")
-@login_required
 def api_performance_semana_anterior(agency, account_id):
     if not _re.match(r'^act_\d+$', account_id):
         return jsonify({"error": "ID de conta inválido"}), 400
@@ -5739,8 +5735,6 @@ Regras:
 """
 
 
-@app.route("/api/planejador/interpretar", methods=["POST"])
-@login_required
 def planejador_interpretar():
     d        = request.get_json() or {}
     messages = d.get("messages", [])
@@ -5807,8 +5801,6 @@ def planejador_interpretar():
         return jsonify({"error": f"Erro ao interpretar: {e}"}), 500
 
 
-@app.route("/api/planejador/transcrever", methods=["POST"])
-@login_required
 def planejador_transcrever():
     audio_file = request.files.get("audio")
     if not audio_file or not audio_file.filename:
@@ -5828,8 +5820,6 @@ def planejador_transcrever():
         return jsonify({"error": f"Erro na transcrição: {e}"}), 500
 
 
-@app.route("/api/planejador/subir", methods=["POST"])
-@login_required
 def planejador_subir():
     """Fase 1: valida payload, armazena em memória, retorna token."""
     d = request.get_json() or {}
@@ -5893,8 +5883,6 @@ def planejador_subir():
     return jsonify({"token": token})
 
 
-@app.route("/api/planejador/subir/stream/<pl_token>")
-@login_required
 def planejador_subir_stream(pl_token):
     """Fase 2: SSE — baixa Drive, faz upload no Meta, cria campanha."""
     payload = _planejador_payloads.pop(pl_token, None)
@@ -6641,8 +6629,6 @@ def _open_browser_delayed(port, delay=2):
     time.sleep(delay)
     webbrowser.open(f"http://localhost:{port}")
 
-@app.route("/api/rotina/hoje", methods=["GET"])
-@login_required
 def rotina_hoje():
     from datetime import date
     today = date.today().isoformat()
@@ -6681,8 +6667,6 @@ def rotina_hoje():
         conn.close()
 
 
-@app.route("/api/rotina/check", methods=["POST"])
-@login_required
 def rotina_check():
     from datetime import date, timedelta
     data = request.get_json()
@@ -6728,8 +6712,6 @@ def rotina_check():
         conn.close()
 
 
-@app.route("/api/rotina/streaks", methods=["GET"])
-@login_required
 def rotina_streaks():
     conn = _get_db()
     try:
@@ -6748,8 +6730,6 @@ def rotina_streaks():
         conn.close()
 
 
-@app.route("/api/rotina/semana", methods=["GET"])
-@login_required
 def rotina_semana():
     from datetime import date, timedelta
     today = date.today()
@@ -6779,8 +6759,6 @@ def rotina_semana():
         conn.close()
 
 
-@app.route("/api/rotina/maconha", methods=["POST"])
-@login_required
 def rotina_maconha_post():
     from datetime import date
     data = request.get_json()
@@ -6803,8 +6781,6 @@ def rotina_maconha_post():
         conn.close()
 
 
-@app.route("/api/rotina/maconha/mes", methods=["GET"])
-@login_required
 def rotina_maconha_mes():
     from datetime import date
     today = date.today()

@@ -45,3 +45,14 @@ def openai_client():
     from openai import OpenAI
     key = os.environ.get("OPENAI_API_KEY", "").strip()
     return OpenAI(api_key=key) if key else None
+
+
+def get_meta_token(agency="piloti"):
+    """Retorna token Meta Ads para a agência especificada."""
+    tokens = {
+        "piloti": lambda: os.environ.get("META_TOKEN_PILOTI", "").strip(),
+    }
+    fn = tokens.get(agency)
+    if not fn:
+        return ""
+    return fn() or ""

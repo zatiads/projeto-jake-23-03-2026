@@ -6,20 +6,13 @@ import requests
 from flask import Blueprint, Response, jsonify, make_response, request
 from flask import stream_with_context
 
-from .shared import anthropic_client, get_db, login_required
+from .shared import anthropic_client, get_db, get_meta_token, login_required
 
 bp = Blueprint('social_brief', __name__)
 
 
-def _get_meta_token(agency="piloti"):
-    """Retorna token Meta Ads para a agência especificada."""
-    tokens = {
-        "piloti": lambda: os.environ.get("META_TOKEN_PILOTI", "").strip(),
-    }
-    fn = tokens.get(agency)
-    if not fn:
-        return ""
-    return fn() or ""
+# Alias for backward compat within this file
+_get_meta_token = get_meta_token
 
 
 # ── Social Brief — helpers de coleta ────────────────────────────────────────
