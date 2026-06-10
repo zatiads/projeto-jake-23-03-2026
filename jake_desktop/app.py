@@ -7382,6 +7382,18 @@ def _sb_publicar_surge(html):
     return f"https://{surge_url}"
 
 
+def _sb_gerar_pdf(html: str) -> bytes:
+    """Converte HTML do portal em PDF via weasyprint. Retorna bytes do PDF."""
+    try:
+        from weasyprint import HTML as _WP_HTML, CSS as _WP_CSS
+        # Ajuste de CSS para impressão: fundo colorido visível no PDF
+        print_css = _WP_CSS(string="@page { size: A4; margin: 10mm; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }")
+        pdf_bytes = _WP_HTML(string=html).write_pdf(stylesheets=[print_css])
+        return pdf_bytes
+    except Exception as e:
+        raise RuntimeError(f"Erro ao gerar PDF: {e}")
+
+
 # ── Social Brief — CRUD de clientes ─────────────────────────────────────────
 
 @app.route("/api/social-brief/clientes", methods=["GET"])
@@ -7716,6 +7728,36 @@ def sb_download_html(geracao_id):
         return resp
     finally:
         conn.close()
+
+
+@app.route("/api/social-brief/exportar-pdf", methods=["GET"])
+@login_required
+def sb_exportar_pdf():
+    """Gera PDF da última geração salva e retorna para download."""
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, html_completo, semana_inicio, semana_fim FROM social_brief_geracoes ORDER BY criado_em DESC LIMIT 1"
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row or not row["html_completo"]:
+        return jsonify({"error": "Nenhuma geração disponível. Gere o portal primeiro."}), 404
+
+    try:
+        pdf_bytes = _sb_gerar_pdf(row["html_completo"])
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
+
+    semana = str(row["semana_inicio"]).replace("/", "-") if row["semana_inicio"] else "semana"
+    filename = f"social-brief-{semana}.pdf"
+    response = make_response(pdf_bytes)
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 # ── NUTRIÇÃO: Rotas Perfis ────────────────────────────────────────────────────
