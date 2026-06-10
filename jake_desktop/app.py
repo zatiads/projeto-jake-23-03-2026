@@ -7749,12 +7749,15 @@ def sb_exportar_pdf():
 
     try:
         pdf_bytes = _sb_gerar_pdf(row["html_completo"])
-    except RuntimeError as e:
+    except Exception as e:
+        import traceback as _tb
+        print(f"[sb_exportar_pdf] ERRO: {e}\n{_tb.format_exc()}")
         return jsonify({"error": str(e)}), 500
 
+    from flask import make_response as _make_response
     semana = str(row["semana_inicio"]).replace("/", "-") if row["semana_inicio"] else "semana"
     filename = f"social-brief-{semana}.pdf"
-    response = make_response(pdf_bytes)
+    response = _make_response(pdf_bytes)
     response.headers["Content-Type"] = "application/pdf"
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
