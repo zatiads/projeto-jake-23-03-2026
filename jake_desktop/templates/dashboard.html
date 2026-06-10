@@ -251,7 +251,10 @@
           <span class="nav-icon">⬡</span>
           <span class="nav-label">Painel Inicial</span>
         </a>
-        <!-- Rotina e Social Brief desativados -->
+        <a class="nav-item" data-page="social-brief" href="#">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Social Brief</span>
+        </a>
 
         <a class="nav-item" data-page="financeiro" href="#">
           <span class="nav-icon">₿</span>
@@ -2088,6 +2091,7 @@
             <div class="sb-acoes">
               <button class="btn-neon" onclick="sbGerarPortal()">⚡ Gerar Portal</button>
               <button class="btn-outline" onclick="sbRepublicar()" title="Republica usando dados já salvos — sem rodar Meta Ads nem Claude">🔄 Republicar</button>
+              <button class="btn-outline" onclick="sbExportarPDF()" title="Baixar PDF da última geração">📄 Exportar PDF</button>
               <button class="btn-outline" onclick="sbAbrirModalCliente()">+ Novo Cliente</button>
             </div>
           </div>
