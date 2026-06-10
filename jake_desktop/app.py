@@ -9528,7 +9528,7 @@ if __name__ == "__main__":
                                 jid=authorized_number,
                                 pdf_bytes=pdf_bytes,
                                 filename=f"social-brief-{seg.strftime('%Y-%m-%d')}.pdf",
-                                caption=f"Social Brief — semana {semana_label}",
+                                caption=f"📊 Social Brief — semana {semana_label}",
                             )
                             print(f"[Social Brief] PDF enviado via WhatsApp")
                     except Exception as e:
