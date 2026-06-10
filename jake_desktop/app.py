@@ -456,8 +456,12 @@ app.secret_key = os.environ.get("SESSION_SECRET") or _secrets.token_hex(32)
 # ── Blueprints ────────────────────────────────────────────────────────────────
 from blueprints.nutricao import bp as bp_nutricao
 from blueprints.ingles import bp as bp_ingles
+from blueprints.social_brief import bp as bp_social_brief
+from blueprints.financeiro import bp as bp_financeiro
 app.register_blueprint(bp_nutricao)
 app.register_blueprint(bp_ingles)
+app.register_blueprint(bp_social_brief)
+app.register_blueprint(bp_financeiro)
 
 # ── Error handlers ────────────────────────────────────────────────────────────
 @app.errorhandler(404)
@@ -2307,7 +2311,6 @@ def api_carousel_generate_image():
 
 
 # ── API: Financeiro Pessoal — Análise IA ────────────────────────────────────
-@app.route("/api/financeiro/analise", methods=["POST"])
 @login_required
 def financeiro_analise():
     data = request.get_json(force=True) or {}
@@ -2416,7 +2419,6 @@ Seja específico com os números. Dê pelo menos 1 recomendação prática alinh
 
 # ── Financeiro: CRUD Transações ──────────────────────────────────────────────
 
-@app.route("/api/financeiro/transacoes", methods=["GET"])
 @login_required
 def financeiro_listar_transacoes():
     try:
@@ -2433,7 +2435,6 @@ def financeiro_listar_transacoes():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/financeiro/transacoes", methods=["POST"])
 @login_required
 def financeiro_criar_transacao():
     d = request.get_json() or {}
@@ -2457,7 +2458,6 @@ def financeiro_criar_transacao():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/financeiro/transacoes/<int:tid>", methods=["PUT"])
 @login_required
 def financeiro_atualizar_transacao(tid):
     d = request.get_json() or {}
@@ -2478,7 +2478,6 @@ def financeiro_atualizar_transacao(tid):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/financeiro/transacoes/<int:tid>", methods=["DELETE"])
 @login_required
 def financeiro_deletar_transacao(tid):
     try:
@@ -2494,7 +2493,6 @@ def financeiro_deletar_transacao(tid):
 
 # ── Financeiro: CRUD Raio-X ──────────────────────────────────────────────────
 
-@app.route("/api/financeiro/raiox", methods=["GET"])
 @login_required
 def financeiro_get_raiox():
     try:
@@ -2513,7 +2511,6 @@ def financeiro_get_raiox():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/financeiro/raiox", methods=["PUT"])
 @login_required
 def financeiro_salvar_raiox():
     d = request.get_json() or {}
@@ -2541,7 +2538,6 @@ def financeiro_salvar_raiox():
 _ATIVOS_VALIDOS = {"tesouro_selic", "cdb", "lci_lca", "ivvb11", "gold11"}
 
 
-@app.route("/api/financeiro/aportes", methods=["GET"])
 @login_required
 def financeiro_listar_aportes():
     try:
@@ -2561,7 +2557,6 @@ def financeiro_listar_aportes():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/financeiro/aportes", methods=["POST"])
 @login_required
 def financeiro_criar_aporte():
     d = request.get_json(force=True) or {}
@@ -2610,7 +2605,6 @@ def financeiro_criar_aporte():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/financeiro/aportes/<int:aid>", methods=["DELETE"])
 @login_required
 def financeiro_deletar_aporte(aid):
     try:
@@ -2649,7 +2643,6 @@ def _gerar_key_ativo(label):
     return ('custom_' + slug)[:50]
 
 
-@app.route("/api/financeiro/ativos", methods=["GET"])
 @login_required
 def financeiro_listar_ativos():
     try:
@@ -2668,7 +2661,6 @@ def financeiro_listar_ativos():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/financeiro/ativos", methods=["POST"])
 @login_required
 def financeiro_criar_ativo():
     d     = request.get_json(force=True) or {}
@@ -2711,7 +2703,6 @@ def financeiro_criar_ativo():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/financeiro/ativos/<string:key>", methods=["DELETE"])
 @login_required
 def financeiro_deletar_ativo(key):
     if key in _KEYS_FIXAS:
@@ -7465,7 +7456,6 @@ def _sb_gerar_pdf(html: str) -> bytes:
 
 # ── Social Brief — CRUD de clientes ─────────────────────────────────────────
 
-@app.route("/api/social-brief/clientes", methods=["GET"])
 @login_required
 def sb_clientes_list():
     conn = _get_db()
@@ -7483,7 +7473,6 @@ def sb_clientes_list():
         conn.close()
 
 
-@app.route("/api/social-brief/clientes", methods=["POST"])
 @login_required
 def sb_clientes_create():
     data = request.get_json()
@@ -7521,7 +7510,6 @@ def sb_clientes_create():
         conn.close()
 
 
-@app.route("/api/social-brief/clientes/<int:cid>", methods=["PUT"])
 @login_required
 def sb_clientes_update(cid):
     data = request.get_json()
@@ -7561,7 +7549,6 @@ def sb_clientes_update(cid):
         conn.close()
 
 
-@app.route("/api/social-brief/clientes/<int:cid>", methods=["DELETE"])
 @login_required
 def sb_clientes_delete(cid):
     conn = _get_db()
@@ -7579,7 +7566,6 @@ def sb_clientes_delete(cid):
         conn.close()
 
 
-@app.route("/api/social-brief/ultima-geracao", methods=["GET"])
 @login_required
 def sb_ultima_geracao():
     conn = _get_db()
@@ -7601,7 +7587,6 @@ def sb_ultima_geracao():
         conn.close()
 
 
-@app.route("/api/social-brief/gerar", methods=["GET"])
 @login_required
 def sb_gerar_portal():
     """Endpoint SSE: gera portal completo com todos os clientes ativos."""
@@ -7717,7 +7702,6 @@ def sb_gerar_portal():
     )
 
 
-@app.route("/api/social-brief/republicar", methods=["POST"])
 @login_required
 def sb_republicar():
     """Republica o portal usando os dados já salvos da última geração — sem chamar Meta Ads nem Claude."""
@@ -7777,7 +7761,6 @@ def sb_republicar():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/social-brief/download/<int:geracao_id>", methods=["GET"])
 @login_required
 def sb_download_html(geracao_id):
     """Permite baixar o HTML de uma geração específica."""
@@ -7799,7 +7782,6 @@ def sb_download_html(geracao_id):
         conn.close()
 
 
-@app.route("/api/social-brief/exportar-pdf", methods=["GET"])
 @login_required
 def sb_exportar_pdf():
     """Gera PDF da última geração salva e retorna para download."""
@@ -7832,7 +7814,6 @@ def sb_exportar_pdf():
     return response
 
 
-@app.route("/api/social-brief/exportar-html", methods=["GET"])
 @login_required
 def sb_exportar_html():
     """Regenera o HTML da última geração a partir dos dados salvos e retorna para download."""
