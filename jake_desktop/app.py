@@ -453,6 +453,12 @@ def _calcular_macros(objetivo, get, peso):
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.environ.get("SESSION_SECRET") or _secrets.token_hex(32)
 
+# ── Blueprints ────────────────────────────────────────────────────────────────
+from blueprints.nutricao import bp as bp_nutricao
+from blueprints.ingles import bp as bp_ingles
+app.register_blueprint(bp_nutricao)
+app.register_blueprint(bp_ingles)
+
 # ── Error handlers ────────────────────────────────────────────────────────────
 @app.errorhandler(404)
 def _err_404(e):
@@ -7877,11 +7883,10 @@ def sb_exportar_html():
     return response
 
 
-# ── NUTRIÇÃO: Rotas Perfis ────────────────────────────────────────────────────
+# ── NUTRIÇÃO ── movido para blueprints/nutricao.py ────────────────────────────
+# As rotas /api/nutricao/* estão registradas via app.register_blueprint(bp_nutricao)
 
-@app.route("/api/nutricao/perfis")
-@login_required
-def nutricao_get_perfis():
+def nutricao_get_perfis():  # stub — rota real no blueprint
     conn = _get_db()
     try:
         cur = conn.cursor()
@@ -7902,7 +7907,6 @@ def nutricao_get_perfis():
         conn.close()
 
 
-@app.route("/api/nutricao/perfis/<int:perfil_id>", methods=["POST"])
 @login_required
 def nutricao_update_perfil(perfil_id):
     data = request.get_json() or {}
@@ -7967,7 +7971,6 @@ def nutricao_update_perfil(perfil_id):
         conn.close()
 
 
-@app.route("/api/nutricao/gerar-cardapio", methods=["POST"])
 @login_required
 def nutricao_gerar_cardapio():
     import json as _json
@@ -8110,7 +8113,6 @@ Estrutura JSON obrigatória:
         conn.close()
 
 
-@app.route("/api/nutricao/cardapios")
 @login_required
 def nutricao_listar_cardapios():
     conn = _get_db()
@@ -8135,7 +8137,6 @@ def nutricao_listar_cardapios():
         conn.close()
 
 
-@app.route("/api/nutricao/cardapios/<int:cardapio_id>")
 @login_required
 def nutricao_get_cardapio(cardapio_id):
     import json as _json
@@ -8156,7 +8157,6 @@ def nutricao_get_cardapio(cardapio_id):
         conn.close()
 
 
-@app.route("/api/nutricao/cardapios/<int:cardapio_id>/aprovar", methods=["PATCH"])
 @login_required
 def nutricao_aprovar_cardapio(cardapio_id):
     conn = _get_db()
@@ -8178,7 +8178,6 @@ def nutricao_aprovar_cardapio(cardapio_id):
         conn.close()
 
 
-@app.route("/api/nutricao/cardapios/<int:cardapio_id>/editar-refeicao", methods=["PATCH"])
 @login_required
 def nutricao_editar_refeicao(cardapio_id):
     import json as _json
@@ -8223,7 +8222,6 @@ def nutricao_editar_refeicao(cardapio_id):
         conn.close()
 
 
-@app.route("/api/nutricao/lista-compras/<int:cardapio_id>", methods=["POST"])
 @login_required
 def nutricao_gerar_lista_compras(cardapio_id):
     import json as _json
@@ -8303,7 +8301,6 @@ Retorne JSON nessa estrutura:
         conn.close()
 
 
-@app.route("/api/nutricao/exportar-whatsapp/<int:cardapio_id>")
 @login_required
 def nutricao_exportar_whatsapp(cardapio_id):
     conn = _get_db()
@@ -8351,7 +8348,6 @@ def nutricao_exportar_whatsapp(cardapio_id):
         conn.close()
 
 
-@app.route("/api/nutricao/exportar-pdf/<int:cardapio_id>")
 @login_required
 def nutricao_exportar_pdf(cardapio_id):
     from html import escape as _he
@@ -8572,7 +8568,6 @@ Rules:
 Today's topic: {tema}"""
 
 
-@app.route("/api/ingles/palavra-do-dia")
 @login_required
 def ingles_palavra_do_dia():
     import datetime
@@ -8647,7 +8642,6 @@ def ingles_palavra_do_dia():
         conn.close()
 
 
-@app.route("/api/ingles/palavras-do-dia")
 @login_required
 def ingles_palavras_do_dia():
     import datetime
@@ -8723,7 +8717,6 @@ def ingles_palavras_do_dia():
         conn.close()
 
 
-@app.route("/api/ingles/palavra/audio")
 @login_required
 def ingles_palavra_audio():
     palavra = (request.args.get("palavra") or "").strip()
@@ -8741,7 +8734,6 @@ def ingles_palavra_audio():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/ingles/sessoes")
 @login_required
 def ingles_listar_sessoes():
     conn = _get_db()
@@ -8756,7 +8748,6 @@ def ingles_listar_sessoes():
         conn.close()
 
 
-@app.route("/api/ingles/sessoes", methods=["POST"])
 @login_required
 def ingles_criar_sessao():
     import datetime
@@ -8776,7 +8767,6 @@ def ingles_criar_sessao():
         conn.close()
 
 
-@app.route("/api/ingles/conversar/voz", methods=["POST"])
 @login_required
 def ingles_conversar_voz():
     import datetime, tempfile, os
@@ -8903,7 +8893,6 @@ def ingles_conversar_voz():
     })
 
 
-@app.route("/api/ingles/sessoes/<int:sid>/chat", methods=["POST"])
 @login_required
 def ingles_chat(sid):
     import datetime
@@ -8954,7 +8943,6 @@ def ingles_chat(sid):
 _INGLES_TIPOS_ATIVIDADE = {"word_studied", "audio_played", "message_sent"}
 
 
-@app.route("/api/ingles/atividade", methods=["POST"])
 @login_required
 def ingles_registrar_atividade():
     import datetime
@@ -8980,7 +8968,6 @@ def ingles_registrar_atividade():
         conn.close()
 
 
-@app.route("/api/ingles/progresso")
 @login_required
 def ingles_progresso():
     import datetime
@@ -9020,7 +9007,6 @@ def ingles_progresso():
         conn.close()
 
 
-@app.route("/api/ingles/trilha")
 @login_required
 def ingles_get_trilha():
     conn = _get_db()
@@ -9046,7 +9032,6 @@ def ingles_get_trilha():
     return jsonify(resultado)
 
 
-@app.route("/api/ingles/trilha/completar", methods=["POST"])
 @login_required
 def ingles_completar_licao():
     data = request.get_json() or {}
