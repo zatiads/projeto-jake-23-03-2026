@@ -151,7 +151,7 @@
     }
     .hero-img-wrap img {
       width: 100%; height: 110%;
-      object-fit: cover; object-position: center;
+      object-fit: cover; object-position: 70% 40%;
       display: block;
     }
     /* Placeholder quando não há imagem */
@@ -352,35 +352,41 @@
       border-radius: 4px; overflow: hidden; transition: all 0.3s;
     }
     .event-card:not(.esgotado):hover { border-color: var(--green); background: rgba(95,170,46,0.04); }
-    .event-card.esgotado { opacity: 0.4; }
+    .event-card.esgotado { opacity: 1; }
 
-    /* Fotos do evento */
-    .event-photos {
-      display: flex; gap: 3px;
-      height: 90px; overflow: hidden;
-    }
-    .event-photo {
-      flex: 1; overflow: hidden; position: relative;
+    /* Slider de fotos do evento */
+    .event-slider {
+      position: relative; height: 280px; overflow: hidden;
       background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid var(--border);
+    }
+    .event-slider img {
+      width: 100%; height: 100%; object-fit: cover; display: none;
+    }
+    .event-slider img.active { display: block; }
+    .slider-btn {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: rgba(0,0,0,0.55); border: none; color: #fff;
+      width: 36px; height: 36px; border-radius: 50%;
+      font-size: 1.3rem; cursor: pointer; z-index: 2;
       display: flex; align-items: center; justify-content: center;
-      transition: flex 0.3s;
+      transition: background 0.2s; line-height: 1;
     }
-    .event-photo:hover { flex: 2; }
-    .event-photo img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.4s; }
-    .event-photo:hover img { transform: scale(1.08); }
-    /* Placeholder de foto */
-    .event-photo-ph {
-      font-size: 10px; color: rgba(226,235,226,0.2);
-      letter-spacing: 1px; text-align: center; padding: 8px;
-      display: flex; flex-direction: column; align-items: center; gap: 4px;
+    .slider-btn:hover { background: rgba(95,170,46,0.85); }
+    .slider-prev { left: 10px; }
+    .slider-next { right: 10px; }
+    .slider-counter {
+      position: absolute; bottom: 8px; right: 12px;
+      font-size: 10px; color: rgba(255,255,255,0.75);
+      background: rgba(0,0,0,0.45); padding: 3px 9px; border-radius: 10px;
+      letter-spacing: 1px;
     }
-    .event-photo-ph span { font-size: 1.4rem; opacity: 0.4; }
-    /* Faixa "adicione fotos" quando nenhuma foto */
+    /* Faixa "fotos em breve" */
     .event-no-photo {
       width: 100%; background: rgba(255,255,255,0.02);
       border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: center;
-      height: 90px; gap: 8px;
+      height: 280px; gap: 8px;
       font-size: 11px; color: rgba(226,235,226,0.2); letter-spacing: 1px;
     }
 
@@ -650,9 +656,7 @@
          <img src="URL_DA_SUA_FOTO.jpg" alt="Flávio Pontes Trilhas" />
          ─────────────────────────────────────────────────────────── -->
     <div class="hero-img-wrap" id="heroImgWrap">
-      <div class="hero-img-placeholder">
-        <div class="ph-mountains">🏔</div>
-      </div>
+      <img src="img/hero.jpg" alt="Flávio Pontes Trilhas &amp; Turismo">
     </div>
 
     <div class="hero-overlay"></div>
@@ -844,16 +848,6 @@
     </div>
   </section>
 
-  <!-- ========== FAQ ========== -->
-  <section id="faq">
-    <div class="container">
-      <p class="section-tag" data-anim>Dúvidas frequentes</p>
-      <h2 class="section-title" data-anim data-delay="1">Perguntas <em>e respostas</em></h2>
-      <p class="section-desc" data-anim data-delay="2">Tire suas principais dúvidas antes de embarcar na aventura.</p>
-      <div class="faq-list" id="faqList"></div>
-    </div>
-  </section>
-
   <!-- ========== DEPOIMENTOS ========== -->
   <section class="dep" id="depoimentos">
     <div class="container">
@@ -870,6 +864,16 @@
           <button class="dep-btn" id="depNext" aria-label="Próximo">&#8594;</button>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ========== FAQ ========== -->
+  <section id="faq">
+    <div class="container">
+      <p class="section-tag" data-anim>Dúvidas frequentes</p>
+      <h2 class="section-title" data-anim data-delay="1">Perguntas <em>e respostas</em></h2>
+      <p class="section-desc" data-anim data-delay="2">Tire suas principais dúvidas antes de embarcar na aventura.</p>
+      <div class="faq-list" id="faqList"></div>
     </div>
   </section>
 
@@ -981,14 +985,14 @@
       { mes:'Julho',    ano:2026, data:'12/07',      nome:'Serra da Tormenta',                                   local:'Carmo do Rio Claro · MG',         tipo:'Bate e volta',               transporte:'Microônibus Executivo', vagas:'Vagas abertas',        esgotado:false, guias:'Prof. Flávio Pontes e equipe',                  fotos:[], saidaPocos:false },
       { mes:'Julho',    ano:2026, data:'18 e 19/07', nome:'Travessia Serra Negra',                               local:'Parque Nacional do Itatiaia · RJ', tipo:'1 pernoite em Pousada',      transporte:'Van Executiva Luxo',    vagas:'Esgotado',             esgotado:true,  guias:'Guia Leo Silva + Prof. Flávio Pontes',          fotos:[], saidaPocos:false },
       { mes:'Agosto',   ano:2026, data:'01/08',      nome:'Canion Eldorado',                                     local:'Sobradinho · MG',                 tipo:'Bate e volta',               transporte:'Van Executiva Luxo',    vagas:'Esgotado',             esgotado:true,  guias:'Guia Carlinhos + Prof. Flávio Pontes',          fotos:[], saidaPocos:false },
-      { mes:'Agosto',   ano:2026, data:'15 e 16/08', nome:'Ibitipoca — Janela do Céu + Circuito das Águas',     local:'Ibitipoca · MG',                  tipo:'1 pernoite em Hotel/Pousada', transporte:'Van Executiva Luxo',    vagas:'2 vagas disponíveis',  esgotado:false, guias:'Guia Jamaica + Prof. Flávio Pontes',            fotos:[], saidaPocos:false },
+      { mes:'Agosto',   ano:2026, data:'15 e 16/08', nome:'Ibitipoca — Janela do Céu + Circuito das Águas',     local:'Ibitipoca · MG',                  tipo:'1 pernoite em Hotel/Pousada', transporte:'Van Executiva Luxo',    vagas:'2 vagas disponíveis',  esgotado:false, guias:'Guia Jamaica + Prof. Flávio Pontes',            fotos:['img/ibitipoca_1.jpg','img/ibitipoca_2.jpg','img/ibitipoca_3.jpg','img/ibitipoca_4.jpg','img/ibitipoca_5.jpg'], saidaPocos:false },
       { mes:'Agosto',   ano:2026, data:'29 e 30/08', nome:'Serra da Canastra — Complexo do Luquinha',           local:'Serra da Canastra · MG',          tipo:'1 pernoite',                 transporte:'Van Executiva Luxo',    vagas:'2 vagas disponíveis',  esgotado:false, guias:'Guia Nenego + Prof. Flávio Pontes',             fotos:[], saidaPocos:false },
       { mes:'Setembro', ano:2026, data:'12/09',      nome:'Parte Baixa do Itatiaia',                             local:'Itatiaia · RJ',                   tipo:'Bate e volta',               transporte:'Microônibus Executivo', vagas:'10 vagas disponíveis', esgotado:false, guias:'Prof. Flávio Pontes e equipe',                  fotos:[], saidaPocos:false },
-      { mes:'Setembro', ano:2026, data:'19 e 20/09', nome:'Praias Selvagens',                                   local:'Rio de Janeiro · RJ',             tipo:'2 dias',                     transporte:'Ônibus Semi Leito',     vagas:'Esgotado',             esgotado:true,  guias:'Guia Leo Silva + Prof. Flávio Pontes',          fotos:[], saidaPocos:true  },
-      { mes:'Outubro',  ano:2026, data:'10 e 11/10', nome:'Pedra da Gávea',                                     local:'Rio de Janeiro · RJ',             tipo:'1 pernoite',                 transporte:'Microônibus',           vagas:'17 vagas disponíveis', esgotado:false, guias:'Guia Leo Silva + Prof. Flávio Pontes',          fotos:[], saidaPocos:false },
+      { mes:'Setembro', ano:2026, data:'19 e 20/09', nome:'Praias Selvagens',                                   local:'Rio de Janeiro · RJ',             tipo:'2 dias',                     transporte:'Ônibus Semi Leito',     vagas:'Esgotado',             esgotado:true,  guias:'Guia Leo Silva + Prof. Flávio Pontes',          fotos:['img/praias_1.jpg','img/praias_2.jpg','img/praias_3.jpg','img/praias_4.jpg','img/praias_5.jpg'], saidaPocos:true  },
+      { mes:'Outubro',  ano:2026, data:'10 e 11/10', nome:'Pedra da Gávea',                                     local:'Rio de Janeiro · RJ',             tipo:'1 pernoite',                 transporte:'Microônibus',           vagas:'17 vagas disponíveis', esgotado:false, guias:'Guia Leo Silva + Prof. Flávio Pontes',          fotos:['img/gavea_1.jpg','img/gavea_2.jpg','img/gavea_3.jpg','img/gavea_4.jpg'], saidaPocos:false },
       { mes:'Outubro',  ano:2026, data:'17 e 18/10', nome:'Cavernas de Petar',                                  local:'PETAR · SP',                      tipo:'1 pernoite',                 transporte:'Microônibus',           vagas:'10 vagas disponíveis', esgotado:false, guias:'Guia Sandra + Prof. Flávio Pontes',             fotos:[], saidaPocos:false },
       { mes:'Novembro', ano:2026, data:'29 e 30/11', nome:'City Tour RJ — Cristo + Arco da Lapa',              local:'Rio de Janeiro · RJ',             tipo:'1 pernoite',                 transporte:'Microônibus Executivo', vagas:'30 vagas disponíveis', esgotado:false, guias:'Guia Leo Silva + Prof. Flávio Pontes',          fotos:[], saidaPocos:false },
-      { mes:'Março',    ano:2027, data:'07 e 08/03', nome:'Serra da Canastra — Paraíso Selvagem + Campo Claro', local:'Campo Claro · MG',                tipo:'1 pernoite',                 transporte:'Van Executiva Luxo',    vagas:'19 vagas disponíveis', esgotado:false, guias:'Guia Anderson Jacob + Prof. Flávio Pontes',     fotos:[], saidaPocos:true  }
+      { mes:'Março',    ano:2027, data:'07 e 08/03', nome:'Serra da Canastra — Paraíso Selvagem + Campo Claro', local:'Campo Claro · MG',                tipo:'1 pernoite',                 transporte:'Van Executiva Luxo',    vagas:'19 vagas disponíveis', esgotado:false, guias:'Guia Anderson Jacob + Prof. Flávio Pontes',     fotos:['img/canastra_1.jpg','img/canastra_2.jpg','img/canastra_3.jpg','img/canastra_4.jpg','img/canastra_5.jpg'], saidaPocos:true  }
     ];
 
     function waLink(nome, data) {
@@ -999,12 +1003,14 @@
       if (!fotos || !fotos.length) {
         return '<div class="event-no-photo">📸 Fotos em breve</div>';
       }
-      var html = '<div class="event-photos">';
-      fotos.slice(0, 5).forEach(function (url) {
-        html += '<div class="event-photo"><img src="' + url + '" alt="" loading="lazy"></div>';
-      });
-      html += '</div>';
-      return html;
+      var list = fotos.slice(0, 5);
+      var imgs = list.map(function (url, i) {
+        return '<img src="' + url + '" alt="" loading="lazy" class="' + (i === 0 ? 'active' : '') + '">';
+      }).join('');
+      var arrows = list.length > 1
+        ? '<button class="slider-btn slider-prev">&#8249;</button><button class="slider-btn slider-next">&#8250;</button><div class="slider-counter">1 / ' + list.length + '</div>'
+        : '';
+      return '<div class="event-slider" data-cur="0" data-total="' + list.length + '">' + imgs + arrows + '</div>';
     }
 
     function buildAgenda() {
@@ -1026,17 +1032,11 @@
           var c = document.createElement('div');
           c.className = 'event-card' + (ev.esgotado ? ' esgotado' : '');
 
-          var vagasBadge = ev.esgotado
-            ? '<div class="vagas-badge esgotado-badge">❌ Vagas Esgotadas</div>'
-            : '<div class="vagas-badge disponivel">🔥 ' + ev.vagas + '</div>';
-
           var saidaPocos = ev.saidaPocos
             ? '<span>📌 <span class="saida-pocos">Saída Poços + Varginha</span></span>'
             : '';
 
-          var botao = ev.esgotado
-            ? '<div class="badge-esgotado">Vagas Esgotadas</div>'
-            : '<a class="btn-wa" href="' + waLink(ev.nome, ev.data) + '" target="_blank">' + WA_SVG + 'Consultar disponibilidade</a>';
+          var botao = '<a class="btn-wa" href="' + waLink(ev.nome, ev.data) + '" target="_blank">' + WA_SVG + 'Consultar disponibilidade</a>';
 
           c.innerHTML =
             buildFotos(ev.fotos) +
@@ -1050,7 +1050,6 @@
                 '<span>🧢 ' + ev.guias + '</span>' +
                 saidaPocos +
               '</div>' +
-              vagasBadge +
               botao +
             '</div>';
           grid.appendChild(c);
@@ -1208,9 +1207,28 @@
       window.addEventListener('resize', function () { buildDots(); goTo(0); });
     }
 
+    function initSliders() {
+      document.querySelectorAll('.event-slider[data-total]').forEach(function (sl) {
+        var total = parseInt(sl.dataset.total);
+        if (total <= 1) return;
+        var imgs = sl.querySelectorAll('img');
+        var counter = sl.querySelector('.slider-counter');
+        var cur = 0;
+        function goTo(n) {
+          imgs[cur].classList.remove('active');
+          cur = (n + total) % total;
+          imgs[cur].classList.add('active');
+          counter.textContent = (cur + 1) + ' / ' + total;
+        }
+        sl.querySelector('.slider-prev').addEventListener('click', function (e) { e.stopPropagation(); goTo(cur - 1); });
+        sl.querySelector('.slider-next').addEventListener('click', function (e) { e.stopPropagation(); goTo(cur + 1); });
+      });
+    }
+
     buildAgenda();
     buildFaq();
     buildDep();
+    initSliders();
   </script>
 </body>
 </html>

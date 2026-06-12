@@ -465,6 +465,10 @@ from blueprints.relatorios import bp as bp_relatorios
 from blueprints.performance import bp as bp_performance
 from blueprints.planejador import bp as bp_planejador
 from blueprints.rotina import bp as bp_rotina
+from blueprints.prompts import bp as bp_prompts
+from blueprints.site_architect import bp as bp_site_architect
+from blueprints.carousel import bp as bp_carousel
+from blueprints.anuncios import bp as bp_anuncios
 app.register_blueprint(bp_nutricao)
 app.register_blueprint(bp_ingles)
 app.register_blueprint(bp_social_brief)
@@ -476,6 +480,10 @@ app.register_blueprint(bp_relatorios)
 app.register_blueprint(bp_performance)
 app.register_blueprint(bp_planejador)
 app.register_blueprint(bp_rotina)
+app.register_blueprint(bp_prompts)
+app.register_blueprint(bp_site_architect)
+app.register_blueprint(bp_carousel)
+app.register_blueprint(bp_anuncios)
 
 # ── Error handlers ────────────────────────────────────────────────────────────
 @app.errorhandler(404)
@@ -925,8 +933,6 @@ def _anthropic_client():
     key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     return _anthropic.Anthropic(api_key=key) if key else None
 
-@app.route("/api/carousel/copy", methods=["POST"])
-@login_required
 def api_carousel_copy():
     data  = request.get_json() or {}
     theme = (data.get("theme") or "").strip()
@@ -1946,8 +1952,6 @@ Após o usuário responder, gere o prompt final:
 - Fora dos JSONs, pode conversar normalmente — o texto será exibido como mensagem normal"""
 
 
-@app.route("/api/prompts/sessoes", methods=["GET"])
-@login_required
 def prompts_listar_sessoes():
     conn = _get_db()
     try:
@@ -1964,8 +1968,6 @@ def prompts_listar_sessoes():
         conn.close()
 
 
-@app.route("/api/prompts/sessoes", methods=["POST"])
-@login_required
 def prompts_criar_sessao():
     conn = _get_db()
     try:
@@ -1983,8 +1985,6 @@ def prompts_criar_sessao():
         conn.close()
 
 
-@app.route("/api/prompts/sessoes/<int:sid>/mensagens", methods=["GET"])
-@login_required
 def prompts_listar_mensagens(sid):
     conn = _get_db()
     try:
@@ -2002,8 +2002,6 @@ def prompts_listar_mensagens(sid):
         conn.close()
 
 
-@app.route("/api/prompts/sessoes/<int:sid>/chat", methods=["POST"])
-@login_required
 def prompts_chat(sid):
     d = request.get_json() or {}
     user_msg = (d.get("message") or "").strip()
@@ -2064,8 +2062,6 @@ def prompts_chat(sid):
         conn.close()
 
 
-@app.route("/api/prompts/sessoes/<int:sid>/titulo", methods=["PATCH"])
-@login_required
 def prompts_atualizar_titulo(sid):
     d = request.get_json() or {}
     titulo = (d.get("titulo") or "").strip()
@@ -2087,8 +2083,6 @@ def prompts_atualizar_titulo(sid):
         conn.close()
 
 
-@app.route("/api/prompts/sessoes/<int:sid>", methods=["DELETE"])
-@login_required
 def prompts_deletar_sessao(sid):
     conn = _get_db()
     try:
@@ -2219,8 +2213,6 @@ def _generate_flux(prompt: str, token: str, style_suffix: str | None = None) -> 
     raise RuntimeError("Flux: timeout após polling.")
 
 # ── Geração de imagens (apenas Replicate / Flux 1.1 Pro) ─────────────────────
-@app.route("/api/carousel/generate-image", methods=["POST"])
-@login_required
 def api_carousel_generate_image():
     data         = request.get_json() or {}
     prompt       = (data.get("prompt") or "").strip()
@@ -2797,8 +2789,6 @@ def _anthropic_client_46():
     return _anthropic.Anthropic(api_key=key) if key else None
 
 
-@app.route("/api/site-architect/generate", methods=["POST"])
-@login_required
 def api_site_arch_generate():
     """
     Gera uma landing page completa (HTML+Tailwind) a partir de:
@@ -2970,8 +2960,6 @@ def api_site_arch_generate():
         return jsonify({"error": str(exc)}), 500
 
 
-@app.route("/api/site-architect/refine", methods=["POST"])
-@login_required
 def api_site_arch_refine():
     """
     Recebe o HTML atual + uma instrução de chat e devolve
@@ -3022,8 +3010,6 @@ def api_site_arch_refine():
         return jsonify({"error": str(exc)}), 500
 
 
-@app.route("/api/site-architect/export", methods=["POST"])
-@login_required
 def api_site_arch_export():
     """
     Exporta o HTML atual como um index.html pronto para deploy.
@@ -3038,8 +3024,6 @@ def api_site_arch_export():
     return jsonify({"filename": "index.html", "html": html})
 
 
-@app.route("/api/site-architect/export-react", methods=["POST"])
-@login_required
 def api_site_arch_export_react():
     """
     Converte o HTML em um componente React simples (TSX) usando dangerouslySetInnerHTML.
@@ -3141,8 +3125,6 @@ def _deploy_to_vercel(project_name: str, index_html: str) -> tuple[bool, str, di
         return False, f"Falha na chamada para a Vercel: {exc}", {}
 
 
-@app.route("/api/site-architect/deploy", methods=["POST"])
-@login_required
 def api_site_arch_deploy():
     """
     Cria um deploy estático na Vercel com base em um index.html.
@@ -3179,8 +3161,6 @@ def api_site_arch_deploy():
 #  ABA SUBIR ANÚNCIOS — CRUD de perfis de clientes
 # ══════════════════════════════════════════════════════════════════════════
 
-@app.route("/api/anuncios/clientes", methods=["GET"])
-@login_required
 def anuncios_listar_clientes():
     try:
         conn = _get_db()
@@ -3199,8 +3179,6 @@ def anuncios_listar_clientes():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/clientes", methods=["POST"])
-@login_required
 def anuncios_criar_cliente():
     d = request.get_json() or {}
     obrigatorios = ["nome", "agencia", "account_id", "token_key", "localizacao_json"]
@@ -3239,8 +3217,6 @@ def anuncios_criar_cliente():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/clientes/<int:cid>", methods=["PUT"])
-@login_required
 def anuncios_atualizar_cliente(cid):
     d = request.get_json() or {}
     if "token_key" in d and d["token_key"] not in _VALID_TOKEN_KEYS:
@@ -3279,8 +3255,6 @@ def anuncios_atualizar_cliente(cid):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/clientes/<int:cid>/publicos-salvos", methods=["GET"])
-@login_required
 def anuncios_clientes_publicos_salvos(cid):
     """Lista públicos salvos da conta Meta do cliente."""
     try:
@@ -3312,8 +3286,6 @@ def anuncios_clientes_publicos_salvos(cid):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/clientes/<int:cid>", methods=["DELETE"])
-@login_required
 def anuncios_deletar_cliente(cid):
     try:
         conn = _get_db()
@@ -3330,8 +3302,6 @@ def anuncios_deletar_cliente(cid):
 #  ABA SUBIR ANÚNCIOS — CRUD de públicos salvos
 # ══════════════════════════════════════════════════════════════════════════
 
-@app.route("/api/anuncios/audiences")
-@login_required
 def audiences_listar():
     account_id = request.args.get("account_id", "").strip() or None
     try:
@@ -3346,8 +3316,6 @@ def audiences_listar():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/audiences", methods=["POST"])
-@login_required
 def audiences_criar():
     d = request.get_json() or {}
     for f in ("nome", "account_id", "token_key", "targeting_json"):
@@ -3371,8 +3339,6 @@ def audiences_criar():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/audiences/<int:aid>", methods=["PUT"])
-@login_required
 def audiences_atualizar(aid):
     d = request.get_json() or {}
     campos, valores = [], []
@@ -3397,8 +3363,6 @@ def audiences_atualizar(aid):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/audiences/<int:aid>", methods=["DELETE"])
-@login_required
 def audiences_deletar(aid):
     try:
         conn = _get_db(); cur = conn.cursor()
@@ -3409,8 +3373,6 @@ def audiences_deletar(aid):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/audiences/importar", methods=["POST"])
-@login_required
 def audiences_importar():
     d = request.get_json() or {}
     account_id = d.get("account_id", "").strip()
@@ -3477,8 +3439,6 @@ def audiences_importar():
 #  ABA SUBIR ANÚNCIOS — Meta API (campanhas, upload, copy, publicar)
 # ══════════════════════════════════════════════════════════════════════════
 
-@app.route("/api/anuncios/pages")
-@login_required
 def anuncios_listar_pages():
     token_key = request.args.get("token_key", "META_ACCESS_TOKEN")
     if token_key not in _VALID_TOKEN_KEYS:
@@ -3494,8 +3454,6 @@ def anuncios_listar_pages():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/campanhas/<account_id>")
-@login_required
 def anuncios_listar_campanhas(account_id):
     token_key = request.args.get("token_key", "META_ACCESS_TOKEN")
     if token_key not in _VALID_TOKEN_KEYS:
@@ -3510,8 +3468,6 @@ def anuncios_listar_campanhas(account_id):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/campanha/<campaign_id>/status", methods=["PATCH"])
-@login_required
 def anuncios_campanha_status(campaign_id):
     """Pausa ou ativa uma campanha Meta. Body: {status: 'PAUSED'|'ACTIVE', token_key: '...'}"""
     d         = request.get_json() or {}
@@ -3545,8 +3501,6 @@ def anuncios_campanha_status(campaign_id):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/lote/drive-download", methods=["POST"])
-@login_required
 def anuncios_lote_drive_download():
     """Baixa arquivo de link público do Drive, faz upload para Meta e retorna creative_ref."""
     import re as _re
@@ -3627,8 +3581,6 @@ def anuncios_lote_drive_download():
     return jsonify({"creative_ref": creative_ref, "mime": mime_base, "file_id": file_id, "ok": True})
 
 
-@app.route("/api/anuncios/wa/subir", methods=["POST"])
-@login_required
 def anuncios_wa_subir():
     """Endpoint para Jake WhatsApp: baixa Drive, salva tmp, prepara mc_token para stream."""
     import re as _re_wa
@@ -3782,8 +3734,6 @@ def anuncios_wa_subir():
     return jsonify({"mc_token": mc_token, "clientes": len(clientes), "tipo": mime_base})
 
 
-@app.route("/api/anuncios/upload-criativo", methods=["POST"])
-@login_required
 def anuncios_upload_criativo():
     import re as _re
     tmp_uuid_val = request.form.get("tmp_uuid", "").strip()
@@ -3840,8 +3790,6 @@ def anuncios_upload_criativo():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/copy", methods=["POST"])
-@login_required
 def anuncios_gerar_copy():
     d            = request.get_json() or {}
     imagem_b64   = d.get("imagem_base64", "")
@@ -3912,8 +3860,6 @@ def anuncios_gerar_copy():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/anuncios/publicar", methods=["POST"])
-@login_required
 def anuncios_publicar():
     d                 = request.get_json() or {}
     cliente_id        = d.get("cliente_id")
@@ -4053,8 +3999,6 @@ def anuncios_publicar():
 #  ABA SUBIR ANÚNCIOS — Multi-Cliente
 # ══════════════════════════════════════════════════════════════════════════
 
-@app.route("/api/anuncios/multi-cliente/upload-temp", methods=["POST"])
-@login_required
 def anuncios_multi_cliente_upload_temp():
     """Salva o criativo em /tmp e retorna tmp_uuid. Upload real para cada conta ocorre na stream."""
     if "criativo" not in request.files:
@@ -4086,8 +4030,6 @@ def anuncios_multi_cliente_upload_temp():
     return jsonify({"tmp_uuid": tmp_uuid_val, "ext": ext, "mime": mime, "ok": True})
 
 
-@app.route("/api/anuncios/multi-cliente/preparar", methods=["POST"])
-@login_required
 def anuncios_multi_cliente_preparar():
     """Valida payload, busca perfis dos clientes, armazena em memória, retorna token + dados para revisão."""
     d = request.get_json() or {}
@@ -4179,8 +4121,6 @@ def anuncios_multi_cliente_preparar():
     return jsonify({"token": mc_token, "clientes": clientes_revisao})
 
 
-@app.route("/api/anuncios/multi-cliente/stream/<mc_token>")
-@login_required
 def anuncios_multi_cliente_stream(mc_token):
     """Para cada cliente: faz upload da imagem na conta dele, cria campanha+conjunto+anúncio via SSE."""
     payload = _lote_payloads.pop(mc_token, None)
@@ -4712,8 +4652,6 @@ def _drive_download(file_id: str, timeout: int = 30) -> bytes:
     return resp.content
 
 
-@app.route("/api/anuncios/drive/listar", methods=["POST"])
-@login_required
 def drive_listar():
     """Lista arquivos de imagem de uma pasta pública do Google Drive."""
     d = request.get_json() or {}
@@ -4764,8 +4702,6 @@ def drive_listar():
     return jsonify({"files": files, "total": len(files)})
 
 
-@app.route("/api/anuncios/drive/thumb/<file_id>")
-@login_required
 def drive_thumb(file_id):
     """Proxy de thumbnail — baixa via API key e repassa ao browser com cache."""
     try:
@@ -4777,8 +4713,6 @@ def drive_thumb(file_id):
         return str(e), 404
 
 
-@app.route("/api/anuncios/drive/publicos")
-@login_required
 def drive_publicos():
     """Lista públicos salvos + custom audiences de um cliente para seleção no wizard."""
     cliente_id = request.args.get("cliente_id")
@@ -4837,8 +4771,6 @@ def drive_publicos():
     return jsonify({"publicos": result})
 
 
-@app.route("/api/anuncios/drive/campanhas")
-@login_required
 def drive_campanhas():
     """Busca campanhas ativas/pausadas de um cliente para seleção na UI."""
     cliente_id = request.args.get("cliente_id")
@@ -4890,8 +4822,6 @@ def drive_campanhas():
     return jsonify({"campanhas": campanhas})
 
 
-@app.route("/api/anuncios/drive/iniciar-copies", methods=["POST"])
-@login_required
 def drive_iniciar_copies():
     """Armazena lista de arquivos em memória e retorna token para o stream de geração de copies."""
     d = request.get_json() or {}
@@ -4955,8 +4885,6 @@ _COPY_PROMPTS = {
 }
 
 
-@app.route("/api/anuncios/drive/gerar-copies/stream/<copies_token>")
-@login_required
 def drive_gerar_copies_stream(copies_token):
     """SSE: para cada arquivo do Drive, baixa, gera copy com Claude Vision, emite evento."""
     payload = _lote_payloads.pop(copies_token, None)
@@ -5070,8 +4998,6 @@ def drive_gerar_copies_stream(copies_token):
     )
 
 
-@app.route("/api/anuncios/drive/preparar", methods=["POST"])
-@login_required
 def drive_preparar():
     """Valida payload completo, verifica arquivos tmp, armazena em memória, retorna token."""
     d             = request.get_json() or {}
@@ -5179,8 +5105,6 @@ def drive_preparar():
     })
 
 
-@app.route("/api/anuncios/drive/stream/<db_token>")
-@login_required
 def drive_stream(db_token):
     """SSE: para cada cliente, cria campanha+conjuntos+anúncios no Meta Ads."""
     payload = _lote_payloads.pop(db_token, None)
@@ -5386,8 +5310,6 @@ def drive_stream(db_token):
 #  ABA SUBIR ANÚNCIOS — Builder de Lote
 # ══════════════════════════════════════════════════════════════════════════
 
-@app.route("/api/anuncios/publicar-lote", methods=["POST"])
-@login_required
 def anuncios_publicar_lote():
     """Etapa 1: valida payload, armazena em memória, retorna lote_token."""
     d = request.get_json() or {}
@@ -5400,8 +5322,6 @@ def anuncios_publicar_lote():
     return jsonify({"lote_token": lote_token})
 
 
-@app.route("/api/anuncios/publicar-lote/stream/<lote_token>")
-@login_required
 def anuncios_publicar_lote_stream(lote_token):
     """Etapa 2: processa lote sequencialmente via SSE."""
     payload = _lote_payloads.pop(lote_token, None)
@@ -5571,8 +5491,6 @@ def anuncios_publicar_lote_stream(lote_token):
     )
 
 
-@app.route("/api/anuncios/preview-url", methods=["POST"])
-@login_required
 def anuncios_preview_url():
     """Baixa URL externa, detecta tipo, salva em /tmp, retorna tmp_uuid."""
     d = request.get_json() or {}
@@ -5617,8 +5535,6 @@ def anuncios_preview_url():
         return jsonify({"error": f"Não foi possível acessar a URL: {e}"}), 400
 
 
-@app.route("/api/anuncios/tmp-preview/<tmp_uuid_val>")
-@login_required
 def anuncios_tmp_preview(tmp_uuid_val):
     """Serve arquivo temporário de preview."""
     import re
@@ -5631,8 +5547,6 @@ def anuncios_tmp_preview(tmp_uuid_val):
     return send_file(matches[0])
 
 
-@app.route("/api/anuncios/copy-lote", methods=["POST"])
-@login_required
 def anuncios_copy_lote():
     """Gera N copies via Claude para o lote."""
     import re

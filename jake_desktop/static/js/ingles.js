@@ -395,9 +395,9 @@
         '</div>' +
         '<button class="ing-licao-btn' + (isAtiva ? ' active-lesson' : '') + '" ' +
         'onclick="ingPraticarLicao(' + m.id + ',' + l.id + ',' +
-        '\'' + esc(l.titulo).replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\',' +
-        '\'' + esc(l.cenario).replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\',' +
-        '\'' + esc(l.objetivo).replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')">' +
+        '\'' + jsStr(l.titulo) + '\',' +
+        '\'' + jsStr(l.cenario) + '\',' +
+        '\'' + jsStr(l.objetivo) + '\')">' +
         (isAtiva ? '\u25B6 Praticando' : (done ? '\u21A9 Repetir' : '\u25B6 Praticar')) +
         '</button>' +
         '</div>';
@@ -475,6 +475,18 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  // Para valores dentro de strings JS em atributos onclick (HTML double-quoted)
+  function jsStr(s) {
+    return String(s || '')
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\r/g, '')
+      .replace(/\n/g, ' ')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/"/g, '&quot;');
   }
 
 })();
