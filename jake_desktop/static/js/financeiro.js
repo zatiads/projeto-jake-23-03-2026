@@ -218,7 +218,7 @@
     ]).then(function(resultados) {
       TRANSACOES = resultados[0];
       var raiox   = resultados[1];
-      if (raiox && raiox.entradas) RAIOX = raiox;
+      if (raiox && (raiox.entradas||[]).length + (raiox.fixas||[]).length + (raiox.variaveis||[]).length > 0) RAIOX = raiox;
       var msg = document.getElementById('fin-loading-msg');
       if (msg) msg.remove();
       atualizarTudo();
