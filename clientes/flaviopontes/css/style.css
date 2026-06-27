@@ -614,7 +614,7 @@ section { padding: 100px 0; }
   .nav, .btn-nav { display: none; }
   .menu-toggle { display: flex; }
   .sobre-grid { grid-template-columns: 1fr; }
-  .sobre-img-wrap { aspect-ratio: 16/9; }
+  .sobre-img-wrap { aspect-ratio: 3/4; max-width: 380px; margin: 0 auto; }
   .dest-grid { grid-template-columns: 1fr; }
   .steps { grid-template-columns: repeat(2, 1fr); }
   .dep-grid { grid-template-columns: repeat(2, 1fr); }
