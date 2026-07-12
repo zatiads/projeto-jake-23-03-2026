@@ -180,7 +180,7 @@ section { padding: 100px 0; }
 }
 
 .hero-content { position: relative; z-index: 1; padding-top: 120px; padding-bottom: 60px; }
-.hero-logo { height: 100px; width: auto; margin-bottom: 24px; border-radius: 6px; }
+.hero-logo { height: 220px; width: auto; margin-bottom: 20px; display: block; filter: drop-shadow(0 4px 20px rgba(0,0,0,0.6)); }
 .hero-eyebrow {
   display: flex; align-items: center; gap: 14px;
   font-size: 10px; font-weight: 600; letter-spacing: 4px;
@@ -628,4 +628,5 @@ section { padding: 100px 0; }
   .exp-grid { grid-template-columns: 1fr 1fr; }
   .steps { grid-template-columns: 1fr 1fr; }
   .dep-grid { grid-template-columns: 1fr; }
+  .hero-logo { height: auto; width: 85vw; max-width: 340px; }
 }

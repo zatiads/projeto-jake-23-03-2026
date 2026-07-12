@@ -109,7 +109,7 @@
   var MESES_LABEL = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
   // ── ESTADO ─────────────────────────────────────────────────────────────────
-  var mesSelecionado = new Date().getMonth() + 1;
+  var mesSelecionado = 7; // julho — mês atual de trabalho
   var anoSelecionado = new Date().getFullYear();
   var chartBarras    = null;
   var chartDonut     = null;
@@ -217,11 +217,19 @@
 
     Promise.all([
       fetch('/api/financeiro/transacoes').then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }),
-      fetch('/api/financeiro/raiox').then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      fetch('/api/financeiro/raiox').then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }),
+      fetch('/api/financeiro/saldo-mensal').then(function(r){ return r.ok ? r.json() : []; }),
+      fetch('/api/financeiro/empresa').then(function(r){ return r.ok ? r.json() : []; }),
+      fetch('/api/financeiro/investido').then(function(r){ return r.ok ? r.json() : []; })
     ]).then(function(resultados) {
       TRANSACOES = resultados[0];
       var raiox   = resultados[1];
+      var saldos  = resultados[2];
+      EMPRESA_RX  = resultados[3] || [];
+      var investidos = resultados[4] || [];
       if (raiox && (raiox.entradas||[]).length + (raiox.fixas||[]).length + (raiox.variaveis||[]).length > 0) RAIOX = raiox;
+      if (Array.isArray(saldos)) saldos.forEach(function(d){ SALDO_OVERRIDE[String(d.mes)] = d.saldo; });
+      if (Array.isArray(investidos)) investidos.forEach(function(d){ INVESTIDO[String(d.mes)] = d.valor; });
       var msg = document.getElementById('fin-loading-msg');
       if (msg) msg.remove();
       atualizarTudo();
@@ -247,6 +255,7 @@
         if (tab === 'visao-geral')  { renderCharts(); renderRaioX(); }
         if (tab === 'projecoes')    { renderGraficoLinha(); atualizarProjecoes(); }
         if (tab === 'milhao')       { initProjetoMilhao(); }
+        if (tab === 'empresa')      { setTimeout(function(){ if(window._carregarEmpresa) window._carregarEmpresa(); }, 50); }
       });
     });
 
@@ -336,6 +345,9 @@
     html += renderRaioXAddLinha('entradas', 'entrada');
     html += renderRaioXTotalLinha('TOTAL RECEITAS', totais.receitas, 'fin-rx-total fin-rx-total-entrada');
 
+    // ── EMPRESA PJ (logo após receitas) — sempre dinâmico via totais.receitas
+    html += renderRaioXPJLinhas(EMPRESA_RX, totais);
+
     // ── DESPESAS FIXAS
     html += '<tr class="fin-rx-section-header fin-rx-sec-saida"><td colspan="14">↓ DESPESAS FIXAS</td></tr>';
     RAIOX.fixas.forEach(function(item, idx) {
@@ -355,7 +367,15 @@
     // ── RESUMO
     html += '<tr class="fin-rx-section-header fin-rx-sec-resumo"><td colspan="14">◈ RESUMO</td></tr>';
     html += renderRaioXSaldoLinha('SALDO MENSAL', totais.saldo);
-    html += renderRaioXAcumLinha('ACUMULADO', totais.acumulado);
+    var saldoEfetivo = totais.saldo.map(function(v, i) {
+      var mes = i + 1;
+      return (mes < mesSelecionado && SALDO_OVERRIDE.hasOwnProperty(String(mes))) ? SALDO_OVERRIDE[String(mes)] : v;
+    });
+    var acumEfetivo = [];
+    var acumRun = 0;
+    saldoEfetivo.forEach(function(v) { acumRun += v; acumEfetivo.push(acumRun); });
+    html += renderRaioXAcumLinha('ACUMULADO', acumEfetivo);
+    html += renderRaioXInvestidoLinha();
 
     html += '</tbody>';
     table.innerHTML = html;
@@ -394,6 +414,62 @@
         renderRaioX();
         atualizarKPIs();
         atualizarProjecoes();
+      });
+    });
+
+    // Editar acumulado (clique zera ou ajusta)
+    table.querySelectorAll('.fin-rx-acum-edit').forEach(function(td) {
+      td.addEventListener('click', function() {
+        var mes = parseInt(this.dataset.mes);
+        var acumAtual = parseFloat(this.dataset.acum) || 0;
+        var meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        var novo = prompt('Acumulado ao final de ' + meses[mes-1] + '/2026 (R$):\nDigite 0 para zerar.', acumAtual);
+        if (novo === null) return;
+        var novoAcum = parseFloat(String(novo).replace(',','.'));
+        if (isNaN(novoAcum)) return;
+        // Calcula saldo necessário: acum_novo - acum_mes_anterior
+        var acumAnterior = 0;
+        if (mes > 1) {
+          var prevCell = table.querySelector('.fin-rx-acum-cell[data-mes="' + (mes-1) + '"]');
+          if (prevCell) acumAnterior = parseFloat(prevCell.dataset.acum) || 0;
+        }
+        var saldoNecessario = novoAcum - acumAnterior;
+        salvarSaldoOverride(mes, saldoNecessario);
+        renderRaioX();
+        atualizarKPIs();
+        atualizarProjecoes();
+      });
+    });
+
+    // Editar saldo mensal (meses passados)
+    table.querySelectorAll('.fin-rx-saldo-edit').forEach(function(td) {
+      td.addEventListener('click', function() {
+        var mes = parseInt(this.dataset.mes);
+        var meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        var atual = SALDO_OVERRIDE.hasOwnProperty(String(mes)) ? SALDO_OVERRIDE[String(mes)] : '';
+        var novo = prompt('Saldo real de ' + meses[mes-1] + '/2026 (R$):\nDeixe 0 para mês zerado.', atual);
+        if (novo === null) return;
+        var val = parseFloat(String(novo).replace(',','.'));
+        if (isNaN(val)) return;
+        salvarSaldoOverride(mes, val);
+        renderRaioX();
+        atualizarKPIs();
+        atualizarProjecoes();
+      });
+    });
+
+    // Editar investido real no mês
+    table.querySelectorAll('.fin-rx-investido-edit').forEach(function(td) {
+      td.addEventListener('click', function() {
+        var mes = parseInt(this.dataset.mes);
+        var meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        var atual = INVESTIDO.hasOwnProperty(String(mes)) ? INVESTIDO[String(mes)] : 0;
+        var novo = prompt('Valor investido em ' + meses[mes-1] + '/2026 (R$):\nDigite 0 para zerar.', atual);
+        if (novo === null) return;
+        var val = parseFloat(String(novo).replace(',','.'));
+        if (isNaN(val)) return;
+        salvarInvestido(mes, val);
+        renderRaioX();
       });
     });
 
@@ -495,12 +571,58 @@
     return html;
   }
 
+  var SALDO_OVERRIDE = {}; // { "1": 0, "2": 0, ... }
+  var INVESTIDO = {};      // { "1": 0, "2": 0, ... } — valor real investido por mês
+  var EMPRESA_RX = []; // dados PJ para o Raio-X
+
+  function carregarSaldoOverride(cb) {
+    fetch('/api/financeiro/saldo-mensal')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (Array.isArray(data)) {
+          data.forEach(function(d){ SALDO_OVERRIDE[String(d.mes)] = d.saldo; });
+        }
+        if (cb) cb();
+      }).catch(function(){ if (cb) cb(); });
+  }
+
+  function salvarInvestido(mes, valor) {
+    INVESTIDO[String(mes)] = valor;
+    fetch('/api/financeiro/investido/' + mes, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ valor: valor, ano: 2026 })
+    }).catch(function(e){ console.error('Investido:', e); });
+  }
+
+  function salvarSaldoOverride(mes, valor) {
+    SALDO_OVERRIDE[String(mes)] = valor;
+    fetch('/api/financeiro/saldo-mensal/' + mes, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ saldo: valor, ano: 2026 })
+    }).catch(function(e){ console.error('Saldo override:', e); });
+  }
+
   function renderRaioXSaldoLinha(label, arr) {
-    var total = arr.reduce(function(s,v){ return s+v; }, 0);
+    var mesAtual = mesSelecionado;
+    var saldos = arr.map(function(v, i) {
+      var mes = i + 1;
+      return (mes < mesAtual && SALDO_OVERRIDE.hasOwnProperty(String(mes)))
+        ? SALDO_OVERRIDE[String(mes)]
+        : v;
+    });
+    var total = saldos.reduce(function(s,v){ return s+v; }, 0);
     var html  = '<tr class="fin-rx-saldo-row"><td class="fin-rx-nome">' + label + '</td>';
-    arr.forEach(function(v) {
+    saldos.forEach(function(v, i) {
+      var mes = i + 1;
       var cls = v >= 0 ? 'fin-rx-pos' : 'fin-rx-neg';
-      html += '<td class="fin-rx-saldo-cell ' + cls + '">' + (v < 0 ? '-' : '+') + fmtRx(Math.abs(v)) + '</td>';
+      var editavel = mes < mesAtual;
+      if (editavel) {
+        html += '<td class="fin-rx-saldo-cell ' + cls + ' fin-rx-saldo-edit" data-mes="' + mes + '" title="Clique para ajustar saldo de ' + mes + '/2026" style="cursor:pointer">' + (v < 0 ? '-' : '+') + fmtRx(Math.abs(v)) + '</td>';
+      } else {
+        html += '<td class="fin-rx-saldo-cell ' + cls + '">' + (v < 0 ? '-' : '+') + fmtRx(Math.abs(v)) + '</td>';
+      }
     });
     var tcls = total >= 0 ? 'fin-rx-pos' : 'fin-rx-neg';
     html += '<td class="fin-rx-saldo-cell ' + tcls + '">' + (total < 0 ? '-' : '+') + fmtRx(Math.abs(total)) + '</td></tr>';
@@ -508,14 +630,132 @@
   }
 
   function renderRaioXAcumLinha(label, arr) {
+    var mesAtual = mesSelecionado;
     var html = '<tr class="fin-rx-acum-row"><td class="fin-rx-nome">' + label + '</td>';
-    arr.forEach(function(v) {
+    arr.forEach(function(v, i) {
+      var mes = i + 1;
       var cls = v >= 0 ? 'fin-rx-acum-pos' : 'fin-rx-acum-neg';
-      html += '<td class="fin-rx-acum-cell ' + cls + '">' + fmtRx(v) + '</td>';
+      var editavel = mes < mesAtual;
+      if (editavel) {
+        html += '<td class="fin-rx-acum-cell ' + cls + ' fin-rx-acum-edit" data-mes="' + mes + '" data-acum="' + v + '" style="cursor:pointer" title="Clique para ajustar acumulado de ' + mes + '/2026">' + fmtRx(v) + '</td>';
+      } else {
+        html += '<td class="fin-rx-acum-cell ' + cls + '" data-mes="' + mes + '" data-acum="' + v + '">' + fmtRx(v) + '</td>';
+      }
     });
     var last = arr[arr.length - 1];
     var tcls = last >= 0 ? 'fin-rx-acum-pos' : 'fin-rx-acum-neg';
     html += '<td class="fin-rx-acum-cell ' + tcls + '">—</td></tr>';
+    return html;
+  }
+
+  function renderRaioXInvestidoLinha() {
+    var mesAtual = mesSelecionado;
+    var total = 0;
+    var html = '<tr class="fin-rx-investido-row"><td class="fin-rx-nome">✓ Investido no mês</td>';
+    for (var i = 0; i < 12; i++) {
+      var mes = i + 1;
+      var v = INVESTIDO.hasOwnProperty(String(mes)) ? INVESTIDO[String(mes)] : 0;
+      total += v;
+      if (mes < mesAtual) {
+        var cor = v > 0 ? '#69f0ae' : 'rgba(255,255,255,0.3)';
+        html += '<td class="fin-rx-investido-cell fin-rx-investido-edit" data-mes="' + mes + '" style="cursor:pointer;color:' + cor + ';text-align:right" title="Clique para editar">' + (v > 0 ? fmtRx(v) : '—') + '</td>';
+      } else {
+        html += '<td class="fin-rx-investido-cell" style="text-align:right;opacity:.3">—</td>';
+      }
+    }
+    html += '<td class="fin-rx-investido-cell" style="text-align:right;color:#69f0ae;font-weight:700">' + (total > 0 ? fmtRx(total) : '—') + '</td></tr>';
+    return html;
+  }
+
+  function renderRaioXPJLinhas(empresaData, totais) {
+    if (!totais || !totais.receitas || !totais.receitas.length) return '';
+
+    var TAX_PRO  = 0.28;
+    var TAX_DAS  = 0.06;
+    var TAX_INSS = 0.11;
+
+    function calcMes(m) {
+      var fat  = totais.receitas[m-1] || 0;
+      var pro  = fat * TAX_PRO;
+      var das  = fat * TAX_DAS;
+      var inss = pro * TAX_INSS;
+      return { fat: fat, pro: pro, das: das, inss: inss, lucro: fat - das - inss, proj: m >= mesSelecionado };
+    }
+
+    function linhaRx(label, cls, fn) {
+      var tot = 0;
+      var html = '<tr class="fin-rx-linha fin-rx-pj-row"><td class="fin-rx-nome fin-rx-pj-nome">' + label + '</td>';
+      for (var m = 1; m <= 12; m++) {
+        var r = calcMes(m);
+        var v = fn(r);
+        tot += v;
+        var pCls = r.proj ? ' fin-rx-pj-proj' : '';
+        html += '<td class="fin-rx-val ' + cls + pCls + '">' + (v > 0 ? fmtRx(v) : '—') + '</td>';
+      }
+      html += '<td class="fin-rx-val fin-rx-pj-tot">' + (tot > 0 ? fmtRx(tot) : '—') + '</td></tr>';
+      return html;
+    }
+
+    var html = '<tr class="fin-rx-section-header fin-rx-pj-header"><td colspan="14">⬡ EMPRESA PJ — Zati Soluções Digitais <span style="font-weight:400;opacity:.6;font-style:italic">(Jul-Dez = projeção)</span></td></tr>';
+
+    html += linhaRx('Faturamento PJ',   'fin-rx-pj-fat',  function(r){ return r.fat; });
+    html += linhaRx('Pró-labore (28%)', 'fin-rx-pj-pro',  function(r){ return r.pro; });
+    html += linhaRx('DAS (6%)',         'fin-rx-pj-das',  function(r){ return r.das; });
+    html += linhaRx('INSS (11%)',       'fin-rx-pj-inss', function(r){ return r.inss; });
+    html += linhaRx('▸ Imposto Total',  'fin-rx-pj-imp',  function(r){ return r.das + r.inss; });
+
+    // Lucro Líquido
+    html += '<tr class="fin-rx-linha fin-rx-pj-row fin-rx-pj-lucro-row"><td class="fin-rx-nome fin-rx-pj-nome fin-rx-pj-lucro-label">★ Lucro Líquido</td>';
+    var totLucro = 0;
+    for (var m = 1; m <= 12; m++) {
+      var r = calcMes(m);
+      totLucro += r.lucro;
+      var pCls = r.proj ? ' fin-rx-pj-proj' : '';
+      html += '<td class="fin-rx-val fin-rx-pj-lucro' + pCls + '">' + (r.lucro > 0 ? fmtRx(r.lucro) : '—') + '</td>';
+    }
+    html += '<td class="fin-rx-val fin-rx-pj-lucro fin-rx-pj-tot">' + (totLucro > 0 ? fmtRx(totLucro) : '—') + '</td></tr>';
+
+    // Fator R — sempre 28% porque pró-labore é 28% do faturamento
+    html += '<tr class="fin-rx-linha fin-rx-pj-row"><td class="fin-rx-nome fin-rx-pj-nome">Fator R</td>';
+    for (var m = 1; m <= 12; m++) {
+      var pCls = m >= mesSelecionado ? ' fin-rx-pj-proj' : '';
+      html += '<td class="fin-rx-val' + pCls + '" style="color:#69f0ae;font-weight:700">28%</td>';
+    }
+    html += '<td class="fin-rx-val">—</td></tr>';
+
+    // ── Resumo final: Fixas / Variáveis / Sobra para Investir
+    var fixasArr     = totais.fixas     || [];
+    var variaveisArr = totais.variaveis || [];
+
+    html += '<tr class="fin-rx-linha fin-rx-pj-row"><td class="fin-rx-nome fin-rx-pj-nome fin-rx-pj-desp">↓ Total Despesas Fixas</td>';
+    var totFix = 0;
+    for (var m = 1; m <= 12; m++) {
+      var v = fixasArr[m-1] || 0; totFix += v;
+      html += '<td class="fin-rx-val fin-rx-pj-desp">' + (v > 0 ? fmtRx(v) : '—') + '</td>';
+    }
+    html += '<td class="fin-rx-val fin-rx-pj-desp fin-rx-pj-tot">' + fmtRx(totFix) + '</td></tr>';
+
+    html += '<tr class="fin-rx-linha fin-rx-pj-row"><td class="fin-rx-nome fin-rx-pj-nome fin-rx-pj-desp">↓ Total Despesas Variáveis</td>';
+    var totVar = 0;
+    for (var m = 1; m <= 12; m++) {
+      var v = variaveisArr[m-1] || 0; totVar += v;
+      html += '<td class="fin-rx-val fin-rx-pj-desp">' + (v > 0 ? fmtRx(v) : '—') + '</td>';
+    }
+    html += '<td class="fin-rx-val fin-rx-pj-desp fin-rx-pj-tot">' + fmtRx(totVar) + '</td></tr>';
+
+    html += '<tr class="fin-rx-linha fin-rx-pj-row fin-rx-pj-sobra-row"><td class="fin-rx-nome fin-rx-pj-nome fin-rx-pj-sobra-label">💰 Sobra p/ Investir</td>';
+    var totSobra = 0;
+    for (var m = 1; m <= 12; m++) {
+      var r = calcMes(m);
+      var sobra = r.lucro - (fixasArr[m-1]||0) - (variaveisArr[m-1]||0);
+      totSobra += sobra;
+      var cor = sobra >= 0 ? '#69f0ae' : '#ff5252';
+      var pCls = r.proj ? ' fin-rx-pj-proj' : '';
+      html += '<td class="fin-rx-val fin-rx-pj-sobra' + pCls + '" style="color:' + cor + '">' + (sobra >= 0 ? '+' : '') + fmtRx(sobra) + '</td>';
+    }
+    var corTot = totSobra >= 0 ? '#69f0ae' : '#ff5252';
+    html += '<td class="fin-rx-val fin-rx-pj-sobra fin-rx-pj-tot" style="color:' + corTot + '">' + (totSobra >= 0 ? '+' : '') + fmtRx(totSobra) + '</td></tr>';
+
     return html;
   }
 
@@ -1478,6 +1718,69 @@
   if (pageFin) {
     _observer.observe(pageFin, { attributes: true, attributeFilter: ['class'] });
     if (pageFin.classList.contains('active')) { _iniciado = true; initFinanceiro(); }
+  }
+
+})();
+
+/* ── Aba Empresa (PJ) ────────────────────────────────────────── */
+(function () {
+
+  var EMPRESA_DATA = [];
+  var _carregado = false;
+
+  function fmt(v) {
+    return 'R$ ' + parseFloat(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function nomeMes(mes_ano) {
+    var meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    var d = new Date(mes_ano + 'T12:00:00');
+    return meses[d.getMonth()] + '/' + d.getFullYear();
+  }
+
+  function renderEmpresa() {
+    var grid = document.getElementById('fin-emp-grid');
+    if (!grid) return;
+
+    var totFat = 0, totDas = 0, totPro = 0, totInss = 0;
+
+    grid.innerHTML = EMPRESA_DATA.map(function(m) {
+      totFat  += m.faturamento;
+      totDas  += m.das;
+      totPro  += m.pro_labore;
+      totInss += m.inss;
+      var fatorOk = m.fator_r >= 28;
+      return '<div class="fin-emp-card">' +
+        '<div class="fin-emp-card-mes">' + nomeMes(m.mes_ano) + '</div>' +
+        '<div class="fin-emp-row"><span>Faturamento</span><strong>' + fmt(m.faturamento) + '</strong></div>' +
+        '<div class="fin-emp-row"><span>Pró-labore (28%)</span><strong>' + fmt(m.pro_labore) + '</strong></div>' +
+        '<div class="fin-emp-row fin-emp-das"><span>DAS estimado (6%)</span><strong>' + fmt(m.das) + '</strong></div>' +
+        '<div class="fin-emp-row fin-emp-inss"><span>INSS (11% s/ pró-labore)</span><strong>' + fmt(m.inss) + '</strong></div>' +
+        '<div class="fin-emp-fator ' + (fatorOk ? 'fin-emp-fator-ok' : 'fin-emp-fator-nok') + '">' +
+          'Fator R: <strong>' + m.fator_r + '%</strong> → ' + m.anexo +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    var el;
+    el = document.getElementById('fin-emp-fat-total');  if (el) el.textContent = fmt(totFat);
+    el = document.getElementById('fin-emp-das-total');  if (el) el.textContent = fmt(totDas);
+    el = document.getElementById('fin-emp-pro-total');  if (el) el.textContent = fmt(totPro);
+    el = document.getElementById('fin-emp-inss-total'); if (el) el.textContent = fmt(totInss);
+  }
+
+  window._carregarEmpresa = carregarEmpresa;
+
+  function carregarEmpresa() {
+    if (_carregado) { renderEmpresa(); return; }
+    fetch('/api/financeiro/empresa')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        EMPRESA_DATA = data;
+        _carregado = true;
+        renderEmpresa();
+      })
+      .catch(function(e) { console.error('Empresa:', e); });
   }
 
 })();

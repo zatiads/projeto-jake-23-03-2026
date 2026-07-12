@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Jake IA</title>
+  <title>Jake OS</title>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
+  <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='img/jake-logo.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/jake-logo.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
@@ -1658,8 +1661,11 @@
             <button class="fin-tab-btn" data-tab="projecoes">
               <span>◉</span> Projeções
             </button>
+            <button class="fin-tab-btn" data-tab="empresa">
+              <span>⬡</span> Empresa (PJ)
+            </button>
             <button class="fin-tab-btn fin-tab-milhao" data-tab="milhao">
-              <span>⬡</span> Projeto 1 Milhão
+              <span>◎</span> Projeto 1 Milhão
             </button>
             <div class="fin-tabs-mes-filtro">
               <span class="fin-tabs-mes-label">Mês</span>
@@ -1802,6 +1808,47 @@
             </div>
 
           </div><!-- /#fin-pane-projecoes -->
+
+          <!-- ═══════════════════════════════════════════
+               ABA EMPRESA (PJ)
+          ════════════════════════════════════════════ -->
+          <div class="fin-tab-pane" id="fin-pane-empresa">
+
+            <div class="fin-empresa-header">
+              <h3 class="fin-section-title">⬡ Zati Soluções Digitais — Controle PJ 2026</h3>
+              <p class="fin-raiox-sub">Simples Nacional · Anexo III · DAS 6% · Pró-labore mín. 28% (Fator R)</p>
+            </div>
+
+            <!-- Totalizadores anuais -->
+            <div class="fin-kpi-row" id="fin-emp-kpi-row">
+              <div class="fin-kpi-card fin-kpi-receita">
+                <span class="fin-kpi-icon">↑</span>
+                <span class="fin-kpi-label">Faturamento Jan–Jun</span>
+                <span class="fin-kpi-value fin-val-positive" id="fin-emp-fat-total">R$ --</span>
+              </div>
+              <div class="fin-kpi-card fin-kpi-despesas">
+                <span class="fin-kpi-icon">%</span>
+                <span class="fin-kpi-label">DAS Estimado (6%)</span>
+                <span class="fin-kpi-value fin-val-negative" id="fin-emp-das-total">R$ --</span>
+              </div>
+              <div class="fin-kpi-card fin-kpi-saldo">
+                <span class="fin-kpi-icon">₽</span>
+                <span class="fin-kpi-label">Pró-labore Total</span>
+                <span class="fin-kpi-value" id="fin-emp-pro-total">R$ --</span>
+              </div>
+              <div class="fin-kpi-card fin-kpi-projecao">
+                <span class="fin-kpi-icon">⚖</span>
+                <span class="fin-kpi-label">INSS Total</span>
+                <span class="fin-kpi-value" id="fin-emp-inss-total">R$ --</span>
+              </div>
+            </div>
+
+            <!-- Cards por mês -->
+            <div class="fin-emp-grid" id="fin-emp-grid">
+              <!-- populado por financeiro.js -->
+            </div>
+
+          </div><!-- /#fin-pane-empresa -->
 
           <!-- ═══════════════════════════════════════════
                ABA 4: PROJETO 1 MILHÃO

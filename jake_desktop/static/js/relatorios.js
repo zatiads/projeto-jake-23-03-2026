@@ -8,12 +8,9 @@
   /* ── Clientes reais (ordem alfabética) ──────────── */
   var AGENCIES = {
     piloti: [
-      { id: "act_1006820257491698", name: "Calixta Films"    },
-      { id: "act_1095710212746155", name: "Daniele Taveira"  },
       { id: "act_3790140084580806", name: "Infinita Hiperbárica" },
       { id: "act_1006436427517079", name: "IOB"              },
       { id: "act_126503999415274",  name: "Isac Academia"    },
-      { id: "act_812220691454430",  name: "Maíra Castaldi"   },
       { id: "act_465321557197081",  name: "MR Runners"       },
       { id: "act_507545471090485",  name: "Odonto Uberaba"   },
       { id: "act_323137203122197",  name: "Queen Poltronas"  },
@@ -119,34 +116,6 @@
         "▶️Cliques: " + fmtN(m.clicks),
         "🎯 Vistas ao perfil: " + fmtN(m.clicks),
         "💰Custo por visita ao perfil: " + custo(s, m.clicks),
-        "",
-        "Google",
-        "",
-        "👥Impressões: " + fmtN(G.imp),
-        "▶️Cliques: " + fmtN(G.cli),
-        "🎯Conversão (Clique botão WhatsApp): " + fmtN(G.conv),
-        "💰Custo por conversão: " + G.cust,
-        "",
-        "*" + (ai || "Análise não disponível."),
-        "",
-        "Boa semana a todos🙏"
-      ].join("\n");
-    },
-
-    /* ── Maíra Castaldi ──────────────────────────── */
-    "act_812220691454430": function (m, ai) {
-      var s = parseFloat(m.spend || 0);
-      return [
-        saudacao() + " pessoal!",
-        "Segue relatório das nossas campanhas nos últimos 7 dias:",
-        "",
-        "Maíra Castaldi",
-        "",
-        "Meta",
-        "👥Alcance: " + fmtN(m.reach),
-        "▶️Cliques: " + fmtN(m.clicks),
-        "🎯 Visitas ao perfil: " + (m.profile_visits || 0),
-        "💰Custo por visita ao perfi: " + custo(s, m.profile_visits),
         "",
         "Google",
         "",
@@ -287,32 +256,6 @@
       ].join("\n");
     },
 
-    /* ── Daniele Taveira ─────────────────────────── */
-    "act_1095710212746155": function (m, ai) {
-      var s = parseFloat(m.spend || 0);
-      return [
-        saudacao() + " pessoal!!",
-        "Segue relatório das nossas campanhas:",
-        "",
-        "Daniele Taveira",
-        "",
-        "Meta",
-        "👥Alcance: " + fmtN(m.reach),
-        "▶️Cliques: " + fmtN(m.clicks),
-        "🎯 Visitas ao perfil: " + (m.profile_visits || 0),
-        "💰Custo por visita ao perfi: " + custo(s, m.profile_visits),
-        "",
-        "Google",
-        "👥Alcance: " + fmtN(G.alc),
-        "▶️Cliques: " + fmtN(G.cli),
-        "▶️Taxa de cliques: " + G.ctr,
-        "💰Custo por clique: " + G.cpc,
-        "",
-        "*" + (ai || "Análise não disponível."),
-        "",
-        "Boa semana a todos!🙏"
-      ].join("\n");
-    },
 
     /* ── Odonto Uberaba ──────────────────────────── */
     "act_507545471090485": function (m, ai) {

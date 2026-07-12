@@ -197,6 +197,67 @@ def financeiro_deletar_transacao(tid):
         return jsonify({"error": str(e)}), 500
 
 
+# ── Financeiro: Empresa Mensal ───────────────────────────────────────────────
+
+@bp.route("/api/financeiro/empresa", methods=["GET"])
+@login_required
+def financeiro_get_empresa():
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+        cur.execute("""
+            SELECT mes_ano::text, faturamento_bruto, pro_labore, distribuicao,
+                   mensalidade_contab, outras_despesas_pj,
+                   COALESCE(das_estimado, 0) as das_estimado,
+                   COALESCE(inss_pro_labore, 0) as inss_pro_labore
+            FROM fin_empresa_mensal ORDER BY mes_ano
+        """)
+        rows = cur.fetchall()
+        conn.close()
+        resultado = []
+        for r in rows:
+            fat   = float(r["faturamento_bruto"] or 0)
+            pro   = float(r["pro_labore"] or 0)
+            das   = float(r["das_estimado"] or 0)
+            inss  = float(r["inss_pro_labore"] or 0)
+            dist  = float(r["distribuicao"] or 0)
+            fator_r = round((pro / fat * 100), 1) if fat > 0 else 0
+            resultado.append({
+                "mes_ano":          r["mes_ano"],
+                "faturamento":      fat,
+                "pro_labore":       pro,
+                "das":              das,
+                "inss":             inss,
+                "distribuicao":     dist,
+                "fator_r":          fator_r,
+                "anexo":            "III (6%)" if fator_r >= 28 else "V (15,5%)",
+            })
+        return jsonify(resultado)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/api/financeiro/empresa/<string:mes_ano>", methods=["PUT"])
+@login_required
+def financeiro_atualizar_empresa(mes_ano):
+    d = request.get_json() or {}
+    campos_validos = ["faturamento_bruto", "pro_labore", "distribuicao", "mensalidade_contab", "outras_despesas_pj", "das_estimado", "inss_pro_labore"]
+    campos = {k: v for k, v in d.items() if k in campos_validos}
+    if not campos:
+        return jsonify({"error": "Nenhum campo válido"}), 400
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+        sets   = ", ".join(f"{k} = %s" for k in campos)
+        valores = list(campos.values()) + [mes_ano]
+        cur.execute(f"UPDATE fin_empresa_mensal SET {sets} WHERE mes_ano = %s::date", valores)
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ── Financeiro: CRUD Raio-X ──────────────────────────────────────────────────
 
 @bp.route("/api/financeiro/raiox", methods=["GET"])

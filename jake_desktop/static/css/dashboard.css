@@ -5296,3 +5296,101 @@ body {
   transition: color 0.15s;
 }
 .mil-ativo-chip-del:hover { color: #ff5252; }
+
+/* ── Aba Empresa PJ ─────────────────────────────────────── */
+.fin-empresa-header { margin-bottom: 16px; }
+.fin-emp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+.fin-emp-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(0,229,255,0.15);
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fin-emp-card-mes {
+  font-size: 14px;
+  font-weight: 700;
+  color: #00e5ff;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(0,229,255,0.1);
+  padding-bottom: 8px;
+}
+.fin-emp-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #b0bec5;
+}
+.fin-emp-row strong { color: #eceff1; }
+.fin-emp-das strong { color: #ff5252; }
+.fin-emp-inss strong { color: #ffd740; }
+.fin-emp-fator {
+  margin-top: 6px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  text-align: center;
+}
+.fin-emp-fator-ok  { background: rgba(105,240,174,0.1); color: #69f0ae; border: 1px solid rgba(105,240,174,0.2); }
+.fin-emp-fator-nok { background: rgba(255,82,82,0.1);   color: #ff5252; border: 1px solid rgba(255,82,82,0.2); }
+
+/* ── Raio-X: Seção PJ ──────────────────────────────────── */
+.fin-rx-pj-header td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: rgba(6,20,40,0.97) !important;
+  color: #64b5f6 !important;
+  font-weight: 700;
+  letter-spacing: 1px;
+  font-size: 11px;
+  padding: 10px 14px !important;
+  border-top: 1px solid rgba(100,181,246,0.2);
+  border-right: 1px solid rgba(0,229,255,.12);
+}
+.fin-rx-pj-header td:not(:first-child) {
+  background: rgba(100,181,246,0.08) !important;
+  border-top: 1px solid rgba(100,181,246,0.2);
+}
+.fin-rx-pj-row td { background: rgba(100,181,246,0.03); }
+.fin-rx-pj-nome {
+  color: #90caf9 !important;
+  font-size: 12px !important;
+  position: sticky !important;
+  left: 0 !important;
+  background: rgba(6,18,38,0.97) !important;
+  z-index: 1 !important;
+  border-right: 1px solid rgba(0,229,255,.12) !important;
+}
+.fin-rx-pj-fat  { color: #69f0ae; font-weight: 600; }
+.fin-rx-pj-pro  { color: #80deea; }
+.fin-rx-pj-das  { color: #ff8a65; }
+.fin-rx-pj-inss { color: #ffd740; }
+.fin-rx-pj-tot  { color: #b0bec5; font-weight: 600; }
+
+.fin-rx-pj-imp   { color: #ef9a9a; font-weight: 600; }
+.fin-rx-pj-lucro-row { border-top: 1px solid rgba(105,240,174,0.2) !important; }
+.fin-rx-pj-lucro { color: #69f0ae; font-weight: 700; font-size: 13px; }
+.fin-rx-pj-lucro-label { color: #69f0ae !important; font-weight: 700 !important; }
+
+/* Células de valor PJ — alinhamento igual ao Raio-X */
+.fin-rx-val {
+  padding: .45rem .6rem;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(0,229,255,.03);
+}
+.fin-rx-val.fin-rx-pj-proj { opacity: 0.55; font-style: italic; }
+
+.fin-rx-pj-desp       { color: #ef9a9a !important; }
+.fin-rx-pj-sobra-row  { border-top: 2px solid rgba(105,240,174,0.25) !important; }
+.fin-rx-pj-sobra-label{ color: #69f0ae !important; font-weight: 700 !important; }
+.fin-rx-pj-sobra      { font-weight: 700; font-size: 13px; }

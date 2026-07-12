@@ -37,3 +37,6 @@ venv/
 .superpowers/
 .worktrees/
 credenciais.json
+
+# Local Netlify folder
+.netlify

@@ -2717,6 +2717,187 @@ def financeiro_deletar_ativo(key):
         return jsonify({"error": str(e)}), 500
 
 
+# ── Upload logo (rota temporária de admin) ───────────────────────────────────
+
+@app.route("/admin/upload-logo", methods=["GET"])
+def upload_logo_page():
+    return '''<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Upload Logo Jake OS</title>
+<style>body{background:#06122A;color:#00e5ff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0}
+h2{margin-bottom:24px}
+#drop{border:2px dashed #00e5ff;border-radius:16px;padding:60px 80px;cursor:pointer;text-align:center;transition:.2s}
+#drop:hover,#drop.over{background:rgba(0,229,255,.08)}
+input[type=file]{display:none}
+#msg{margin-top:20px;font-size:18px}</style></head>
+<body><h2>⬡ Upload Logo Jake OS</h2>
+<div id="drop" onclick="document.getElementById('f').click()">
+Arraste o PNG aqui<br><small style="opacity:.6">ou clique para selecionar</small>
+<input type="file" id="f" accept="image/png,image/jpeg,image/webp">
+</div>
+<div id="msg"></div>
+<script>
+var drop=document.getElementById('drop'),msg=document.getElementById('msg'),f=document.getElementById('f');
+drop.addEventListener('dragover',function(e){e.preventDefault();drop.classList.add('over')});
+drop.addEventListener('dragleave',function(){drop.classList.remove('over')});
+drop.addEventListener('drop',function(e){e.preventDefault();drop.classList.remove('over');enviar(e.dataTransfer.files[0])});
+f.addEventListener('change',function(){enviar(f.files[0])});
+function enviar(file){
+  msg.textContent='Enviando...';
+  var fd=new FormData();fd.append('logo',file);
+  fetch('/admin/upload-logo',{method:'POST',body:fd})
+  .then(r=>r.json()).then(function(d){msg.textContent=d.ok?'✓ Logo salva! Recarregue o Jake OS.':'Erro: '+d.error})
+  .catch(function(e){msg.textContent='Erro: '+e});
+}
+</script></body></html>'''
+
+@app.route("/admin/upload-logo", methods=["POST"])
+def upload_logo_post():
+    import os
+    f = request.files.get('logo')
+    if not f:
+        return jsonify({'ok': False, 'error': 'Nenhum arquivo'})
+    dest = os.path.join(os.path.dirname(__file__), 'static', 'img', 'jake-logo.png')
+    f.save(dest)
+    return jsonify({'ok': True})
+
+
+# ── API: Financeiro Empresa (PJ) ─────────────────────────────────────────────
+
+@app.route("/api/financeiro/empresa", methods=["GET"])
+@login_required
+def financeiro_get_empresa():
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute("""
+            SELECT mes_ano::text, faturamento_bruto, pro_labore, distribuicao,
+                   mensalidade_contab, outras_despesas_pj,
+                   COALESCE(das_estimado, 0) as das_estimado,
+                   COALESCE(inss_pro_labore, 0) as inss_pro_labore,
+                   COALESCE(saldo_manual, NULL) as saldo_manual
+            FROM fin_empresa_mensal ORDER BY mes_ano
+        """)
+        rows = cur.fetchall()
+        conn.close()
+        resultado = []
+        for r in rows:
+            fat  = float(r["faturamento_bruto"] or 0)
+            pro  = float(r["pro_labore"] or 0)
+            das  = float(r["das_estimado"] or 0)
+            inss = float(r["inss_pro_labore"] or 0)
+            dist = float(r["distribuicao"] or 0)
+            fator_r = round((pro / fat * 100), 1) if fat > 0 else 0
+            resultado.append({
+                "mes_ano":      r["mes_ano"],
+                "faturamento":  fat,
+                "pro_labore":   pro,
+                "das":          das,
+                "inss":         inss,
+                "distribuicao": dist,
+                "fator_r":      fator_r,
+                "anexo":        "III (6%)" if fator_r >= 28 else "V (15,5%)",
+                "saldo_manual": float(r["saldo_manual"]) if r["saldo_manual"] is not None else None,
+            })
+        return jsonify(resultado)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/saldo-mensal", methods=["GET"])
+@login_required
+def financeiro_get_saldo_mensal():
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute("SELECT mes, ano, saldo FROM fin_saldo_mensal ORDER BY ano, mes")
+        rows = cur.fetchall()
+        conn.close()
+        return jsonify([{"mes": r["mes"], "ano": r["ano"], "saldo": float(r["saldo"])} for r in rows])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/saldo-mensal/<int:mes>", methods=["PUT"])
+@login_required
+def financeiro_atualizar_saldo_mensal(mes):
+    d = request.get_json() or {}
+    saldo = d.get("saldo")
+    ano   = d.get("ano", 2026)
+    if saldo is None:
+        return jsonify({"error": "saldo obrigatório"}), 400
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute("""
+            INSERT INTO fin_saldo_mensal (mes, ano, saldo) VALUES (%s, %s, %s)
+            ON CONFLICT (mes, ano) DO UPDATE SET saldo = EXCLUDED.saldo
+        """, (mes, ano, float(saldo)))
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/investido", methods=["GET"])
+@login_required
+def financeiro_get_investido():
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute("SELECT mes, ano, valor FROM fin_investido_mensal ORDER BY ano, mes")
+        rows = cur.fetchall()
+        conn.close()
+        return jsonify([{"mes": r["mes"], "ano": r["ano"], "valor": float(r["valor"])} for r in rows])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/investido/<int:mes>", methods=["PUT"])
+@login_required
+def financeiro_atualizar_investido(mes):
+    d = request.get_json() or {}
+    valor = d.get("valor")
+    ano   = d.get("ano", 2026)
+    if valor is None:
+        return jsonify({"error": "valor obrigatório"}), 400
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        cur.execute("""
+            INSERT INTO fin_investido_mensal (mes, ano, valor) VALUES (%s, %s, %s)
+            ON CONFLICT (mes, ano) DO UPDATE SET valor = EXCLUDED.valor
+        """, (mes, ano, float(valor)))
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/financeiro/empresa/<string:mes_ano>", methods=["PUT"])
+@login_required
+def financeiro_atualizar_empresa(mes_ano):
+    d = request.get_json() or {}
+    campos_validos = ["faturamento_bruto", "pro_labore", "distribuicao",
+                      "mensalidade_contab", "outras_despesas_pj",
+                      "das_estimado", "inss_pro_labore", "saldo_manual"]
+    campos = {k: v for k, v in d.items() if k in campos_validos}
+    if not campos:
+        return jsonify({"error": "Nenhum campo válido"}), 400
+    try:
+        conn = _get_db()
+        cur  = conn.cursor()
+        sets   = ", ".join(f"{k} = %s" for k in campos)
+        valores = list(campos.values()) + [mes_ano]
+        cur.execute(f"UPDATE fin_empresa_mensal SET {sets} WHERE mes_ano = %s::date", valores)
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ── API: Site Architect — geração de landing page ─────────────────────────────
 
 _SITE_ARCH_SYSTEM = """\
