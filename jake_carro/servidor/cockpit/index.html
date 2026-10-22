@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Jake · cockpit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600&family=Inter+Tight:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fundo:#04070D; --navy:#0B1A2B; --ciano:#22D3EE; --gelo:#F2FBFF; --texto:#E6F1F8; --suave:#8FB3C6; --apagado:#86A9BC;
+  --cor:#22D3EE; --halo:rgba(34,211,238,.35);
+  --tec:'Chakra Petch','Eurostile',system-ui,sans-serif; --corpo:'Inter Tight',system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
+#janela{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+#palco{position:relative;width:1024px;height:600px;overflow:hidden;transform-origin:center;
+  background:radial-gradient(120% 95% at 50% 62%,#0B1A2B 0%,#060C16 46%,#03060B 100%);
+  font-family:var(--corpo);color:var(--texto)}
+
+/* ── abertura ── */
+#palco.acordando .some{opacity:0;transform:translateY(8px)}
+.some{transition:opacity .9s ease,transform .9s ease}
+#flash{position:absolute;left:50%;top:58%;width:10px;height:10px;margin:-5px;border-radius:50%;
+  background:var(--ciano);box-shadow:0 0 60px 30px rgba(34,211,238,.6);opacity:0;pointer-events:none}
+#palco.acordando #flash{animation:flash 1.6s ease-out forwards}
+@keyframes flash{0%{opacity:0;transform:scale(.2)}25%{opacity:1}100%{opacity:0;transform:scale(90)}}
+
+/* ── piso e estrada ── */
+#piso{position:absolute;left:-10%;right:-10%;bottom:-40px;height:300px;
+  background-image:linear-gradient(rgba(34,211,238,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(34,211,238,.07) 1px,transparent 1px);
+  background-size:56px 56px;transform:perspective(520px) rotateX(64deg);transform-origin:bottom;opacity:.7;transition:opacity .8s}
+#estrada{position:absolute;inset:0;opacity:0;transition:opacity .8s;pointer-events:none}
+.andando #estrada{opacity:1}
+.andando #piso{opacity:.25}
+
+/* ── barra de cima ── */
+#topo{position:absolute;top:0;left:0;right:0;height:78px;padding:0 30px;display:flex;align-items:center;justify-content:space-between}
+#marca{height:30px;opacity:.95}
+#hora{position:absolute;left:50%;top:14px;transform:translateX(-50%);text-align:center}
+#hora .h{font-family:var(--tec);font-weight:500;font-size:44px;line-height:1;color:var(--gelo);letter-spacing:1px;font-variant-numeric:tabular-nums}
+#hora .d{font-size:14px;color:var(--suave);margin-top:4px}
+.andando #hora .h{font-size:30px}.andando #hora .d{display:none}
+#status{display:flex;align-items:center;gap:18px;font-family:var(--tec);font-size:17px;color:var(--suave)}
+#status .sep{width:1px;height:22px;background:rgba(143,179,198,.3)}
+#rede{display:flex;align-items:flex-end;gap:2px;height:14px}
+#rede i{display:block;width:3px;background:var(--suave);border-radius:1px}
+#rede.off i{background:#FBBF24;opacity:.6}
+#status b{color:var(--gelo);font-weight:500}
+.linha-topo{position:absolute;left:30px;right:30px;top:86px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(34,211,238,.18) 30%,rgba(34,211,238,.6) 50%,rgba(34,211,238,.18) 70%,transparent);opacity:0;transition:opacity .6s}
+.andando .linha-topo{opacity:1}
+
+/* ── modos ── */
+.so-parado,.so-andando{transition:opacity .7s ease,transform .7s ease}
+.andando .so-parado{opacity:0;pointer-events:none;transform:translateY(10px)}
+.parado .so-andando{opacity:0;pointer-events:none;transform:translateY(10px)}
+
+/* parado: laterais */
+.rotulo{font-family:var(--tec);font-size:24px;letter-spacing:2.5px;color:var(--gelo);font-weight:500;text-transform:uppercase}
+.traco{height:2px;width:100%;margin:12px 0 14px;background:linear-gradient(90deg,var(--ciano),rgba(34,211,238,0))}
+#esq{position:absolute;left:30px;top:138px;width:270px}
+#clima{font-size:15px;color:var(--suave);line-height:1.6}
+#clima b{color:var(--texto);font-weight:500}
+#dir{position:absolute;right:30px;top:138px;width:262px}
+#agenda .item{display:flex;gap:16px;align-items:baseline;padding:9px 0;border-bottom:1px solid rgba(143,179,198,.14)}
+#agenda .item:last-child{border-bottom:none}
+#agenda .hh{font-family:var(--tec);font-size:17px;color:var(--ciano);min-width:66px}
+#agenda .hh.dia{font-family:var(--corpo);font-size:13px;color:var(--suave)}
+#agenda .tt{font-size:16px;color:var(--gelo)}
+#agenda .vazio{font-size:15px;color:var(--suave)}
+
+/* carro girando */
+#carro{position:absolute;left:222px;top:78px;width:580px;height:386px;touch-action:none;cursor:grab}
+#giro{position:absolute;inset:0;background-repeat:no-repeat;
+  -webkit-mask-image:radial-gradient(50% 50% at 50% 50%,#000 58%,transparent 100%);mask-image:radial-gradient(50% 50% at 50% 50%,#000 58%,transparent 100%)}
+#anel{position:absolute;left:110px;right:110px;top:282px;height:56px;border-radius:50%;border:2px solid rgba(34,211,238,.75);
+  box-shadow:0 0 22px rgba(34,211,238,.45),inset 0 0 22px rgba(34,211,238,.25);pointer-events:none}
+#dica{position:absolute;left:0;right:0;top:4px;text-align:center;font-family:var(--tec);font-size:11px;letter-spacing:4px;color:var(--apagado);transition:opacity 1s}
+
+/* doca de atalhos (launcher) */
+.doca{position:absolute;bottom:26px;display:flex;gap:18px}
+#doca-e{left:30px}#doca-d{right:30px}
+.atalho{display:flex;flex-direction:column;align-items:center;gap:7px;background:none;border:none;padding:0;cursor:pointer;font-family:var(--corpo)}
+.atalho .bola{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  border:1px solid rgba(34,211,238,.5);background:rgba(8,20,34,.6);color:var(--ciano);
+  box-shadow:0 0 16px rgba(34,211,238,.16),inset 0 0 12px rgba(34,211,238,.08);transition:transform .15s,background .15s}
+.atalho:active .bola{transform:scale(.93);background:rgba(34,211,238,.18)}
+.atalho span{font-size:13px;color:var(--suave);letter-spacing:.3px}
+/* andando */
+#velo{position:absolute;left:44px;top:150px;width:300px;height:300px}
+#velo .num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#velo .n{font-family:var(--tec);font-weight:500;font-size:112px;line-height:1;color:var(--gelo);font-variant-numeric:tabular-nums}
+#velo .u{font-size:20px;color:var(--suave);margin-top:6px}
+#tras{position:absolute;left:300px;top:150px;width:420px;height:280px;background:url(carro_tras.webp) center/cover no-repeat;
+  -webkit-mask-image:radial-gradient(55% 60% at 50% 50%,#000 55%,transparent 100%);mask-image:radial-gradient(55% 60% at 50% 50%,#000 55%,transparent 100%)}
+#rota{position:absolute;right:40px;top:170px;width:270px}
+#rota .lbl{font-family:var(--tec);font-size:13px;letter-spacing:3px;color:var(--ciano);text-transform:uppercase}
+#rota .dest{font-size:28px;color:var(--gelo);margin-top:6px;line-height:1.2}
+#rota .cheg{font-family:var(--tec);font-size:22px;color:var(--suave);margin-top:18px}
+#manobra{display:none;margin-bottom:22px}
+#rota.nav #manobra{display:block}
+#seta{width:110px;height:110px;color:var(--ciano);filter:drop-shadow(0 0 8px rgba(34,211,238,.6))}
+#seta path{transition:d .3s}
+#dist{font-family:var(--tec);font-size:46px;line-height:1;color:var(--gelo);margin-top:6px;font-variant-numeric:tabular-nums}
+#instr{font-size:19px;color:var(--texto);margin-top:8px;line-height:1.3}
+
+/* ── Jake ── */
+#jake{position:absolute;left:50%;bottom:22px;z-index:2;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;transition:all .7s ease}
+.andando #jake{left:auto;right:40px;bottom:36px;transform:none;flex-direction:row;gap:16px}
+#orbe{position:relative;width:96px;height:96px;cursor:pointer}
+.andando #orbe{width:76px;height:76px}
+#orbe .halo{position:absolute;inset:-20px;border-radius:50%;background:radial-gradient(closest-side,var(--halo),transparent);transition:background .5s}
+#orbe .nucleo{position:absolute;inset:18%;border-radius:50%;
+  background:radial-gradient(circle at 36% 30%,#fff 0%,var(--cor) 30%,rgba(4,7,13,.95) 78%);
+  box-shadow:0 0 26px var(--cor),inset 0 0 18px rgba(255,255,255,.25);transition:box-shadow .5s,background .5s}
+#orbe .aro{position:absolute;inset:6%;border-radius:50%;border:1.5px solid var(--cor);opacity:.7;transform:rotateX(68deg) rotateZ(0deg);animation:gira 6s linear infinite}
+#orbe .aro.b{inset:0;opacity:.45;animation-duration:9s;animation-direction:reverse;transform:rotateY(64deg)}
+#orbe .meridiano{position:absolute;inset:18%;border-radius:50%;border:1px solid rgba(255,255,255,.35);transform:rotateY(60deg);animation:gira2 7s linear infinite}
+@keyframes gira{to{transform:rotateX(68deg) rotateZ(360deg)}}
+@keyframes gira2{to{transform:rotateY(60deg) rotateZ(360deg)}}
+#orbe.pulsa .nucleo{animation:pulsa 2.4s ease-in-out infinite}
+@keyframes pulsa{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+#onda{position:absolute;top:44px;left:50%;width:620px;margin-left:-310px;height:20px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+#onda .lado{display:flex;align-items:center;gap:3px;width:230px;justify-content:flex-end}
+#onda .lado.d{justify-content:flex-start}
+#onda i{display:block;width:2px;border-radius:1px;background:var(--cor);opacity:.75;height:3px;transition:height .08s}
+.andando #onda{display:none}
+#legenda{text-align:center;margin-top:12px}
+.andando #legenda{text-align:left;margin-top:0}
+#estado{font-family:var(--tec);font-size:20px;color:var(--cor);letter-spacing:1px;transition:color .5s}
+#frase{font-size:19px;color:var(--gelo);margin-top:8px;max-width:620px;min-height:26px;line-height:1.3}
+.andando #frase{font-size:15px;max-width:260px;margin-top:2px;color:var(--suave)}
+</style>
+</head>
+<body>
+<div id="janela">
+<div id="palco" class="parado acordando">
+  <div id="piso"></div>
+  <canvas id="estrada" width="1024" height="600"></canvas>
+  <div id="flash"></div>
+
+  <div id="topo" class="some">
+    <img id="marca" src="marca.png" alt="Hyundai HB20">
+    <div id="hora"><div class="h" id="relogio">--:--</div><div class="d" id="data"></div></div>
+    <div id="status">
+      <span style="display:flex;align-items:center;gap:8px">4G <span id="rede"><i style="height:4px"></i><i style="height:7px"></i><i style="height:10px"></i><i style="height:14px"></i></span></span>
+      <span class="sep"></span>
+      <span><b id="temp-topo">--°</b> <span id="cidade-topo">Varginha</span></span>
+    </div>
+  </div>
+  <div class="linha-topo"></div>
+
+  <!-- PARADO -->
+  <div id="esq" class="so-parado some">
+    <div class="rotulo" id="saudacao">Olá, patrão</div>
+    <div class="traco"></div>
+    <div id="clima">Carregando o tempo…</div>
+  </div>
+  <div id="dir" class="so-parado some">
+    <div class="rotulo">Hoje</div>
+    <div class="traco"></div>
+    <div id="agenda"><div class="vazio">Carregando a agenda…</div></div>
+  </div>
+  <div id="carro" class="so-parado">
+    <div id="anel"></div>
+    <div id="giro" role="img" aria-label="Seu HB20 — arraste para girar"></div>
+    <div id="dica">ARRASTE · 360°</div>
+  </div>
+  <div id="doca-e" class="doca so-parado some">
+    <button class="atalho" data-app="mapa" aria-label="Abrir Google Maps"><span class="bola"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg></span><span>Mapa</span></button>
+    <button class="atalho" data-app="musica" aria-label="Abrir Spotify"><span class="bola"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg></span><span>Música</span></button>
+    <button class="atalho" data-app="waze" aria-label="Abrir Waze"><span class="bola"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15a8 8 0 1 1 15.5-2.8c.7 2.6-1 5.3-3.6 5.8l-6 .1"/><circle cx="8.5" cy="18.5" r="1.5"/><circle cx="16.5" cy="18.5" r="1.5"/><path d="M10 10h.01M15 10h.01M10 13.5c1.2 1 3 1 4 0"/></svg></span><span>Waze</span></button>
+  </div>
+  <div id="doca-d" class="doca so-parado some">
+    <button class="atalho" id="p-viagem" aria-label="Modo viagem"><span class="bola"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M6 21 10 3M18 21 14 3M12 6v2M12 11v2M12 16v2"/></svg></span><span>Viagem</span></button>
+    <button class="atalho" id="p-resumo" aria-label="Resumo do dia"><span class="bola"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16l2 2 4-4"/></svg></span><span>Resumo</span></button>
+    <button class="atalho" data-app="apps" aria-label="Todos os apps"><span class="bola"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></svg></span><span>Apps</span></button>
+  </div>
+
+  <!-- ANDANDO -->
+  <div id="velo" class="so-andando">
+    <svg width="300" height="300" viewBox="0 0 300 300" aria-hidden="true">
+      <circle cx="150" cy="150" r="128" fill="none" stroke="rgba(143,179,198,.14)" stroke-width="5" stroke-dasharray="603 805" transform="rotate(135 150 150)"/>
+      <circle id="arco" cx="150" cy="150" r="128" fill="none" stroke="#22D3EE" stroke-width="5" stroke-linecap="round" stroke-dasharray="0 805" transform="rotate(135 150 150)" style="filter:drop-shadow(0 0 6px #22D3EE);transition:stroke-dasharray .4s"/>
+    </svg>
+    <div class="num"><div class="n" id="kmh">0</div><div class="u">km/h</div></div>
+  </div>
+  <div id="tras" class="so-andando"></div>
+  <div id="rota" class="so-andando">
+    <div id="manobra">
+      <svg id="seta" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path id="seta-p" d="M30 90V45h40M58 30l14 15-14 15"/></svg>
+      <div id="dist"></div>
+      <div id="instr"></div>
+    </div>
+    <div class="lbl">Destino</div>
+    <div class="dest" id="destino">Rodando livre</div>
+    <div class="cheg" id="chegada"></div>
+  </div>
+
+  <!-- JAKE -->
+  <div id="jake" class="some">
+    <div id="onda"><div class="lado" id="onda-e"></div><div class="lado d" id="onda-d"></div></div>
+    <div id="orbe" class="pulsa" role="button" aria-label="Falar com o Jake" tabindex="0">
+      <div class="halo"></div><div class="aro"></div><div class="aro b"></div><div class="nucleo"></div><div class="meridiano"></div>
+    </div>
+    <div id="legenda"><div id="estado">Pronto</div><div id="frase">Toque em mim ou diga “Jake”.</div></div>
+  </div>
+</div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const palco = $('palco');
+  const nativo = window.Android || null;          // ponte com o app (Kotlin)
+  const params = new URLSearchParams(location.search);
+
+  // ── encaixa o palco 1024×600 em qualquer tela ──
+  function encaixar() {
+    const e = Math.min(innerWidth / 1024, innerHeight / 600);
+    palco.style.transform = `scale(${e})`;
+  }
+  addEventListener('resize', encaixar); encaixar();
+  if (params.get('semabertura')) { document.querySelectorAll('.some,.so-parado,.so-andando').forEach((e) => { e.style.transition = 'none'; }); palco.classList.remove('acordando'); }
+  else setTimeout(() => palco.classList.remove('acordando'), 350);
+
+  // ── relógio ──
+  const dias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  function tic() {
+    const d = new Date();
+    $('relogio').textContent = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    $('data').textContent = `${dias[d.getDay()]}, ${d.getDate()} ${meses[d.getMonth()]}`;
+    const h = d.getHours();
+    $('saudacao').textContent = (h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite') + ', patrão';
+  }
+  tic(); setInterval(tic, 1000);
+
+  // ── rede ──
+  const rede = () => $('rede').classList.toggle('off', !navigator.onLine);
+  addEventListener('online', rede); addEventListener('offline', rede); rede();
+
+  // ── dados do painel (clima, cidade, agenda) ──
+  let pos = { lat: null, lon: null };
+  const token = () => (nativo && nativo.token ? nativo.token() : params.get('t') || '');
+  async function carregarPainel() {
+    try {
+      const q = pos.lat ? `?lat=${pos.lat}&lon=${pos.lon}` : '';
+      const r = await fetch(`/carro/painel${q}`, { headers: { Authorization: 'Bearer ' + token() } });
+      if (!r.ok) throw new Error(r.status);
+      const p = await r.json();
+      $('cidade-topo').textContent = p.cidade;
+      if (p.clima) {
+        $('temp-topo').textContent = p.clima.agora + '°';
+        $('clima').innerHTML = `<b>${p.cidade}</b> · ${p.clima.agora}°C · ${p.clima.texto}<br>máx ${p.clima.max}° · chuva ${p.clima.chuva}%`;
+      }
+      const ag = $('agenda'); ag.textContent = '';
+      if (!p.agenda.length) { const v = document.createElement('div'); v.className = 'vazio'; v.textContent = 'Nada marcado. Dia livre.'; ag.appendChild(v); }
+      p.agenda.slice(0, 4).forEach((i) => {
+        const l = document.createElement('div'); l.className = 'item';
+        const hh = document.createElement('span'); hh.className = 'hh' + (i.hora === 'Dia todo' ? ' dia' : ''); hh.textContent = i.hora;
+        const tt = document.createElement('span'); tt.className = 'tt'; tt.textContent = i.titulo;
+        l.append(hh, tt); ag.appendChild(l);
+      });
+    } catch (e) {
+      $('clima').textContent = 'Sem conexão agora.';
+    }
+  }
+  carregarPainel(); setInterval(carregarPainel, 10 * 60 * 1000);
+
+  // ── carro girando: folha de quadros + arraste com inércia ──
+  const giro = $('giro');
+  const G = { n: 72, cols: 8, w: 640, h: 426 };
+  const larg = 580, alt = 386, esc = Math.max(larg / G.w, alt / G.h);
+  let quadro = 0, vel = 0.12, arrastando = false, ultimoX = 0, ultimoT = 0, temGiro = false;
+  const img = new Image();
+  img.onload = () => {
+    temGiro = true;
+    giro.style.backgroundImage = 'url(hb20_giro.webp)';
+    giro.style.backgroundSize = `${G.cols * G.w * esc}px ${Math.ceil(G.n / G.cols) * G.h * esc}px`;
+    desenhar();
+  };
+  img.onerror = () => {  // ainda sem a folha: mostra o render parado
+    giro.style.backgroundImage = 'url(carro_frente.webp)';
+    giro.style.backgroundSize = 'cover'; giro.style.backgroundPosition = 'center';
+    $('dica').style.opacity = 0;
+  };
+  img.src = 'hb20_giro.webp';
+  function desenhar() {
+    if (!temGiro) return;
+    const k = ((Math.round(quadro) % G.n) + G.n) % G.n;
+    const ox = (larg - G.w * esc) / 2, oy = (alt - G.h * esc) / 2;
+    giro.style.backgroundPosition = `${ox - (k % G.cols) * G.w * esc}px ${oy - Math.floor(k / G.cols) * G.h * esc}px`;
+  }
+  function animarGiro() {
+    if (!arrastando && temGiro && palco.classList.contains('parado')) {
+      vel += (0.12 - vel) * 0.02;        // inércia volta devagar pro giro de vitrine
+      quadro += vel; desenhar();
+    }
+    requestAnimationFrame(animarGiro);
+  }
+  requestAnimationFrame(animarGiro);
+  const carro = $('carro');
+  carro.addEventListener('pointerdown', (e) => {
+    arrastando = true; ultimoX = e.clientX; ultimoT = performance.now(); vel = 0;
+    carro.setPointerCapture(e.pointerId); $('dica').style.opacity = 0;
+  });
+  carro.addEventListener('pointermove', (e) => {
+    if (!arrastando) return;
+    const esc2 = parseFloat(palco.style.transform.replace(/[^\d.]/g, '')) || 1;
+    const dx = (e.clientX - ultimoX) / esc2, agora = performance.now();
+    quadro -= dx / 7;                     // 7 px de dedo = 1 quadro (5°)
+    vel = -dx / 7 / Math.max(1, (agora - ultimoT) / 16);
+    ultimoX = e.clientX; ultimoT = agora; desenhar();
+  });
+  const soltar = () => { arrastando = false; };
+  carro.addEventListener('pointerup', soltar); carro.addEventListener('pointercancel', soltar);
+
+  // ── onda de voz ──
+  const barras = [];
+  for (const lado of ['onda-e', 'onda-d']) for (let i = 0; i < 34; i++) {
+    const b = document.createElement('i'); $(lado).appendChild(b); barras.push(b);
+  }
+  let nivel = 0, estadoAtual = 'pronto';
+  function animarOnda(t) {
+    barras.forEach((b, i) => {
+      const meio = i < 34 ? i / 33 : 1 - (i - 34) / 33;   // mais alto perto da bolinha
+      const ruido = Math.sin(t / 120 + i * 1.7) * 0.5 + 0.5;
+      const base = estadoAtual === 'ouvindo' || estadoAtual === 'falando' ? 0.15 : 0.04;
+      b.style.height = (3 + 17 * Math.min(1, (base + nivel) * meio * (0.4 + ruido))) + 'px';
+    });
+    nivel *= 0.92;
+    requestAnimationFrame(animarOnda);
+  }
+  requestAnimationFrame(animarOnda);
+
+  // ── estados da bolinha ──
+  const ESTADOS = {
+    pronto:   { cor: '#22D3EE', halo: 'rgba(34,211,238,.28)', rotulo: 'Pronto' },
+    ouvindo:  { cor: '#22D3EE', halo: 'rgba(34,211,238,.45)', rotulo: 'Ouvindo…' },
+    pensando: { cor: '#A78BFA', halo: 'rgba(167,139,250,.45)', rotulo: 'Pensando…' },
+    falando:  { cor: '#22D3EE', halo: 'rgba(34,211,238,.45)', rotulo: 'Jake' },
+    feito:    { cor: '#34D399', halo: 'rgba(52,211,153,.45)', rotulo: 'Feito' },
+    offline:  { cor: '#FBBF24', halo: 'rgba(251,191,36,.45)', rotulo: 'Sem internet' },
+  };
+  function estado(nome, frase) {
+    const e = ESTADOS[nome] || ESTADOS.pronto; estadoAtual = nome;
+    palco.style.setProperty('--cor', e.cor); palco.style.setProperty('--halo', e.halo);
+    $('estado').textContent = e.rotulo;
+    if (frase !== undefined && frase !== null) $('frase').textContent = frase;
+  }
+
+  // ── velocidade e modo ──
+  let kmhAtual = 0, desde = Date.now(), modo = 'parado';
+  function gps(kmh, lat, lon) {
+    kmhAtual = Math.max(0, Math.round(kmh || 0));
+    if (lat) { const mudou = !pos.lat || Math.abs(pos.lat - lat) > 0.05; pos = { lat, lon }; if (mudou) carregarPainel(); }
+    $('kmh').textContent = kmhAtual;
+    $('arco').setAttribute('stroke-dasharray', `${Math.min(1, kmhAtual / 140) * 603} 805`);
+    const quer = kmhAtual >= 12 ? 'andando' : kmhAtual <= 4 ? 'parado' : modo;
+    if (quer !== modo) {
+      if (Date.now() - desde > (quer === 'andando' ? 4000 : 10000)) mudarModo(quer);
+    } else desde = Date.now();
+  }
+  function mudarModo(m) {
+    modo = m; desde = Date.now();
+    palco.classList.toggle('andando', m === 'andando'); palco.classList.toggle('parado', m === 'parado');
+  }
+
+  // ── estrada andando (só no modo andando) ──
+  const cv = $('estrada'), cx = cv.getContext('2d');
+  let fase = 0;
+  function estrada() {
+    if (modo === 'andando') {
+      cx.clearRect(0, 0, 1024, 600);
+      fase = (fase + 0.004 + kmhAtual / 9000) % 1;
+      const hx = 512, hy = 250;
+      for (let f = -6; f <= 6; f++) {
+        const xb = hx + f * 150;
+        for (let k = 0; k < 7; k++) {
+          const t0 = ((k / 7 + fase) % 1), t1 = Math.min(1, t0 + 0.06);
+          const p = (t) => [hx + (xb - hx) * t * t, hy + (600 - hy) * t * t];
+          const [x0, y0] = p(t0), [x1, y1] = p(t1);
+          cx.strokeStyle = `rgba(34,211,238,${0.08 + 0.5 * t0 * (f === -1 || f === 1 ? 1.4 : 0.6)})`;
+          cx.lineWidth = 1 + 3 * t0;
+          cx.beginPath(); cx.moveTo(x0, y0); cx.lineTo(x1, y1); cx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(estrada);
+  }
+  requestAnimationFrame(estrada);
+
+  // ── próxima curva lida da notificação do Maps ──
+  const SETAS = {
+    direita:  'M30 90V45h40M58 30l14 15-14 15',
+    esquerda: 'M70 90V45H30M42 30 28 45l14 15',
+    frente:   'M50 92V12M34 28 50 12l16 16',
+    retorno:  'M66 92V40a16 16 0 0 0-32 0v18M22 46l12 14 12-14',
+    rotatoria:'M50 92V66M50 66a16 16 0 1 1 16-16M58 26l8 24-24-2',
+  };
+  function navegacao(d) {
+    const rota = $('rota');
+    if (!d) { rota.classList.remove('nav'); return; }
+    const partes = [d.titulo, d.texto, d.sub].filter(Boolean);
+    const reDist = /(\d+(?:[.,]\d+)?\s?(?:km|m))\b/i;
+    let dist = '', instr = '';
+    for (const p of partes) { const m = p.match(reDist); if (m && !dist) { dist = m[1]; if (p.replace(m[0], '').trim().length > 3) instr = p.replace(m[0], '').replace(/^[\s·,-]+|[\s·,-]+$/g, ''); } }
+    if (!instr) instr = partes.find((p) => !reDist.test(p)) || partes[0] || '';
+    const tudo = partes.join(' ').toLowerCase();
+    const tipo = /retorno|meia-volta/.test(tudo) ? 'retorno' : /rotat/.test(tudo) ? 'rotatoria'
+      : /direita/.test(tudo) ? 'direita' : /esquerda/.test(tudo) ? 'esquerda' : 'frente';
+    $('seta-p').setAttribute('d', SETAS[tipo]);
+    $('dist').textContent = dist;
+    $('instr').textContent = instr;
+    const cheg = partes.find((p) => /\d{1,2}:\d{2}/.test(p) && p !== instr);
+    if (cheg) $('chegada').textContent = cheg;
+    rota.classList.add('nav');
+  }
+
+  // ── toques ──
+  const falar = () => nativo && nativo.falar ? nativo.falar() : demo();
+  $('orbe').addEventListener('click', falar);
+  $('p-viagem').addEventListener('click', () => nativo && nativo.perguntar
+    ? nativo.ouvirCom('Pra onde vamos, patrão?') : demo());
+  $('p-resumo').addEventListener('click', () => nativo && nativo.perguntar
+    ? nativo.perguntar('Me dá um resumo do meu dia: o que tenho hoje e amanhã na agenda.') : demo());
+
+  document.querySelectorAll('[data-app]').forEach((b) => b.addEventListener('click', () => {
+    if (nativo && nativo.abrirApp) nativo.abrirApp(b.dataset.app); else demo();
+  }));
+
+  // ── prévia no navegador (sem o app): passeia pelos estados ──
+  function demo() {
+    const seq = [['ouvindo', '“Jake, coloca no mapa São Tomé das Letras”'], ['pensando', 'Só um segundo, patrão.'],
+      ['feito', 'Rota pra São Tomé das Letras no Maps.'], ['pronto', 'Toque em mim ou diga “Jake”.']];
+    seq.forEach(([n, f], i) => setTimeout(() => { estado(n, f); if (n === 'ouvindo') nivel = 0.8; }, i * 1600));
+  }
+  if (params.get('modo') === 'andando') {
+    mudarModo('andando'); kmhAtual = 62; gps(62);
+    $('destino').textContent = 'São Tomé das Letras';
+    navegacao({ titulo: 'Vire à direita na Av. Rio Branco', texto: '400 m', sub: 'Chegada 16:31 · 87 km' });
+  }
+
+  // ── ligou o carro: som da nave + tela acendendo do centro ──
+  const somAbertura = new Audio('sons/abertura_B_nave.mp3');
+  somAbertura.preload = 'auto';
+  function acordar() {
+    palco.classList.add('acordando');
+    void palco.offsetWidth;                 // reinicia a animação do clarão
+    setTimeout(() => palco.classList.remove('acordando'), 350);
+    quadro = 0; vel = 1.2;                  // o carro entra girando rápido e desacelera
+    estado('pronto', 'Sistemas online.');
+    somAbertura.currentTime = 0;
+    somAbertura.play().catch(() => {});
+  }
+
+  // ── o que o app chama ──
+  window.jake = {
+    estado, gps,
+    nivel: (v) => { nivel = Math.max(nivel, Math.min(1, v)); },
+    destino: (nome, chegada) => { $('destino').textContent = nome || 'Rodando livre'; $('chegada').textContent = chegada || ''; },
+    painel: carregarPainel,
+    acordar,
+    navegacao,
+  };
+  estado('pronto');
+})();
+</script>
+</body>
+</html>

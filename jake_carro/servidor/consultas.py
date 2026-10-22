@@ -173,6 +173,31 @@ def _intervalo(periodo):
     return hoje, hoje + timedelta(days=1)  # hoje
 
 
+def agenda_itens(periodo):
+    """Itens da agenda em lista [{hora, titulo}] (pro cockpit)."""
+    ids = agendas()
+    inicio, fim = _intervalo(periodo)
+    s = _sessao_google()
+    itens = []
+    for cal in ids:
+        r = s.get(f"https://www.googleapis.com/calendar/v3/calendars/{cal}/events", params={
+            "timeMin": inicio.isoformat(), "timeMax": fim.isoformat(), "singleEvents": "true",
+            "orderBy": "startTime", "maxResults": 20, "timeZone": "America/Sao_Paulo"}, timeout=10)
+        if r.status_code != 200:
+            continue
+        for e in r.json().get("items", []):
+            ini = e.get("start", {})
+            if "dateTime" in ini:
+                quando = datetime.fromisoformat(ini["dateTime"]).astimezone(FUSO)
+                itens.append({"ordem": quando.isoformat(), "hora": quando.strftime("%H:%M"),
+                              "titulo": e.get("summary", "sem título")})
+            else:
+                itens.append({"ordem": ini.get("date", ""), "hora": "Dia todo",
+                              "titulo": e.get("summary", "sem título")})
+    itens.sort(key=lambda i: (i["hora"] != "Dia todo", i["ordem"]))
+    return [{"hora": i["hora"], "titulo": i["titulo"]} for i in itens[:6]]
+
+
 def agenda(periodo):
     ids = agendas()
     if not ids:

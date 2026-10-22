@@ -1,3 +1,8 @@
-releases/*.apk
+__pycache__/
 estado.json
 releases/
+releases/*.apk
+visual/*.png
+visual/fotos/
+visual/ia/
+visual/som/

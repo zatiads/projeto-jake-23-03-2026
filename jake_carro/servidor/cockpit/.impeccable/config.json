@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "/root/jake_carro/servidor/cockpit/index.html"
+        ],
+        "createdAt": "2026-10-22T20:33:39.973Z",
+        "reason": "Bruno approved the neon-cyan glowing cockpit concept screens to match the car's cyan LED strip (2026-10-22)"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "/root/jake_carro/servidor/cockpit/index.html"
+        ],
+        "createdAt": "2026-10-22T20:33:39.993Z",
+        "reason": "Fixed 1024x600 car-screen stage clips on purpose; no tooltips/menus/popovers exist in it"
+      }
+    ]
+  }
+}

@@ -498,6 +498,55 @@ def consulta():
     return jsonify(fala=fala, audio_b64=audio, ms=int((time.time() - t0) * 1000))
 
 
+# ── Cockpit (página animada que o app abre em tela cheia) ────────────────────
+
+COCKPIT = BASE / "cockpit"
+
+
+@app.get("/carro/cockpit/")
+@app.get("/carro/cockpit/<path:arquivo>")
+def cockpit(arquivo="index.html"):
+    """Arquivos do cockpit: só visual, sem dado pessoal — os dados vêm de /carro/painel com token."""
+    alvo = (COCKPIT / arquivo).resolve()
+    if not str(alvo).startswith(str(COCKPIT.resolve())) or not alvo.is_file():
+        return jsonify(erro="não achei"), 404
+    resp = send_file(alvo)
+    resp.headers["Cache-Control"] = "no-cache"  # sempre confere se tem versão nova
+    return resp
+
+
+_painel = {"ts": 0, "chave": "", "dados": {}}
+
+
+@app.get("/carro/painel")
+@autenticado
+def painel():
+    """Dados do cockpit: cidade, clima e agenda de hoje (cache de 10 min)."""
+    lat = request.args.get("lat") or consultas.VARGINHA[0]
+    lon = request.args.get("lon") or consultas.VARGINHA[1]
+    chave = f"{float(lat):.2f},{float(lon):.2f}"
+    if time.time() - _painel["ts"] < 600 and _painel["chave"] == chave:
+        return jsonify(_painel["dados"])
+    dados = {"cidade": consultas.cidade(lat, lon) or "Varginha", "clima": None, "agenda": []}
+    try:
+        r = requests.get("https://api.open-meteo.com/v1/forecast", params={
+            "latitude": lat, "longitude": lon, "timezone": "America/Sao_Paulo",
+            "current": "temperature_2m,weather_code",
+            "daily": "temperature_2m_max,precipitation_probability_max", "forecast_days": 1}, timeout=5).json()
+        dados["clima"] = {"agora": round(r["current"]["temperature_2m"]),
+                          "max": round(r["daily"]["temperature_2m_max"][0]),
+                          "chuva": r["daily"]["precipitation_probability_max"][0],
+                          "texto": CODIGOS_CLIMA.get(r["current"]["weather_code"], "")}
+    except Exception as e:
+        app.logger.warning("clima do painel falhou: %s", e)
+    try:
+        dados["agenda"] = consultas.agenda_itens("hoje")
+    except Exception as e:
+        app.logger.warning("agenda do painel falhou: %s", e)
+    _painel.update(ts=time.time(), chave=chave, dados=dados)
+    return jsonify(dados)
+
+
 @app.get("/carro/apk")
 @autenticado
 def apk():

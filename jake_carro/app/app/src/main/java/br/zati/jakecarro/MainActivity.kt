@@ -12,6 +12,8 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
@@ -29,7 +31,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 
-class MainActivity : Activity() {
+class MainActivity : Activity(), Cockpit.Ouvinte {
 
     companion object {
         const val EXTRA_OUVIR = "ouvir"
@@ -52,6 +54,11 @@ class MainActivity : Activity() {
     private lateinit var detalhe: TextView
     private lateinit var btnBolha: Button
     private lateinit var btnAtualizar: Button
+    private lateinit var btnMaps: Button
+    private lateinit var btnApps: Button
+
+    private lateinit var cockpit: Cockpit
+    private lateinit var nativo: View
 
     private var conversa: Job? = null
     private var veioDaBolha = false
@@ -63,7 +70,11 @@ class MainActivity : Activity() {
         voz = Voz(this)
         ouvido = Ouvido(this)
         acoes = Acoes(this)
+        cockpit = Cockpit(this).also { it.ouvinte = this }
+        NavLeitor.ouvinte = { d -> runOnUiThread { cockpit.navegacao(d) } }
         montarTela()
+        telaCheia()
+        registerReceiver(acordou, android.content.IntentFilter(Intent.ACTION_SCREEN_ON))
         pedirPermissoes()
         carregarConfig()
         if (intent?.getBooleanExtra(EXTRA_OUVIR, false) == true) chamarDaBolha() else saudar()
@@ -77,12 +88,16 @@ class MainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         BolhaService.enviar(this, BolhaService.ESCONDER)
+        cockpit.ligarGps()
+        btnApps.visibility = if (nativo.visibility == View.VISIBLE) View.VISIBLE else View.GONE
         btnBolha.visibility = if (Settings.canDrawOverlays(this)) View.GONE else View.VISIBLE
+        btnMaps.visibility = if (NavLeitor.permitido(this)) View.GONE else View.VISIBLE
     }
 
     override fun onStop() {
         super.onStop()
         BolhaService.enviar(this, BolhaService.MOSTRAR)
+        cockpit.desligarGps()
     }
 
     override fun onDestroy() {
@@ -90,6 +105,8 @@ class MainActivity : Activity() {
         ouvido.parar()
         voz.encerrar()
         acoes.desconectar()
+        runCatching { unregisterReceiver(acordou) }
+        cockpit.web.destroy()
         super.onDestroy()
     }
 
@@ -137,6 +154,10 @@ class MainActivity : Activity() {
         coluna.addView(detalhe, margem(top = 18))
         linha.addView(coluna, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         raiz.addView(linha, FrameLayout.LayoutParams(-1, -1))
+        nativo = linha
+        nativo.visibility = View.INVISIBLE
+        cockpit.montar()
+        raiz.addView(cockpit.web, FrameLayout.LayoutParams(-1, -1))
 
         val topo = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         btnBolha = Button(this).apply {
@@ -150,21 +171,100 @@ class MainActivity : Activity() {
             visibility = View.GONE
             setOnClickListener { atualizar() }
         }
+        btnMaps = Button(this).apply {
+            text = "Ler curvas do Maps"
+            setOnClickListener { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+        }
+        btnApps = Button(this).apply {
+            text = "Apps"
+            visibility = View.GONE
+            setOnClickListener { startActivity(Intent(this@MainActivity, AppsActivity::class.java)) }
+        }
+        topo.addView(btnApps)
         topo.addView(btnAtualizar)
+        topo.addView(btnMaps)
         topo.addView(btnBolha)
+        // botões de configuração: canto de cima à direita, abaixo do clima; somem quando não precisam mais
         raiz.addView(topo, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
-            setMargins(0, dp(12), dp(12), 0)
+            setMargins(0, dp(52), dp(12), 0)
         })
 
         setContentView(raiz)
     }
 
+    /** Esconde as barras do Android (volta deslizando da borda). */
+    private fun telaCheia() {
+        window.setDecorFitsSystemWindows(false)
+        window.insetsController?.let {
+            it.hide(WindowInsets.Type.systemBars())
+            it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
+    override fun onWindowFocusChanged(temFoco: Boolean) {
+        super.onWindowFocusChanged(temFoco)
+        if (temFoco) telaCheia()
+    }
+
+    // ── Cockpit chamando o app ──
+    override fun aoTocarJake() = aoTocarBotao()
+
+    override fun aoPerguntar(texto: String) {
+        veioDaBolha = false
+        conversa?.cancel()
+        conversa = escopo.launch { perguntarTexto(texto) }
+    }
+
+    override fun aoOuvirCom(frase: String) {
+        veioDaBolha = false
+        conversa?.cancel()
+        conversa = escopo.launch {
+            estado("Falando…", painel = "falando", frase = frase)
+            voz.pegarFoco(exclusivo = false)
+            voz.falarLocal(frase)
+            voz.soltarFoco()
+            ouvir()
+        }
+    }
+
+    override fun aoAbrirApp(chave: String) {
+        val pacote = mapOf("mapa" to "com.google.android.apps.maps", "musica" to "com.spotify.music",
+            "waze" to "com.waze")[chave]
+        val abrir = pacote?.let { packageManager.getLaunchIntentForPackage(it) }
+        if (abrir != null) startActivity(abrir.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        else startActivity(Intent(this, AppsActivity::class.java))
+    }
+
+    // Como launcher, "voltar" não sai do Jake: só para o que ele estiver fazendo.
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (conversa?.isActive == true) aoTocarBotao()
+    }
+
+    /** A central "acorda" quando liga o carro (a tela acende): cumprimenta, respeitando a regra de 30 min. */
+    private val acordou = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: android.content.Context?, i: Intent?) {
+            cockpit.recarregarDados()
+            if (conversa?.isActive != true) saudar()
+        }
+    }
+
+    override fun aoFalharCockpit() {
+        // sem a página (sem internet ao abrir): mostra a tela simples do app
+        nativo.visibility = View.VISIBLE
+        cockpit.web.visibility = View.GONE
+        btnApps.visibility = View.VISIBLE
+    }
+
     private fun margem(top: Int) = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(top) }
 
-    private fun estado(t: String, corBotao: Int = CIANO, rotulo: String = "FALAR") {
+    /** Atualiza a tela simples e o cockpit ([painel] = estado da bolinha, [frase] = legenda). */
+    private fun estado(t: String, corBotao: Int = CIANO, rotulo: String = "FALAR",
+                       painel: String = "pronto", frase: String? = null) {
         status.text = t
         botao.text = rotulo
         (botao.background as GradientDrawable).setColor(corBotao)
+        cockpit.estado(painel, frase)
     }
 
     // ── Permissões / config ──────────────────────────────────────────────────
@@ -203,24 +303,29 @@ class MainActivity : Activity() {
         val prefs = getSharedPreferences("jake", MODE_PRIVATE)
         val agora = System.currentTimeMillis()
         if (agora - prefs.getLong("ultima_saudacao", 0) < SAUDAR_DE_NOVO_MS) {
-            estado("Pronto, patrão")
+            estado("Pronto, patrão", frase = "Toque em mim pra falar.")
             return
         }
         prefs.edit().putLong("ultima_saudacao", agora).apply()
         conversa = escopo.launch {
             estado("Acordando…")
+            val inicio = System.currentTimeMillis()
+            cockpit.acordar()
             val (fala, mp3) = try {
                 val loc = localizacao()
                 withContext(Dispatchers.IO) { api.saudacao(loc?.first, loc?.second) }
             } catch (_: Exception) {
                 "Fala, patrão! Tô sem internet agora, mas rota e música eu ainda consigo." to ""
             }
+            // espera o impacto do som da nave (~1,7 s) antes de falar; se a internet demorou, fala na hora
+            val falta = 1700 - (System.currentTimeMillis() - inicio)
+            if (falta > 0) kotlinx.coroutines.delay(falta)
             falaTxt.text = fala
-            estado("Falando…")
+            estado("Falando…", painel = "falando", frase = fala)
             voz.pegarFoco(exclusivo = false)
             voz.falar(fala, mp3)
             voz.soltarFoco()
-            estado("Pronto, patrão")
+            estado("Pronto, patrão", frase = fala)
         }
     }
 
@@ -235,7 +340,7 @@ class MainActivity : Activity() {
             ouvido.parar()
             voz.calar()
             voz.soltarFoco()
-            estado("Pronto, patrão")
+            estado("Pronto, patrão", frase = "")
             return
         }
         veioDaBolha = false
@@ -254,9 +359,9 @@ class MainActivity : Activity() {
             falaTxt.text = ""
             detalhe.text = ""
             voz.pegarFoco(exclusivo = true)
-            estado("Ouvindo…", 0xFFF43F5E.toInt(), "PARAR")
+            estado("Ouvindo…", 0xFFF43F5E.toInt(), "PARAR", painel = "ouvindo", frase = "")
             val audio = try {
-                ouvido.gravar { n -> botao.scaleX = 1f + n * 0.12f; botao.scaleY = 1f + n * 0.12f }
+                ouvido.gravar { n -> botao.scaleX = 1f + n * 0.12f; botao.scaleY = 1f + n * 0.12f; cockpit.nivel(n) }
             } catch (e: Exception) {
                 null
             } finally {
@@ -264,12 +369,12 @@ class MainActivity : Activity() {
             }
             if (audio == null) {
                 voz.soltarFoco()
-                estado("Não ouvi nada. Toca de novo.")
+                estado("Não ouvi nada. Toca de novo.", frase = "Não ouvi nada. Toca de novo.")
                 voltarSeVeioDaBolha()
                 return@launch
             }
 
-            estado("Pensando…", 0xFFFBBF24.toInt(), "…")
+            estado("Pensando…", 0xFFFBBF24.toInt(), "…", painel = "pensando")
             val r = try {
                 withContext(Dispatchers.IO) { api.comando(audio = audio) }
             } catch (e: Exception) {
@@ -279,21 +384,43 @@ class MainActivity : Activity() {
                 modoOffline()
                 return@launch
             }
-            ouvidoTxt.text = if (r.ouvido.isNotBlank()) "“${r.ouvido}”" else ""
-            responder(r.fala, r.audioB64, r.acao, r.parametros)
-            detalhe.text = r.ms
+            mostrarResposta(r)
         }
+    }
+
+    private suspend fun perguntarTexto(texto: String) {
+        estado("Pensando…", 0xFFFBBF24.toInt(), "…", painel = "pensando", frase = "“$texto”")
+        val r = try {
+            withContext(Dispatchers.IO) { api.comando(texto = texto) }
+        } catch (e: Exception) {
+            null
+        }
+        if (r == null) {
+            estado("Sem internet", painel = "offline", frase = "Tô sem internet, patrão.")
+            voz.falarLocal("Tô sem internet, patrão.")
+            return
+        }
+        mostrarResposta(r)
+    }
+
+    private suspend fun mostrarResposta(r: Resposta) {
+        ouvidoTxt.text = if (r.ouvido.isNotBlank()) "“${r.ouvido}”" else ""
+        if (r.ouvido.isNotBlank()) cockpit.estado("pensando", "“${r.ouvido}”")
+        responder(r.fala, r.audioB64, r.acao, r.parametros)
+        detalhe.text = r.ms
     }
 
     private suspend fun responder(fala: String, mp3: String, acao: String, params: JSONObject) {
         if (acao == "consultar") return consultar(fala, mp3, params)
         falaTxt.text = fala
-        estado("Falando…")
+        estado("Falando…", painel = "falando", frase = fala)
         voz.pegarFoco(exclusivo = false)
         voz.falar(fala, mp3)
         voz.soltarFoco()
+        if (acao == "navegar") cockpit.destino(params.optString("destino").substringBefore(","))
         val abriuOutroApp = acoes.executar(acao, params)
-        estado("Pronto, patrão")
+        estado("Pronto, patrão", painel = if (acao in setOf("navegar", "tocar_musica", "midia")) "feito" else "pronto",
+            frase = fala)
         if (!abriuOutroApp) voltarSeVeioDaBolha()
     }
 
@@ -301,32 +428,32 @@ class MainActivity : Activity() {
     private suspend fun consultar(espera: String, mp3: String, params: JSONObject) {
         val busca = escopo.async(Dispatchers.IO) { runCatching { api.consulta(params) }.getOrNull() }
         falaTxt.text = espera
-        estado("Buscando…", 0xFFFBBF24.toInt(), "…")
+        estado("Buscando…", 0xFFFBBF24.toInt(), "…", painel = "pensando", frase = espera)
         voz.pegarFoco(exclusivo = false)
         voz.falar(espera, mp3)
         val r = busca.await()
         val (fala, audio) = r ?: ("Não consegui puxar isso agora, patrão." to "")
         falaTxt.text = fala
-        estado("Falando…")
+        estado("Falando…", painel = "falando", frase = fala)
         voz.falar(fala, audio)
         voz.soltarFoco()
-        estado("Pronto, patrão")
+        estado("Pronto, patrão", frase = fala)
         voltarSeVeioDaBolha()
     }
 
     private suspend fun modoOffline() {
-        estado("Sem internet")
+        estado("Sem internet", painel = "offline", frase = "Tô sem internet, patrão.")
         voz.pegarFoco(exclusivo = false)
         if (!Offline.disponivel(this)) {
             voz.falarLocal("Tô sem internet, patrão. Assim que voltar eu te respondo.")
             voz.soltarFoco()
-            estado("Sem internet")
+            estado("Sem internet", painel = "offline", frase = "Tô sem internet, patrão.")
             voltarSeVeioDaBolha()
             return
         }
         voz.falarLocal("Tô sem internet, patrão. Fala de novo que eu tento aqui mesmo.")
         voz.soltarFoco()
-        estado("Ouvindo (offline)…", 0xFFF43F5E.toInt(), "PARAR")
+        estado("Ouvindo (offline)…", 0xFFF43F5E.toInt(), "PARAR", painel = "offline", frase = "Ouvindo sem internet…")
         val frase = Offline.ouvir(this)
         if (frase.isNullOrBlank()) {
             estado("Não entendi offline")
