@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Jake · cockpit</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600&family=Inter+Tight:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -60,10 +61,33 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 /* parado: laterais */
 .rotulo{font-family:var(--tec);font-size:24px;letter-spacing:2.5px;color:var(--gelo);font-weight:500;text-transform:uppercase}
 .traco{height:2px;width:100%;margin:12px 0 14px;background:linear-gradient(90deg,var(--ciano),rgba(34,211,238,0))}
-#esq{position:absolute;left:30px;top:138px;width:270px}
+#esq{position:absolute;left:30px;top:120px;width:236px}
+#esq .rotulo{font-size:19px;letter-spacing:2px;white-space:nowrap}
+.sub{font-family:var(--tec);font-size:13px;letter-spacing:3px;color:var(--ciano);margin:26px 0 4px}
 #clima{font-size:15px;color:var(--suave);line-height:1.6}
 #clima b{color:var(--texto);font-weight:500}
-#dir{position:absolute;right:30px;top:138px;width:262px}
+#dir{position:absolute;right:30px;top:104px;width:236px;display:flex;flex-direction:column;gap:12px}
+.cartao{position:relative;border-radius:16px;overflow:hidden;border:1px solid rgba(34,211,238,.32);background:rgba(8,20,34,.7);
+  box-shadow:0 0 18px rgba(34,211,238,.12)}
+#mapa-card{height:200px;cursor:pointer}
+#mapa{position:absolute;inset:0;background:#06101c}
+#mapa .leaflet-tile{filter:brightness(1.35) sepia(1) hue-rotate(150deg) saturate(2.2) brightness(.5) contrast(1.25)}
+#mapa .leaflet-control-attribution{background:rgba(4,7,13,.6);color:#5F8497;font-size:8px;padding:0 4px}
+#mapa .leaflet-control-attribution a{color:#5F8497}
+#mapa-rotulo{position:absolute;left:12px;top:10px;z-index:500;font-family:var(--tec);font-size:12px;letter-spacing:3px;color:var(--ciano);
+  text-shadow:0 0 8px #04070D,0 0 3px #04070D;pointer-events:none}
+#mapa-info{position:absolute;left:0;right:0;bottom:0;z-index:500;padding:18px 12px 9px;font-size:13px;color:var(--gelo);
+  background:linear-gradient(0deg,rgba(4,7,13,.92),rgba(4,7,13,0));pointer-events:none}
+.eu{width:16px;height:16px;border-radius:50%;background:var(--ciano);border:2px solid #fff;box-shadow:0 0 0 6px rgba(34,211,238,.25),0 0 14px var(--ciano)}
+#musica-card{height:92px;display:flex;align-items:center;gap:12px;padding:0 12px}
+#capa{width:62px;height:62px;border-radius:10px;flex:none;background:#0d2236 center/cover no-repeat;display:flex;align-items:center;justify-content:center;color:var(--ciano)}
+#musica-dir{flex:1;min-width:0;display:flex;flex-direction:column}
+#musica-txt{min-width:0;cursor:pointer}
+#musica-tit{font-size:15px;color:var(--gelo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#musica-art{font-size:12px;color:var(--suave);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.ctl{display:flex;gap:6px;margin-top:2px}
+.ctl button{width:44px;height:36px;border:none;background:none;color:var(--texto);display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.ctl button.play{color:var(--ciano)}
 #agenda .item{display:flex;gap:16px;align-items:baseline;padding:9px 0;border-bottom:1px solid rgba(143,179,198,.14)}
 #agenda .item:last-child{border-bottom:none}
 #agenda .hh{font-family:var(--tec);font-size:17px;color:var(--ciano);min-width:66px}
@@ -72,10 +96,10 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 #agenda .vazio{font-size:15px;color:var(--suave)}
 
 /* carro girando */
-#carro{position:absolute;left:222px;top:78px;width:580px;height:386px;touch-action:none;cursor:grab}
+#carro{position:absolute;left:268px;top:104px;width:488px;height:325px;touch-action:none;cursor:grab}
 #giro{position:absolute;inset:0;background-repeat:no-repeat;
   -webkit-mask-image:radial-gradient(50% 50% at 50% 50%,#000 58%,transparent 100%);mask-image:radial-gradient(50% 50% at 50% 50%,#000 58%,transparent 100%)}
-#anel{position:absolute;left:110px;right:110px;top:282px;height:56px;border-radius:50%;border:2px solid rgba(34,211,238,.75);
+#anel{position:absolute;left:92px;right:92px;top:236px;height:46px;border-radius:50%;border:2px solid rgba(34,211,238,.75);
   box-shadow:0 0 22px rgba(34,211,238,.45),inset 0 0 22px rgba(34,211,238,.25);pointer-events:none}
 #dica{position:absolute;left:0;right:0;top:4px;text-align:center;font-family:var(--tec);font-size:11px;letter-spacing:4px;color:var(--apagado);transition:opacity 1s}
 
@@ -157,11 +181,26 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     <div class="rotulo" id="saudacao">Olá, patrão</div>
     <div class="traco"></div>
     <div id="clima">Carregando o tempo…</div>
+    <div class="sub">HOJE</div>
+    <div id="agenda"><div class="vazio">Carregando a agenda…</div></div>
   </div>
   <div id="dir" class="so-parado some">
-    <div class="rotulo">Hoje</div>
-    <div class="traco"></div>
-    <div id="agenda"><div class="vazio">Carregando a agenda…</div></div>
+    <div id="mapa-card" class="cartao" role="button" aria-label="Abrir o Google Maps">
+      <div id="mapa"></div>
+      <div id="mapa-rotulo">MAPA</div>
+      <div id="mapa-info">Você está aqui</div>
+    </div>
+    <div id="musica-card" class="cartao">
+      <div id="capa"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg></div>
+      <div id="musica-dir">
+      <div id="musica-txt" role="button" aria-label="Abrir o Spotify"><div id="musica-tit">Nada tocando</div><div id="musica-art">Toque pra abrir o Spotify</div></div>
+      <div class="ctl">
+        <button data-midia="anterior" aria-label="Música anterior"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 6h2v12H7zM10 12l9-6v12z"/></svg></button>
+        <button data-midia="alternar" class="play" aria-label="Tocar ou pausar"><svg id="icone-play" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>
+        <button data-midia="proxima" aria-label="Próxima música"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15 6h2v12h-2zM5 6l9 6-9 6z"/></svg></button>
+      </div>
+      </div>
+    </div>
   </div>
   <div id="carro" class="so-parado">
     <div id="anel"></div>
@@ -169,13 +208,10 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     <div id="dica">ARRASTE · 360°</div>
   </div>
   <div id="doca-e" class="doca so-parado some">
-    <button class="atalho" data-app="mapa" aria-label="Abrir Google Maps"><span class="bola"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg></span><span>Mapa</span></button>
-    <button class="atalho" data-app="musica" aria-label="Abrir Spotify"><span class="bola"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg></span><span>Música</span></button>
-    <button class="atalho" data-app="waze" aria-label="Abrir Waze"><span class="bola"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15a8 8 0 1 1 15.5-2.8c.7 2.6-1 5.3-3.6 5.8l-6 .1"/><circle cx="8.5" cy="18.5" r="1.5"/><circle cx="16.5" cy="18.5" r="1.5"/><path d="M10 10h.01M15 10h.01M10 13.5c1.2 1 3 1 4 0"/></svg></span><span>Waze</span></button>
-  </div>
-  <div id="doca-d" class="doca so-parado some">
     <button class="atalho" id="p-viagem" aria-label="Modo viagem"><span class="bola"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M6 21 10 3M18 21 14 3M12 6v2M12 11v2M12 16v2"/></svg></span><span>Viagem</span></button>
     <button class="atalho" id="p-resumo" aria-label="Resumo do dia"><span class="bola"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16l2 2 4-4"/></svg></span><span>Resumo</span></button>
+  </div>
+  <div id="doca-d" class="doca so-parado some">
     <button class="atalho" data-app="apps" aria-label="Todos os apps"><span class="bola"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></svg></span><span>Apps</span></button>
   </div>
 
@@ -210,6 +246,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -273,8 +310,9 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   // ── carro girando: folha de quadros + arraste com inércia ──
   const giro = $('giro');
   const G = { n: 72, cols: 8, w: 640, h: 426 };
-  const larg = 580, alt = 386, esc = Math.max(larg / G.w, alt / G.h);
-  let quadro = 0, vel = 0.12, arrastando = false, ultimoX = 0, ultimoT = 0, temGiro = false;
+  const larg = 488, alt = 325, esc = Math.max(larg / G.w, alt / G.h);
+  const POSE = 11;                         // quadro de descanso: 3/4 de frente (a pose do render)
+  let quadro = POSE, vel = 0, alvo = null, arrastando = false, ultimoX = 0, ultimoT = 0, temGiro = false;
   const img = new Image();
   img.onload = () => {
     temGiro = true;
@@ -295,9 +333,15 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     giro.style.backgroundPosition = `${ox - (k % G.cols) * G.w * esc}px ${oy - Math.floor(k / G.cols) * G.h * esc}px`;
   }
   function animarGiro() {
-    if (!arrastando && temGiro && palco.classList.contains('parado')) {
-      vel += (0.12 - vel) * 0.02;        // inércia volta devagar pro giro de vitrine
-      quadro += vel; desenhar();
+    if (!arrastando && temGiro) {
+      if (alvo !== null) {                 // volta de abertura: desacelera até a pose
+        const falta = alvo - quadro;
+        quadro += Math.sign(falta) * Math.max(0.15, Math.abs(falta) * 0.045);
+        if (Math.abs(falta) < 0.2) { quadro = alvo; alvo = null; }
+        desenhar();
+      } else if (Math.abs(vel) > 0.01) {   // soltou o dedo: continua um pouco e para
+        quadro += vel; vel *= 0.93; desenhar();
+      }
     }
     requestAnimationFrame(animarGiro);
   }
@@ -356,7 +400,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   let kmhAtual = 0, desde = Date.now(), modo = 'parado';
   function gps(kmh, lat, lon) {
     kmhAtual = Math.max(0, Math.round(kmh || 0));
-    if (lat) { const mudou = !pos.lat || Math.abs(pos.lat - lat) > 0.05; pos = { lat, lon }; if (mudou) carregarPainel(); }
+    if (lat) { const mudou = !pos.lat || Math.abs(pos.lat - lat) > 0.05; pos = { lat, lon }; if (mudou) carregarPainel(); mapaPosicao(lat, lon); }
     $('kmh').textContent = kmhAtual;
     $('arco').setAttribute('stroke-dasharray', `${Math.min(1, kmhAtual / 140) * 603} 805`);
     const quer = kmhAtual >= 12 ? 'andando' : kmhAtual <= 4 ? 'parado' : modo;
@@ -438,6 +482,23 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
       ['feito', 'Rota pra São Tomé das Letras no Maps.'], ['pronto', 'Toque em mim ou diga “Jake”.']];
     seq.forEach(([n, f], i) => setTimeout(() => { estado(n, f); if (n === 'ouvindo') nivel = 0.8; }, i * 1600));
   }
+  if (!nativo) {
+    musica({ titulo: 'Exemplo de música', artista: 'Froid', tocando: true });
+    setTimeout(() => mapaRota('São Tomé das Letras, MG'), 1500);
+  }
+  // prévia no computador: clicar no logo simula "ligou o carro" (som + clarão); tecla A alterna parado/andando
+  if (!nativo) {
+    $('marca').style.cursor = 'pointer';
+    $('marca').addEventListener('click', acordar);
+    addEventListener('keydown', (e) => {
+      if (e.key === 'a' || e.key === 'A') {
+        if (modo === 'parado') { mudarModo('andando'); kmhAtual = 62; $('kmh').textContent = 62;
+          $('arco').setAttribute('stroke-dasharray', `${62 / 140 * 603} 805`); $('destino').textContent = 'São Tomé das Letras';
+          navegacao({ titulo: 'Vire à direita na Av. Rio Branco', texto: '400 m', sub: 'Chegada 16:31 · 87 km' }); }
+        else { mudarModo('parado'); kmhAtual = 0; }
+      }
+    });
+  }
   if (params.get('modo') === 'andando') {
     mudarModo('andando'); kmhAtual = 62; gps(62);
     $('destino').textContent = 'São Tomé das Letras';
@@ -451,17 +512,71 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     palco.classList.add('acordando');
     void palco.offsetWidth;                 // reinicia a animação do clarão
     setTimeout(() => palco.classList.remove('acordando'), 350);
-    quadro = 0; vel = 1.2;                  // o carro entra girando rápido e desacelera
+    quadro = POSE - G.n; vel = 0; alvo = POSE;   // uma volta completa, desacelerando até a pose
     estado('pronto', 'Sistemas online.');
     somAbertura.currentTime = 0;
     somAbertura.play().catch(() => {});
   }
 
+  // ── mini mapa (OpenStreetMap/CARTO escuro, tingido de ciano) ──
+  let mapa = null, eu = null, linhaRota = null, navegando = false;
+  const VARGINHA = [-21.5513, -45.4303];
+  if (window.L) {
+    mapa = L.map('mapa', { zoomControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false,
+      boxZoom: false, keyboard: false, touchZoom: false, attributionControl: true }).setView(VARGINHA, 15);
+    mapa.attributionControl.setPrefix('');
+    // Esri "Dark Gray" (grátis, sem chave), tingido de ciano pelo CSS
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 16, attribution: '© Esri' }).addTo(mapa);
+    eu = L.marker(VARGINHA, { icon: L.divIcon({ className: '', html: '<div class="eu"></div>', iconSize: [16, 16] }) }).addTo(mapa);
+  }
+  function mapaPosicao(lat, lon) {
+    if (!mapa) return;
+    eu.setLatLng([lat, lon]);
+    if (!navegando) mapa.panTo([lat, lon], { animate: true });
+  }
+  async function mapaRota(destinoTxt) {
+    if (!mapa) return;
+    if (linhaRota) { linhaRota.remove(); linhaRota = null; }
+    if (!destinoTxt) { navegando = false; $('mapa-info').textContent = 'Você está aqui'; mapa.setView(eu.getLatLng(), 15); return; }
+    try {
+      const o = eu.getLatLng();
+      const r = await fetch(`/carro/rota?lat=${o.lat}&lon=${o.lng}&para=${encodeURIComponent(destinoTxt)}`,
+        { headers: { Authorization: 'Bearer ' + token() } });
+      const d = await r.json();
+      if (!d.pontos) throw new Error('sem rota');
+      linhaRota = L.polyline(d.pontos, { color: '#22D3EE', weight: 4, opacity: .95 }).addTo(mapa);
+      navegando = true;
+      mapa.fitBounds(linhaRota.getBounds(), { padding: [18, 30] });
+      $('mapa-info').textContent = `${destinoTxt} · ${d.km} km · ${d.tempo}`;
+    } catch (e) { $('mapa-info').textContent = destinoTxt; }
+  }
+  $('mapa-card').addEventListener('click', () => (nativo && nativo.abrirApp ? nativo.abrirApp('mapa') : demo()));
+
+  // ── mini player ──
+  function musica(m) {
+    const capa = $('capa');
+    if (!m || !m.titulo) {
+      $('musica-tit').textContent = 'Nada tocando'; $('musica-art').textContent = 'Toque pra abrir o Spotify';
+      capa.style.backgroundImage = ''; capa.firstElementChild && (capa.firstElementChild.style.display = '');
+      $('icone-play').innerHTML = '<path d="M8 5v14l11-7z"/>'; return;
+    }
+    $('musica-tit').textContent = m.titulo; $('musica-art').textContent = m.artista || '';
+    if (m.capa) { capa.style.backgroundImage = `url(${m.capa})`; capa.firstElementChild.style.display = 'none'; }
+    $('icone-play').innerHTML = m.tocando ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+  }
+  $('musica-txt').addEventListener('click', () => (nativo && nativo.abrirApp ? nativo.abrirApp('musica') : demo()));
+  document.querySelectorAll('[data-midia]').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (nativo && nativo.midia) nativo.midia(b.dataset.midia); else demo();
+  }));
+
   // ── o que o app chama ──
   window.jake = {
     estado, gps,
     nivel: (v) => { nivel = Math.max(nivel, Math.min(1, v)); },
-    destino: (nome, chegada) => { $('destino').textContent = nome || 'Rodando livre'; $('chegada').textContent = chegada || ''; },
+    destino: (nome, chegada) => { $('destino').textContent = nome || 'Rodando livre'; $('chegada').textContent = chegada || ''; mapaRota(nome); },
+    musica,
     painel: carregarPainel,
     acordar,
     navegacao,

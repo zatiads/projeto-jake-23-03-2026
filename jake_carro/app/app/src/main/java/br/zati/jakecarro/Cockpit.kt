@@ -29,11 +29,13 @@ class Cockpit(private val tela: Activity) {
         fun aoOuvirCom(frase: String)
         fun aoFalharCockpit()
         fun aoAbrirApp(chave: String)
+        fun aoMidia(cmd: String)
     }
 
     var ouvinte: Ouvinte? = null
     val web = WebView(tela)
     private var pronto = false
+    var ultimaMusica: Map<String, Any>? = null
     private val fila = mutableListOf<String>()   // chamadas feitas antes da página carregar
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -52,6 +54,7 @@ class Cockpit(private val tela: Activity) {
                 fila.forEach { web.evaluateJavascript("window.jake && $it", null) }
                 fila.clear()
                 NavLeitor.ultimo?.let { navegacao(it) }
+                ultimaMusica?.let { musica(it) }
             }
             override fun onReceivedError(view: WebView?, req: WebResourceRequest?, erro: WebResourceError?) {
                 if (req?.isForMainFrame == true) ouvinte?.aoFalharCockpit()
@@ -77,6 +80,9 @@ class Cockpit(private val tela: Activity) {
     /** Som da nave + clarão. O impacto do som cai em ~1,5 s: é aí que o Jake começa a falar. */
     fun acordar() = js("jake.acordar()")
     fun destino(nome: String?, chegada: String? = null) = js("jake.destino(${texto(nome)}, ${texto(chegada)})")
+
+    /** O que está tocando (null = nada). */
+    fun musica(m: Map<String, Any>?) = js("jake.musica(${if (m == null) "null" else JSONObject(m).toString()})")
 
     /** Próxima curva lida do Maps (null = navegação terminou). */
     fun navegacao(d: Map<String, String>?) =
@@ -115,5 +121,7 @@ class Cockpit(private val tela: Activity) {
         @JavascriptInterface fun ouvirCom(f: String) = tela.runOnUiThread { ouvinte?.aoOuvirCom(f) }
         /** mapa | musica | waze | apps */
         @JavascriptInterface fun abrirApp(chave: String) = tela.runOnUiThread { ouvinte?.aoAbrirApp(chave) }
+        /** anterior | alternar | proxima */
+        @JavascriptInterface fun midia(cmd: String) = tela.runOnUiThread { ouvinte?.aoMidia(cmd) }
     }
 }

@@ -547,6 +547,41 @@ def painel():
     return jsonify(dados)
 
 
+_rotas = {}
+
+
+@app.get("/carro/rota")
+@autenticado
+def rota():
+    """Rota pro mini mapa: acha o destino (Nominatim) e traça o caminho (OSRM). Cache por destino."""
+    lat, lon, para = request.args.get("lat"), request.args.get("lon"), (request.args.get("para") or "").strip()
+    if not (lat and lon and para):
+        return jsonify(erro="faltou origem ou destino"), 400
+    chave = f"{float(lat):.2f},{float(lon):.2f}|{para.lower()}"
+    if chave in _rotas:
+        return jsonify(_rotas[chave])
+    try:
+        g = requests.get("https://nominatim.openstreetmap.org/search", params={
+            "q": para, "format": "json", "limit": 1, "countrycodes": "br",
+            "viewbox": f"{float(lon) - 3},{float(lat) + 3},{float(lon) + 3},{float(lat) - 3}"},
+            headers={"User-Agent": "jake-carro/1.0"}, timeout=6).json()
+        if not g:
+            return jsonify(erro="destino não encontrado"), 404
+        dlat, dlon = float(g[0]["lat"]), float(g[0]["lon"])
+        r = requests.get(f"https://router.project-osrm.org/route/v1/driving/{lon},{lat};{dlon},{dlat}",
+                         params={"overview": "simplified", "geometries": "geojson"}, timeout=8).json()
+        trajeto = r["routes"][0]
+        minutos = round(trajeto["duration"] / 60)
+        dados = {"pontos": [[c[1], c[0]] for c in trajeto["geometry"]["coordinates"]],
+                 "km": round(trajeto["distance"] / 1000),
+                 "tempo": f"{minutos // 60}h{minutos % 60:02d}" if minutos >= 60 else f"{minutos} min"}
+    except Exception as e:
+        app.logger.warning("rota falhou: %s", e)
+        return jsonify(erro="sem rota agora"), 502
+    _rotas[chave] = dados
+    return jsonify(dados)
+
+
 @app.get("/carro/apk")
 @autenticado
 def apk():

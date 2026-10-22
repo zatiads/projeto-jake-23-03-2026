@@ -58,6 +58,7 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
     private lateinit var btnApps: Button
 
     private lateinit var cockpit: Cockpit
+    private lateinit var musica: Musica
     private lateinit var nativo: View
 
     private var conversa: Job? = null
@@ -72,6 +73,7 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
         acoes = Acoes(this)
         cockpit = Cockpit(this).also { it.ouvinte = this }
         NavLeitor.ouvinte = { d -> runOnUiThread { cockpit.navegacao(d) } }
+        musica = Musica(this) { m -> runOnUiThread { cockpit.ultimaMusica = m; cockpit.musica(m) } }
         montarTela()
         telaCheia()
         registerReceiver(acordou, android.content.IntentFilter(Intent.ACTION_SCREEN_ON))
@@ -89,6 +91,7 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
         super.onStart()
         BolhaService.enviar(this, BolhaService.ESCONDER)
         cockpit.ligarGps()
+        musica.ligar()
         btnApps.visibility = if (nativo.visibility == View.VISIBLE) View.VISIBLE else View.GONE
         btnBolha.visibility = if (Settings.canDrawOverlays(this)) View.GONE else View.VISIBLE
         btnMaps.visibility = if (NavLeitor.permitido(this)) View.GONE else View.VISIBLE
@@ -98,6 +101,7 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
         super.onStop()
         BolhaService.enviar(this, BolhaService.MOSTRAR)
         cockpit.desligarGps()
+        musica.desligar()
     }
 
     override fun onDestroy() {
@@ -233,6 +237,10 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
         val abrir = pacote?.let { packageManager.getLaunchIntentForPackage(it) }
         if (abrir != null) startActivity(abrir.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         else startActivity(Intent(this, AppsActivity::class.java))
+    }
+
+    override fun aoMidia(cmd: String) {
+        if (!musica.comando(cmd)) aoAbrirApp("musica")
     }
 
     // Como launcher, "voltar" não sai do Jake: só para o que ele estiver fazendo.
