@@ -1,11 +1,12 @@
 /*
  * Guarda o cockpit na central: com o hotspot ainda conectando (ou sem sinal), a tela abre na hora,
  * com carro, som e animação. Só os dados (clima, agenda, rota, voz) esperam a internet.
- * - a página: tenta a rede (3 s) e, sem resposta, usa a cópia guardada
- * - imagens, sons, scripts e fontes: usa a cópia guardada e atualiza por trás
+ * - tudo do cockpit (página, imagens, sons, scripts): tenta a rede (3 s); sem resposta, usa a cópia guardada.
+ *   Assim página e imagens nunca ficam de versões diferentes quando há internet.
+ * - bibliotecas e fontes de fora (não mudam): usa a cópia guardada
  * - dados (/carro/painel, /carro/rota, /carro/realtime…): sempre da rede, nunca guardados
  */
-const CACHE = 'jake-cockpit-v1';
+const CACHE = 'jake-cockpit-v2';   // trocar o número apaga as cópias antigas
 const BASE = '/carro/cockpit/';
 const ESSENCIAIS = [
   BASE, BASE + 'index.html', BASE + 'tempo_real.js', BASE + 'marca.png', BASE + 'carro_frente.webp',
@@ -38,14 +39,15 @@ function guardavel(url) {
   return /cdnjs\.cloudflare\.com|fonts\.(googleapis|gstatic)\.com|arcgisonline\.com/.test(url.hostname);
 }
 
-async function redePrimeiro(req) {
+async function redePrimeiro(req, chave) {
   const c = await caches.open(CACHE);
   try {
-    const resp = await Promise.race([fetch(req), new Promise((_, n) => setTimeout(() => n(new Error('lento')), 3000))]);
-    if (resp && resp.ok) c.put(BASE + 'index.html', resp.clone());
+    const resp = await Promise.race([fetch(req, { cache: 'no-cache' }),
+      new Promise((_, n) => setTimeout(() => n(new Error('lento')), 3000))]);
+    if (resp && resp.ok) c.put(chave, resp.clone());
     return resp;
   } catch (e) {
-    return (await c.match(BASE + 'index.html')) || Response.error();
+    return (await c.match(chave)) || Response.error();
   }
 }
 
@@ -60,6 +62,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if (!guardavel(url)) return;                       // dados e voz: direto da rede
-  if (e.request.mode === 'navigate') e.respondWith(redePrimeiro(e.request));
+  if (e.request.mode === 'navigate') e.respondWith(redePrimeiro(e.request, BASE + 'index.html'));
+  else if (url.origin === location.origin) e.respondWith(redePrimeiro(e.request, url.origin + url.pathname));
   else e.respondWith(guardadoPrimeiro(e.request));
 });
