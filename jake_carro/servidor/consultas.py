@@ -235,6 +235,70 @@ def agenda(periodo):
     return f"Agenda ({periodo_txt}), {len(linhas)} itens:\n" + "\n".join(linhas[:25])
 
 
+# ── Avisos que o Jake dá sozinho ──────────────────────────────────────────────
+
+_saldos = {"ts": 0, "lista": []}
+
+
+def saldos_baixos(limite):
+    """Contas pré-pagas RODANDO (gasto nos últimos 3 dias) com saldo abaixo do limite. Cache de 30 min."""
+    if time.time() - _saldos["ts"] < 1800:
+        return _saldos["lista"]
+    baixos = []
+    for c in contas_meta():
+        try:
+            d = requests.get(f"{GRAPH}/{c['id']}", params={
+                "fields": "is_prepay_account,funding_source_details", "access_token": c["token"]}, timeout=10).json()
+            if not d.get("is_prepay_account"):
+                continue
+            texto = (d.get("funding_source_details") or {}).get("display_string", "")
+            m = re.search(r"R\$\s*([\d.]+,\d{2})", texto)
+            if not m:
+                continue
+            saldo = float(m.group(1).replace(".", "").replace(",", "."))
+            if saldo >= limite:
+                continue
+            gasto = requests.get(f"{GRAPH}/{c['id']}/insights", params={
+                "date_preset": "last_3d", "fields": "spend", "access_token": c["token"]}, timeout=10).json()
+            if float(((gasto.get("data") or [{}])[0]).get("spend") or 0) > 0:
+                baixos.append({"id": c["id"], "nome": c["nome"], "saldo": saldo})
+        except Exception:
+            continue
+    _saldos.update(ts=time.time(), lista=baixos)
+    return baixos
+
+
+def compromissos_em(minutos):
+    """Eventos com hora marcada começando nos próximos `minutos`."""
+    agora = datetime.now(FUSO)
+    fim = agora + timedelta(minutes=minutos)
+    s = _sessao_google()
+    achados = []
+    for cal in agendas():
+        r = s.get(f"https://www.googleapis.com/calendar/v3/calendars/{cal}/events", params={
+            "timeMin": agora.isoformat(), "timeMax": fim.isoformat(), "singleEvents": "true",
+            "orderBy": "startTime", "maxResults": 5, "timeZone": "America/Sao_Paulo"}, timeout=10)
+        if r.status_code != 200:
+            continue
+        for e in r.json().get("items", []):
+            ini = e.get("start", {}).get("dateTime")
+            if ini:
+                quando = datetime.fromisoformat(ini).astimezone(FUSO)
+                achados.append({"id": e.get("id", ini), "titulo": e.get("summary", "compromisso"),
+                                "minutos": max(1, round((quando - agora).total_seconds() / 60))})
+    return achados
+
+
+def chuva_chegando(lat, lon):
+    """True se não está chovendo agora e a chance de chuva passa de 60% nas próximas 2 horas."""
+    r = requests.get("https://api.open-meteo.com/v1/forecast", params={
+        "latitude": lat, "longitude": lon, "timezone": "America/Sao_Paulo", "current": "weather_code",
+        "hourly": "precipitation_probability", "forecast_hours": 3}, timeout=5).json()
+    chovendo = r["current"]["weather_code"] >= 51
+    chance = max(r["hourly"]["precipitation_probability"][1:3] or [0])
+    return (not chovendo and chance >= 60), chance
+
+
 # ── Lugar (cidade) ────────────────────────────────────────────────────────────
 
 VARGINHA = (-21.5513, -45.4303)

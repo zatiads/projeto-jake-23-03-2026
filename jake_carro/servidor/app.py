@@ -14,7 +14,7 @@ import subprocess
 import threading
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -425,7 +425,7 @@ def saudacao():
             hoje = ""
         if hoje.startswith(("SEM ACESSO", "A agenda ainda")):
             hoje = ""
-        cumprimento = "Bom dia" if agora.hour < 12 else "Boa tarde" if agora.hour < 18 else "Boa noite"
+        cumprimento = "Boa noite" if agora.hour < 5 else "Bom dia" if agora.hour < 12 else "Boa tarde" if agora.hour < 18 else "Boa noite"
         pedido = (f"Primeira vez que o carro liga hoje. Agora são {agora:%H:%M}.\nCidade: {lugar}."
                   + (f"\nClima: {tempo}." if tempo else "")
                   + (f"\n{hoje}" if hoje else "\nAgenda: indisponível — NÃO fale de compromissos.")
@@ -440,7 +440,7 @@ def saudacao():
         fala = resp.choices[0].message.content.strip()
     except Exception as e:
         app.logger.warning("saudação falhou: %s", e)
-        periodo = "Bom dia" if agora.hour < 12 else "Boa tarde" if agora.hour < 18 else "Boa noite"
+        periodo = "Boa noite" if agora.hour < 5 else "Bom dia" if agora.hour < 12 else "Boa tarde" if agora.hour < 18 else "Boa noite"
         fala = f"{periodo}, patrão! Pra onde vamos?"
     return jsonify(fala=fala, audio_b64=voz_b64(fala))
 
@@ -547,7 +547,8 @@ def painel():
         r = requests.get("https://api.open-meteo.com/v1/forecast", params={
             "latitude": lat, "longitude": lon, "timezone": "America/Sao_Paulo",
             "current": "temperature_2m,weather_code",
-            "daily": "temperature_2m_max,precipitation_probability_max", "forecast_days": 1}, timeout=5).json()
+            "daily": "temperature_2m_max,precipitation_probability_max,sunrise,sunset", "forecast_days": 1}, timeout=5).json()
+        dados["sol"] = {"nasce": r["daily"]["sunrise"][0], "poe": r["daily"]["sunset"][0]}
         dados["clima"] = {"agora": round(r["current"]["temperature_2m"]),
                           "max": round(r["daily"]["temperature_2m_max"][0]),
                           "chuva": r["daily"]["precipitation_probability_max"][0],
@@ -660,6 +661,68 @@ def realtime_ferramenta():
     registrar(sessao="realtime", ouvido=f"[{nome}] {json.dumps(a, ensure_ascii=False)}", fala=str(saida)[:500],
               acao=nome, parametros=a, ms_stt=0, ms_ia=int((time.time() - t0) * 1000), ms_voz=0)
     return jsonify(saida=saida)
+
+
+# ── Avisos que o Jake dá sozinho (o cockpit pergunta a cada 2 min) ────────────
+
+LIMITE_SALDO = float(os.environ.get("META_ALERTA_SALDO_LIMITE", "150"))
+
+
+def _ler_estado():
+    try:
+        return json.loads(ESTADO.read_text())
+    except Exception:
+        return {}
+
+
+@app.get("/carro/avisos")
+@autenticado
+def avisos():
+    """No máximo 1 aviso por vez, cada um uma vez só: compromisso em 15 min, saldo baixo no Meta, chuva chegando."""
+    agora = datetime.now(FUSO)
+    if not 6 <= agora.hour < 23:
+        return jsonify(aviso=None)
+    lat = request.args.get("lat") or consultas.VARGINHA[0]
+    lon = request.args.get("lon") or consultas.VARGINHA[1]
+    estado = _ler_estado()
+    dados = estado.setdefault("avisos_dados", {})
+    hoje = agora.strftime("%Y-%m-%d")
+    for k in [k for k, v in dados.items() if v < (agora - timedelta(days=2)).strftime("%Y-%m-%d")]:
+        dados.pop(k)
+
+    candidatos = []
+    try:
+        for e in consultas.compromissos_em(16):
+            candidatos.append((f"agenda:{e['id']}", f"Patrão, {e['titulo']} começa em {e['minutos']} minutos."))
+    except Exception as e:
+        app.logger.warning("aviso agenda: %s", e)
+    try:
+        for c in consultas.saldos_baixos(LIMITE_SALDO):
+            texto = (f"Patrão, a conta da {c['nome']} tá sem saldo no Meta, os anúncios vão parar." if c["saldo"] < 1
+                     else f"Patrão, a conta da {c['nome']} tá com só {round(c['saldo'])} reais de saldo no Meta.")
+            candidatos.append((f"saldo:{c['id']}:{hoje}", texto))
+    except Exception as e:
+        app.logger.warning("aviso saldo: %s", e)
+    try:
+        vai, chance = consultas.chuva_chegando(lat, lon)
+        if vai:
+            candidatos.append((f"chuva:{hoje}:{agora.hour // 3}",
+                               f"Patrão, {chance}% de chance de chuva na próxima hora. Bom deixar o farol ligado."))
+    except Exception as e:
+        app.logger.warning("aviso chuva: %s", e)
+
+    if request.args.get("teste") == "1":  # só lista, sem marcar como dado nem gerar voz
+        return jsonify(candidatos=[{"id": c, "texto": t} for c, t in candidatos])
+    for chave, texto in candidatos:
+        if chave in dados:
+            continue
+        dados[chave] = hoje
+        ESTADO.write_text(json.dumps(estado))
+        registrar(sessao="aviso", ouvido=chave, fala=texto, acao="aviso", parametros={},
+                  ms_stt=0, ms_ia=0, ms_voz=0)
+        return jsonify(aviso={"id": chave, "texto": texto, "audio_b64": voz_b64(texto)})
+    ESTADO.write_text(json.dumps(estado))
+    return jsonify(aviso=None)
 
 
 _rotas = {}

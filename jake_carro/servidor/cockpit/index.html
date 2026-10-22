@@ -100,11 +100,21 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 
 /* carro girando */
 #carro{position:absolute;left:268px;top:104px;width:488px;height:325px;touch-action:none;cursor:grab}
-#giro,#giro2,.refl{position:absolute;left:0;top:0;width:488px;height:305px;background-repeat:no-repeat}
-#reflexo{position:absolute;left:0;top:231px;width:488px;height:305px;transform:scaleY(-1);opacity:.22;pointer-events:none;
+#giro,#giro2,.refl,#foto{position:absolute;left:-30px;top:6px;width:547px;height:288px;background-repeat:no-repeat}
+#foto{pointer-events:none;transition:opacity .25s;
+  filter:drop-shadow(0 0 1px rgba(125,233,247,.6)) drop-shadow(0 0 12px rgba(34,211,238,.22))}
+.refl{left:0;top:0}
+#reflexo{position:absolute;left:-30px;top:224px;width:547px;height:288px;transform:scaleY(-1);opacity:.22;pointer-events:none;
   -webkit-mask-image:linear-gradient(0deg,#000 0%,transparent 26%);mask-image:linear-gradient(0deg,#000 0%,transparent 26%)}
 #luz-estudio{position:absolute;left:-40px;right:-40px;top:20px;height:290px;border-radius:50%;pointer-events:none;
   background:radial-gradient(closest-side,rgba(34,211,238,.20),rgba(14,90,140,.10) 55%,transparent)}
+
+/* modo noite: menos brilho pra não ofuscar na estrada */
+#palco{transition:filter 2s ease}
+#palco.noite{filter:brightness(.78) saturate(.9)}
+.noite #horizonte{box-shadow:0 0 6px 1px rgba(34,211,238,.45)}
+.noite #horizonte-brilho,.noite #luz-estudio{opacity:.5}
+.noite .cartao,.noite .atalho .bola{box-shadow:none}
 
 /* faixa neon do "estúdio": atravessa a tela na altura do chão do carro */
 #horizonte{position:absolute;left:0;right:0;top:372px;height:2px;pointer-events:none;
@@ -114,7 +124,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   background:radial-gradient(50% 50% at 50% 50%,rgba(34,211,238,.13),transparent 70%)}
 .andando #horizonte,.andando #horizonte-brilho{opacity:0}
 #horizonte,#horizonte-brilho{transition:opacity .7s}
-#anel{position:absolute;left:58px;right:58px;top:243px;height:52px;border-radius:50%;border:2px solid rgba(34,211,238,.75);
+#anel{position:absolute;left:66px;right:66px;top:233px;height:50px;border-radius:50%;border:2px solid rgba(34,211,238,.75);
   box-shadow:0 0 22px rgba(34,211,238,.45),inset 0 0 22px rgba(34,211,238,.25);pointer-events:none}
 #dica{position:absolute;left:0;right:0;top:4px;text-align:center;font-family:var(--tec);font-size:11px;letter-spacing:4px;color:var(--apagado);transition:opacity 1s}
 
@@ -225,6 +235,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     <div id="reflexo"><div class="refl" id="refl1"></div><div class="refl" id="refl2"></div></div>
     <div id="giro" role="img" aria-label="Seu HB20 — arraste para girar"></div>
     <div id="giro2" aria-hidden="true"></div>
+    <img id="foto" src="carro_pose.webp" alt="" aria-hidden="true">
     <div id="dica">ARRASTE · 360°</div>
   </div>
   <div id="doca-e" class="doca so-parado some">
@@ -275,6 +286,9 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   const nativo = window.Android || null;          // ponte com o app (Kotlin)
   const params = new URLSearchParams(location.search);
 
+  // ── guarda o cockpit na central pra abrir mesmo sem internet ──
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { scope: './' }).catch(() => {});
+
   // ── encaixa o palco 1024×600 em qualquer tela ──
   function encaixar() {
     const e = Math.min(innerWidth / 1024, innerHeight / 600);
@@ -292,7 +306,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     $('relogio').textContent = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     $('data').textContent = `${dias[d.getDay()]}, ${d.getDate()} ${meses[d.getMonth()]}`;
     const h = d.getHours();
-    $('saudacao').textContent = (h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite') + ', patrão';
+    $('saudacao').textContent = (h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite') + ', patrão';
   }
   tic(); setInterval(tic, 1000);
 
@@ -310,6 +324,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
       if (!r.ok) throw new Error(r.status);
       const p = await r.json();
       $('cidade-topo').textContent = p.cidade;
+      if (p.sol) { sol = { nasce: Date.parse(p.sol.nasce + ':00-03:00'), poe: Date.parse(p.sol.poe + ':00-03:00') }; noite(); }
       if (p.clima) {
         $('temp-topo').textContent = p.clima.agora + '°';
         $('clima').innerHTML = `<b>${p.cidade}</b> · ${p.clima.agora}°C · ${p.clima.texto}<br>máx ${p.clima.max}° · chuva ${p.clima.chuva}%`;
@@ -328,14 +343,26 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   }
   carregarPainel(); setInterval(carregarPainel, 10 * 60 * 1000);
 
+  // ── modo noite: escurece do pôr ao nascer do sol (sem o dado do sol, das 18h às 6h) ──
+  let sol = null;
+  function noite() {
+    const agora = Date.now(), h = new Date().getHours();
+    const escuro = params.get('noite') ? params.get('noite') === '1'
+      : sol ? (agora > sol.poe + 20 * 60000 || agora < sol.nasce - 20 * 60000) : (h >= 18 || h < 6);
+    palco.classList.toggle('noite', escuro);
+  }
+  noite(); setInterval(noite, 60 * 1000);
+
   // ── carro girando: folha de quadros + arraste com inércia ──
   const giro = $('giro');
-  const G = { n: 72, cols: 8, w: 640, h: 400 };   // folha com o carro recortado e alinhado pelas rodas
-  const larg = 488, esc = larg / G.w, alt = G.h * esc;
+  const G = { n: 72, cols: 8, w: 760, h: 400 };   // folha com o carro recortado e alinhado pelas rodas
+  const esc = 0.72;                        // 760 → 547 px na tela (de lado cabe sem encostar no mapa)
   const POSE = 11;                         // quadro de partida: 3/4 de frente (a pose do render)
-  const LENTO = 0.012;                     // vitrine: ~1 volta a cada 100 s, pra não cansar a vista
-  const giro2 = $('giro2'), refl1 = $('refl1'), refl2 = $('refl2');
-  let quadro = POSE, vel = 0, alvo = null, arrastando = false, ultimoX = 0, ultimoT = 0, temGiro = false;
+  const VOLTA_POSE_MS = 10000;             // soltou e ficou 10 s sem mexer: volta devagar pra pose
+  const giro2 = $('giro2'), refl1 = $('refl1'), refl2 = $('refl2'), foto = $('foto');
+  let fotoPronta = false;
+  foto.addEventListener('load', () => { fotoPronta = true; desenhar(); });
+  let quadro = Number(params.get('quadro')) || POSE, vel = 0, alvo = null, arrastando = false, ultimoX = 0, ultimoT = 0, temGiro = false, soltouEm = 0;
   const img = new Image();
   img.onload = () => {
     temGiro = true;
@@ -357,21 +384,31 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   }
   function desenhar() {
     if (!temGiro) return;
-    const k = Math.floor(quadro), f = quadro - k;      // mistura o quadro atual com o próximo
+    // um quadro inteiro por vez: misturar dois quadros do carro recortado deixa ele "fantasma"
+    const k = Math.round(quadro);
     giro.style.backgroundPosition = refl1.style.backgroundPosition = posicao(k);
-    giro2.style.backgroundPosition = refl2.style.backgroundPosition = posicao(k + 1);
-    giro2.style.opacity = refl2.style.opacity = f.toFixed(3);
+    giro2.style.opacity = refl2.style.opacity = '0';
+    // parado na pose: foto nítida em alta por cima; mexeu, volta o giro
+    const naPose = !arrastando && alvo === null && Math.abs(vel) <= 0.02 && ((k % G.n) + G.n) % G.n === POSE;
+    foto.style.opacity = naPose && fotoPronta ? '1' : '0';
+    giro.style.opacity = naPose && fotoPronta ? '0' : '1';   // sem contorno duplo por baixo da foto
   }
   function animarGiro() {
     if (!arrastando && temGiro) {
       if (alvo !== null) {                 // volta de abertura: desacelera até a pose
         const falta = alvo - quadro;
         quadro += Math.sign(falta) * Math.max(0.15, Math.abs(falta) * 0.045);
-        if (Math.abs(falta) < 0.2) { quadro = alvo; alvo = null; }
+        if (Math.abs(falta) < 0.2) { quadro = alvo; alvo = null; vel = 0; }
         desenhar();
-      } else {                             // soltou o dedo: a inércia vai voltando pro giro lento
-        vel += (LENTO - vel) * 0.04;
-        quadro += vel; desenhar();
+      } else if (Math.abs(vel) > 0.02) {   // soltou o dedo: embala um pouco e para
+        quadro += vel; vel *= 0.9;
+        if (Math.abs(vel) <= 0.02) vel = 0;
+        desenhar();
+      } else if (soltouEm && Date.now() - soltouEm > VOLTA_POSE_MS) {
+        // parado há um tempo fora da pose: volta pelo caminho mais curto
+        const volta = ((POSE - quadro) % G.n + G.n * 1.5) % G.n - G.n / 2;
+        if (Math.abs(volta) > 0.5) alvo = quadro + volta;
+        soltouEm = 0;
       }
     }
     requestAnimationFrame(animarGiro);
@@ -390,7 +427,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     vel = dx / 7 / Math.max(1, (agora - ultimoT) / 16);
     ultimoX = e.clientX; ultimoT = agora; desenhar();
   });
-  const soltar = () => { arrastando = false; };
+  const soltar = () => { arrastando = false; soltouEm = Date.now(); desenhar(); };
   carro.addEventListener('pointerup', soltar); carro.addEventListener('pointercancel', soltar);
 
   // ── onda de voz ──
@@ -609,6 +646,24 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     e.stopPropagation();
     if (nativo && nativo.midia) nativo.midia(b.dataset.midia); else demo();
   }));
+
+  // ── avisos que o Jake dá sozinho (compromisso, saldo, chuva) ──
+  async function buscarAviso() {
+    if (!navigator.onLine || (window.JakeTempoReal && JakeTempoReal.ativo()) || estadoAtual !== 'pronto') return;
+    try {
+      const q = pos.lat ? `?lat=${pos.lat}&lon=${pos.lon}` : '';
+      const r = await fetch(`/carro/avisos${q}`, { headers: { Authorization: 'Bearer ' + token() } });
+      const { aviso } = await r.json();
+      if (!aviso || estadoAtual !== 'pronto') return;
+      nativo && nativo.foco && nativo.foco(true);
+      estado('falando', aviso.texto);
+      const som = new Audio('data:audio/mpeg;base64,' + aviso.audio_b64);
+      const fim = () => { estado('pronto', aviso.texto); nativo && nativo.foco && nativo.foco(false); };
+      som.onended = fim; som.onerror = fim;
+      som.play().catch(fim);
+    } catch (e) {}
+  }
+  if (nativo || params.get('avisos')) { setTimeout(buscarAviso, 45000); setInterval(buscarAviso, 2 * 60 * 1000); }
 
   // ── o que o app chama ──
   window.jake = {

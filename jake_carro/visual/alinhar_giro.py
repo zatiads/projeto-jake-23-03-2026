@@ -16,8 +16,8 @@ from scipy import ndimage
 AQUI = Path(__file__).resolve().parent
 GIRO = AQUI / "ia" / "giro"
 N = 72
-W, H, COLS = 640, 400, 8       # quadro final
-ALTURA_CARRO = 250            # todo carro fica com essa altura (sem o reflexo)
+W, H, COLS = 760, 400, 8       # quadro final (largo: o carro de lado é ~2,7x mais comprido que alto)
+ALTURA_CARRO = 230            # todo carro fica com essa altura (sem o reflexo)
 CHAO = 352                    # linha onde as rodas tocam o chão
 
 volta = GIRO / "volta.mp4"
@@ -62,7 +62,7 @@ with tempfile.TemporaryDirectory() as tmp:
         xs = np.where(miolo[: base + 1].any(axis=0))[0]
         carro = Image.fromarray(rgba).crop((xs[0], topo, xs[-1] + 1, base + 1))
 
-        esc = ALTURA_CARRO / carro.height
+        esc = min(ALTURA_CARRO / carro.height, (W - 24) / carro.width)  # nunca maior que o quadro
         carro = carro.resize((max(1, round(carro.width * esc)), ALTURA_CARRO), Image.LANCZOS)
         x = (W - carro.width) // 2
         folha.paste(carro, ((k % COLS) * W + x, (k // COLS) * H + CHAO - ALTURA_CARRO), carro)
