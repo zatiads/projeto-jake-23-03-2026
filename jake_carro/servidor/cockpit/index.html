@@ -51,6 +51,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 #status b{color:var(--gelo);font-weight:500}
 .linha-topo{position:absolute;left:30px;right:30px;top:86px;height:1px;
   background:linear-gradient(90deg,transparent,rgba(34,211,238,.18) 30%,rgba(34,211,238,.6) 50%,rgba(34,211,238,.18) 70%,transparent);opacity:0;transition:opacity .6s}
+.parado .linha-topo{opacity:.55}
 .andando .linha-topo{opacity:1}
 
 /* ── modos ── */
@@ -67,8 +68,10 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 #clima{font-size:15px;color:var(--suave);line-height:1.6}
 #clima b{color:var(--texto);font-weight:500}
 #dir{position:absolute;right:30px;top:104px;width:236px;display:flex;flex-direction:column;gap:12px}
-.cartao{position:relative;border-radius:16px;overflow:hidden;border:1px solid rgba(34,211,238,.32);background:rgba(8,20,34,.7);
-  box-shadow:0 0 18px rgba(34,211,238,.12)}
+.cartao{position:relative;border-radius:16px;overflow:hidden;border:1px solid rgba(34,211,238,.32);background:rgba(8,20,34,.78);
+  box-shadow:0 0 18px rgba(34,211,238,.12);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.cartao::before{content:"";position:absolute;left:14%;right:14%;top:0;height:1px;z-index:600;pointer-events:none;
+  background:linear-gradient(90deg,transparent,#7DE9F7,transparent);box-shadow:0 0 8px #22D3EE}
 #mapa-card{height:200px;cursor:pointer}
 #mapa{position:absolute;inset:0;background:#06101c}
 #mapa .leaflet-tile{filter:brightness(1.35) sepia(1) hue-rotate(150deg) saturate(2.2) brightness(.5) contrast(1.25)}
@@ -97,9 +100,21 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 
 /* carro girando */
 #carro{position:absolute;left:268px;top:104px;width:488px;height:325px;touch-action:none;cursor:grab}
-#giro{position:absolute;inset:0;background-repeat:no-repeat;
-  -webkit-mask-image:radial-gradient(50% 50% at 50% 50%,#000 58%,transparent 100%);mask-image:radial-gradient(50% 50% at 50% 50%,#000 58%,transparent 100%)}
-#anel{position:absolute;left:92px;right:92px;top:236px;height:46px;border-radius:50%;border:2px solid rgba(34,211,238,.75);
+#giro,#giro2,.refl{position:absolute;left:0;top:0;width:488px;height:305px;background-repeat:no-repeat}
+#reflexo{position:absolute;left:0;top:231px;width:488px;height:305px;transform:scaleY(-1);opacity:.22;pointer-events:none;
+  -webkit-mask-image:linear-gradient(0deg,#000 0%,transparent 26%);mask-image:linear-gradient(0deg,#000 0%,transparent 26%)}
+#luz-estudio{position:absolute;left:-40px;right:-40px;top:20px;height:290px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,rgba(34,211,238,.20),rgba(14,90,140,.10) 55%,transparent)}
+
+/* faixa neon do "estúdio": atravessa a tela na altura do chão do carro */
+#horizonte{position:absolute;left:0;right:0;top:372px;height:2px;pointer-events:none;
+  background:linear-gradient(90deg,transparent 0%,rgba(34,211,238,.35) 12%,#22D3EE 38%,#7DE9F7 50%,#22D3EE 62%,rgba(34,211,238,.35) 88%,transparent 100%);
+  box-shadow:0 0 10px 1px rgba(34,211,238,.7),0 0 34px 4px rgba(34,211,238,.28)}
+#horizonte-brilho{position:absolute;left:0;right:0;top:300px;height:150px;pointer-events:none;
+  background:radial-gradient(50% 50% at 50% 50%,rgba(34,211,238,.13),transparent 70%)}
+.andando #horizonte,.andando #horizonte-brilho{opacity:0}
+#horizonte,#horizonte-brilho{transition:opacity .7s}
+#anel{position:absolute;left:58px;right:58px;top:243px;height:52px;border-radius:50%;border:2px solid rgba(34,211,238,.75);
   box-shadow:0 0 22px rgba(34,211,238,.45),inset 0 0 22px rgba(34,211,238,.25);pointer-events:none}
 #dica{position:absolute;left:0;right:0;top:4px;text-align:center;font-family:var(--tec);font-size:11px;letter-spacing:4px;color:var(--apagado);transition:opacity 1s}
 
@@ -162,6 +177,8 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 <div id="janela">
 <div id="palco" class="parado acordando">
   <div id="piso"></div>
+  <div id="horizonte-brilho"></div>
+  <div id="horizonte"></div>
   <canvas id="estrada" width="1024" height="600"></canvas>
   <div id="flash"></div>
 
@@ -203,8 +220,11 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     </div>
   </div>
   <div id="carro" class="so-parado">
+    <div id="luz-estudio"></div>
     <div id="anel"></div>
+    <div id="reflexo"><div class="refl" id="refl1"></div><div class="refl" id="refl2"></div></div>
     <div id="giro" role="img" aria-label="Seu HB20 — arraste para girar"></div>
+    <div id="giro2" aria-hidden="true"></div>
     <div id="dica">ARRASTE · 360°</div>
   </div>
   <div id="doca-e" class="doca so-parado some">
@@ -309,28 +329,37 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 
   // ── carro girando: folha de quadros + arraste com inércia ──
   const giro = $('giro');
-  const G = { n: 72, cols: 8, w: 640, h: 426 };
-  const larg = 488, alt = 325, esc = Math.max(larg / G.w, alt / G.h);
-  const POSE = 11;                         // quadro de descanso: 3/4 de frente (a pose do render)
+  const G = { n: 72, cols: 8, w: 640, h: 400 };   // folha com o carro recortado e alinhado pelas rodas
+  const larg = 488, esc = larg / G.w, alt = G.h * esc;
+  const POSE = 11;                         // quadro de partida: 3/4 de frente (a pose do render)
+  const LENTO = 0.012;                     // vitrine: ~1 volta a cada 100 s, pra não cansar a vista
+  const giro2 = $('giro2'), refl1 = $('refl1'), refl2 = $('refl2');
   let quadro = POSE, vel = 0, alvo = null, arrastando = false, ultimoX = 0, ultimoT = 0, temGiro = false;
   const img = new Image();
   img.onload = () => {
     temGiro = true;
-    giro.style.backgroundImage = 'url(hb20_giro.webp)';
-    giro.style.backgroundSize = `${G.cols * G.w * esc}px ${Math.ceil(G.n / G.cols) * G.h * esc}px`;
+    for (const el of [giro, giro2, refl1, refl2]) {
+      el.style.backgroundImage = 'url(hb20_giro_alfa.webp)';
+      el.style.backgroundSize = `${G.cols * G.w * esc}px ${Math.ceil(G.n / G.cols) * G.h * esc}px`;
+    }
     desenhar();
   };
-  img.onerror = () => {  // ainda sem a folha: mostra o render parado
+  img.onerror = () => {  // sem a folha: mostra o render parado
     giro.style.backgroundImage = 'url(carro_frente.webp)';
     giro.style.backgroundSize = 'cover'; giro.style.backgroundPosition = 'center';
     $('dica').style.opacity = 0;
   };
-  img.src = 'hb20_giro.webp';
+  img.src = 'hb20_giro_alfa.webp';
+  function posicao(k) {
+    k = ((k % G.n) + G.n) % G.n;
+    return `${-(k % G.cols) * G.w * esc}px ${-Math.floor(k / G.cols) * G.h * esc}px`;
+  }
   function desenhar() {
     if (!temGiro) return;
-    const k = ((Math.round(quadro) % G.n) + G.n) % G.n;
-    const ox = (larg - G.w * esc) / 2, oy = (alt - G.h * esc) / 2;
-    giro.style.backgroundPosition = `${ox - (k % G.cols) * G.w * esc}px ${oy - Math.floor(k / G.cols) * G.h * esc}px`;
+    const k = Math.floor(quadro), f = quadro - k;      // mistura o quadro atual com o próximo
+    giro.style.backgroundPosition = refl1.style.backgroundPosition = posicao(k);
+    giro2.style.backgroundPosition = refl2.style.backgroundPosition = posicao(k + 1);
+    giro2.style.opacity = refl2.style.opacity = f.toFixed(3);
   }
   function animarGiro() {
     if (!arrastando && temGiro) {
@@ -339,8 +368,9 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
         quadro += Math.sign(falta) * Math.max(0.15, Math.abs(falta) * 0.045);
         if (Math.abs(falta) < 0.2) { quadro = alvo; alvo = null; }
         desenhar();
-      } else if (Math.abs(vel) > 0.01) {   // soltou o dedo: continua um pouco e para
-        quadro += vel; vel *= 0.93; desenhar();
+      } else {                             // soltou o dedo: a inércia vai voltando pro giro lento
+        vel += (LENTO - vel) * 0.04;
+        quadro += vel; desenhar();
       }
     }
     requestAnimationFrame(animarGiro);
@@ -355,8 +385,8 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     if (!arrastando) return;
     const esc2 = parseFloat(palco.style.transform.replace(/[^\d.]/g, '')) || 1;
     const dx = (e.clientX - ultimoX) / esc2, agora = performance.now();
-    quadro -= dx / 7;                     // 7 px de dedo = 1 quadro (5°)
-    vel = -dx / 7 / Math.max(1, (agora - ultimoT) / 16);
+    quadro += dx / 7;                     // 7 px de dedo = 1 quadro (5°), no mesmo sentido do dedo
+    vel = dx / 7 / Math.max(1, (agora - ultimoT) / 16);
     ultimoX = e.clientX; ultimoT = agora; desenhar();
   });
   const soltar = () => { arrastando = false; };
