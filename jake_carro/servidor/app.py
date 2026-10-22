@@ -150,10 +150,25 @@ def _voz_worker(texto):
         return proc.stdout.readline().strip()
 
 
+ESTILO_VOZ = ("Fale em português do Brasil, sotaque brasileiro natural. Você é o Jake, o assistente de IA do carro, "
+              "estilo JARVIS: voz calma, confiante e elegante, com bom humor discreto. Ritmo ágil, dicção limpa.")
+
+
+def voz_openai(texto):
+    """Mesma voz da conversa em tempo real (VOZ_RT), pra o Jake não trocar de 'pessoa'."""
+    r = ia().audio.speech.create(model="gpt-4o-mini-tts", voice=os.environ.get("JAKE_CARRO_VOZ_RT", "cedar"),
+                                 input=texto[:600], instructions=ESTILO_VOZ, response_format="mp3")
+    return base64.b64encode(r.content).decode()
+
+
 def voz_b64(texto):
-    """mp3 da fala em base64; vazio se o Edge TTS falhar (o app usa a voz local)."""
+    """mp3 da fala em base64: voz da OpenAI; se falhar, Edge TTS; se tudo falhar, vazio (o app usa a voz local)."""
     if not texto.strip():
         return ""
+    try:
+        return voz_openai(texto)
+    except Exception as e:
+        app.logger.warning("voz openai falhou: %s", e)
     try:
         audio = _voz_worker(texto[:600])
         if audio:
@@ -545,6 +560,106 @@ def painel():
         app.logger.warning("agenda do painel falhou: %s", e)
     _painel.update(ts=time.time(), chave=chave, dados=dados)
     return jsonify(dados)
+
+
+# ── Realtime (voz em tempo real, igual ao modo voz do ChatGPT) ────────────────
+# O cockpit abre uma conexão WebRTC direto com a OpenAI usando uma chave temporária (1 min pra conectar).
+# A IA chama "ferramentas": as do carro (rota, música) o app executa; as de dados (Meta, agenda, internet)
+# passam por /carro/realtime/ferramenta.
+
+MODELO_RT = os.environ.get("JAKE_CARRO_MODELO_RT", "gpt-realtime-mini")
+VOZ_RT = os.environ.get("JAKE_CARRO_VOZ_RT", "cedar")
+
+INSTRUCOES_RT = """Você está numa conversa por voz, ao vivo, dentro do carro. Fale sempre em português do Brasil, com sotaque
+brasileiro natural, voz calma e confiante, estilo JARVIS: elegante, direto e com bom humor discreto.
+Respostas curtíssimas (1 ou 2 frases): ele está dirigindo. Nunca leia listas, links ou markdown.
+Quando ele pedir algo que uma ferramenta resolve, chame a ferramenta (não só descreva):
+- navegar: ir a algum lugar. Lugar ambíguo = o mais perto de Varginha (sul de Minas). Use os lugares salvos pelo apelido.
+  Pedido genérico ("um posto", "o shopping") vai genérico + cidade. Diga uma frase curta tipo "Bora, patrão. Rota pra X."
+- tocar_musica: só um nome = artista; título de música = musica; estilo/clima = playlist.
+- controlar_midia: pausar, continuar, próxima, anterior.
+- consultar_meta / consultar_agenda / pesquisar_internet: ANTES de chamar diga uma frase de espera bem curta
+  ("Só um segundo, patrão."). Com o resultado, responda só os fatos pedidos: no Meta diga gasto, resultados e custo por
+  resultado, valores arredondados; sem conselho e sem pergunta no final.
+Se não entendeu, peça pra repetir em poucas palavras."""
+
+FERRAMENTAS_RT = [
+    {"type": "function", "name": "navegar", "description": "Abre o Google Maps (ou Waze) navegando até o destino.",
+     "parameters": {"type": "object", "properties": {
+         "destino": {"type": "string", "description": "Endereço ou nome do lugar, o mais completo possível"},
+         "app": {"type": "string", "enum": ["maps", "waze"]}}, "required": ["destino"]}},
+    {"type": "function", "name": "tocar_musica", "description": "Toca algo no Spotify.",
+     "parameters": {"type": "object", "properties": {
+         "busca": {"type": "string"}, "tipo": {"type": "string", "enum": ["musica", "artista", "playlist", "album"]}},
+         "required": ["busca", "tipo"]}},
+    {"type": "function", "name": "controlar_midia", "description": "Controla o que está tocando.",
+     "parameters": {"type": "object", "properties": {
+         "comando": {"type": "string", "enum": ["pausar", "continuar", "proxima", "anterior"]}}, "required": ["comando"]}},
+    {"type": "function", "name": "consultar_meta",
+     "description": "Números de anúncios do Meta Ads de um cliente (gasto, conversas, leads, custo por resultado).",
+     "parameters": {"type": "object", "properties": {
+         "cliente": {"type": "string", "description": "Nome do cliente como na lista de contas"},
+         "periodo": {"type": "string", "enum": ["hoje", "ontem", "esta_semana", "ultimos_7_dias", "este_mes", "mes_passado"]}},
+         "required": ["cliente", "periodo"]}},
+    {"type": "function", "name": "consultar_agenda", "description": "Compromissos, reuniões, prazos e pagamentos do Google Agenda.",
+     "parameters": {"type": "object", "properties": {
+         "periodo": {"type": "string", "enum": ["hoje", "amanha", "esta_semana", "proxima_semana", "este_mes"]}},
+         "required": ["periodo"]}},
+    {"type": "function", "name": "pesquisar_internet", "description": "Pesquisa na internet: notícias, fatos atuais, qualquer coisa que você não saiba.",
+     "parameters": {"type": "object", "properties": {"pergunta": {"type": "string"}}, "required": ["pergunta"]}},
+]
+
+
+@app.post("/carro/realtime/sessao")
+@autenticado
+def realtime_sessao():
+    """Chave temporária pro cockpit conectar direto na OpenAI, já com personalidade, contexto e ferramentas."""
+    corpo = {"session": {
+        "type": "realtime", "model": MODELO_RT,
+        "instructions": f"{PERSONA}\n\n{INSTRUCOES_RT}\n\n{contexto()}",
+        "audio": {
+            "input": {"transcription": {"model": "gpt-4o-mini-transcribe", "language": "pt"},
+                      "turn_detection": {"type": "semantic_vad", "eagerness": "high"},
+                      "noise_reduction": {"type": "far_field"}},
+            "output": {"voice": VOZ_RT}},
+        "tools": FERRAMENTAS_RT, "tool_choice": "auto"}}
+    try:
+        r = requests.post("https://api.openai.com/v1/realtime/client_secrets", json=corpo, timeout=10,
+                          headers={"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY', '').strip()}"})
+        r.raise_for_status()
+        d = r.json()
+        return jsonify(chave=d["value"], expira=d.get("expires_at"), modelo=MODELO_RT)
+    except Exception as e:
+        app.logger.warning("realtime sessão falhou: %s", e)
+        return jsonify(erro="sem tempo real agora"), 502
+
+
+@app.post("/carro/realtime/ferramenta")
+@autenticado
+def realtime_ferramenta():
+    """Executa as ferramentas de dados que a IA pediu e devolve o resultado em texto pra ela falar."""
+    p = request.get_json(force=True, silent=True) or {}
+    nome, a = p.get("nome", ""), p.get("args") or {}
+    t0 = time.time()
+    try:
+        if nome == "consultar_meta":
+            saida = (consultas.meta(a.get("cliente", ""), a.get("periodo", "ontem"))
+                     + "\nResponda em até 2 frases dizendo: quanto gastou (arredondado), quantos resultados "
+                       "(conversas iniciadas contam como leads) e o custo por resultado.")
+        elif nome == "consultar_agenda":
+            saida = consultas.agenda(a.get("periodo", "hoje"))
+        elif nome == "pesquisar_internet":
+            saida = consultas.pesquisar(ia(), MODELO, a.get("pergunta", ""))
+        elif nome == "tocar_musica":
+            saida = spotify_uri(a.get("busca", ""), a.get("tipo", ""))
+        else:
+            saida = "ferramenta desconhecida"
+    except Exception as e:
+        app.logger.warning("ferramenta %s falhou: %s", nome, e)
+        saida = "Não consegui puxar isso agora."
+    registrar(sessao="realtime", ouvido=f"[{nome}] {json.dumps(a, ensure_ascii=False)}", fala=str(saida)[:500],
+              acao=nome, parametros=a, ms_stt=0, ms_ia=int((time.time() - t0) * 1000), ms_voz=0)
+    return jsonify(saida=saida)
 
 
 _rotas = {}

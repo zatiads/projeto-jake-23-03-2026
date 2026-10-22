@@ -239,6 +239,17 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
         else startActivity(Intent(this, AppsActivity::class.java))
     }
 
+    override fun aoAcao(acao: String, parametros: JSONObject) {
+        escopo.launch { acoes.executar(acao, parametros) }
+    }
+
+    override fun aoFoco(ativo: Boolean) {
+        if (ativo) {
+            conversa?.cancel(); ouvido.parar(); voz.calar()
+            voz.pegarFoco(exclusivo = true)
+        } else voz.soltarFoco()
+    }
+
     override fun aoMidia(cmd: String) {
         if (!musica.comando(cmd)) aoAbrirApp("musica")
     }

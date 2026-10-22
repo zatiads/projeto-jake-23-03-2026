@@ -10,6 +10,8 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -30,6 +32,8 @@ class Cockpit(private val tela: Activity) {
         fun aoFalharCockpit()
         fun aoAbrirApp(chave: String)
         fun aoMidia(cmd: String)
+        fun aoAcao(acao: String, parametros: JSONObject)
+        fun aoFoco(ativo: Boolean)
     }
 
     var ouvinte: Ouvinte? = null
@@ -48,6 +52,17 @@ class Cockpit(private val tela: Activity) {
         web.isHorizontalScrollBarEnabled = false
         web.overScrollMode = WebView.OVER_SCROLL_NEVER
         web.addJavascriptInterface(Ponte(), "Android")
+        // conversa em tempo real: a página precisa do microfone (o app já tem a permissão)
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(req: PermissionRequest) {
+                tela.runOnUiThread {
+                    val pode = tela.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                    if (pode && PermissionRequest.RESOURCE_AUDIO_CAPTURE in req.resources)
+                        req.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+                    else req.deny()
+                }
+            }
+        }
         web.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 pronto = true
@@ -65,6 +80,10 @@ class Cockpit(private val tela: Activity) {
 
     fun recarregar() = web.reload()
     fun recarregarDados() = js("jake.painel()")
+
+    /** Abre a conversa em tempo real pela página (mesmo que tocar na bolinha). */
+    fun conversar() = js("jake.conversar()")
+    val carregado get() = pronto
 
     private fun js(codigo: String) {
         if (pronto) web.post { web.evaluateJavascript("window.jake && $codigo", null) }
@@ -123,5 +142,13 @@ class Cockpit(private val tela: Activity) {
         @JavascriptInterface fun abrirApp(chave: String) = tela.runOnUiThread { ouvinte?.aoAbrirApp(chave) }
         /** anterior | alternar | proxima */
         @JavascriptInterface fun midia(cmd: String) = tela.runOnUiThread { ouvinte?.aoMidia(cmd) }
+        /** Ação pedida pela IA em tempo real: {"acao": "navegar|tocar_musica|midia", "parametros": {...}} */
+        @JavascriptInterface fun acao(json: String) = tela.runOnUiThread {
+            runCatching { JSONObject(json) }.getOrNull()?.let {
+                ouvinte?.aoAcao(it.optString("acao"), it.optJSONObject("parametros") ?: JSONObject())
+            }
+        }
+        /** true = conversa começou (abaixa/pausa a música); false = terminou */
+        @JavascriptInterface fun foco(ativo: Boolean) = tela.runOnUiThread { ouvinte?.aoFoco(ativo) }
     }
 }

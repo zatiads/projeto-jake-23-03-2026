@@ -267,6 +267,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="tempo_real.js"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -495,7 +496,14 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   }
 
   // ── toques ──
-  const falar = () => nativo && nativo.falar ? nativo.falar() : demo();
+  // tocar na bolinha: conversa em tempo real; se não der (sem sinal etc.), cai no esquema antigo do app
+  async function falar() {
+    if (window.JakeTempoReal && JakeTempoReal.ativo()) { JakeTempoReal.encerrar(); return; }
+    const ok = window.JakeTempoReal && await JakeTempoReal.conversar({
+      estado, nivel: (v) => { nivel = Math.max(nivel, Math.min(1, v)); }, token, nativo,
+      destino: (d) => { $('destino').textContent = d || 'Rodando livre'; mapaRota(d); } });
+    if (!ok) { if (nativo && nativo.falar) nativo.falar(); else demo(); }
+  }
   $('orbe').addEventListener('click', falar);
   $('p-viagem').addEventListener('click', () => nativo && nativo.perguntar
     ? nativo.ouvirCom('Pra onde vamos, patrão?') : demo());
@@ -529,6 +537,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
       }
     });
   }
+  if (params.get('autofalar')) setTimeout(falar, 1500);   // só pra teste automático
   if (params.get('modo') === 'andando') {
     mudarModo('andando'); kmhAtual = 62; gps(62);
     $('destino').textContent = 'São Tomé das Letras';
@@ -608,6 +617,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     destino: (nome, chegada) => { $('destino').textContent = nome || 'Rodando livre'; $('chegada').textContent = chegada || ''; mapaRota(nome); },
     musica,
     painel: carregarPainel,
+    conversar: falar,
     acordar,
     navegacao,
   };
