@@ -296,6 +296,28 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   const nativo = window.Android || null;          // ponte com o app (Kotlin)
   const params = new URLSearchParams(location.search);
 
+  // ── diagnóstico: manda erros e dados do aparelho pro servidor (o Bruno não precisa descrever) ──
+  const tokenDiag = () => (window.Android && Android.token ? Android.token() : params.get('t') || '');
+  const vistos = {};
+  window.diag = function (tipo, msg, detalhe) {
+    const chave = tipo + msg;
+    if (vistos[chave] && Date.now() - vistos[chave] < 60000) return;   // o mesmo erro no máximo 1x/min
+    vistos[chave] = Date.now();
+    try {
+      fetch('/carro/diag', { method: 'POST', keepalive: true,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tokenDiag() },
+        body: JSON.stringify({ tipo, msg: String(msg).slice(0, 500), detalhe: detalhe || {} }) }).catch(() => {});
+    } catch (e) {}
+  };
+  addEventListener('error', (e) => diag('erro-js', e.message, { arquivo: e.filename, linha: e.lineno }));
+  addEventListener('unhandledrejection', (e) => diag('erro-promessa', (e.reason && e.reason.message) || String(e.reason)));
+  const conexao = navigator.connection || {};
+  diag('inicio', window.Android ? 'cockpit abriu no app' : 'cockpit abriu no navegador', {
+    agente: navigator.userAgent, tela: `${screen.width}x${screen.height}`, janela: `${innerWidth}x${innerHeight}`,
+    densidade: devicePixelRatio, memoriaGB: navigator.deviceMemory || null, nucleos: navigator.hardwareConcurrency || null,
+    rede: conexao.effectiveType || null, online: navigator.onLine,
+    webrtc: !!window.RTCPeerConnection, microfone: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) });
+
   // ── WebView antigo (centrais com Android antigo) não tem "gap" no flex: liga o plano B ──
   (function () {
     const t = document.createElement('div');
@@ -359,6 +381,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
       });
     } catch (e) {
       $('clima').textContent = 'Sem conexão agora.';
+      diag('painel', 'não carregou clima/agenda: ' + e.message, { online: navigator.onLine });
     }
   }
   carregarPainel(); setInterval(carregarPainel, 10 * 60 * 1000);

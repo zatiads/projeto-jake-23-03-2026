@@ -69,6 +69,13 @@ def criar_tabelas():
                 endereco TEXT NOT NULL,
                 criado_em TIMESTAMPTZ DEFAULT now()
             );
+            CREATE TABLE IF NOT EXISTS carro_diag (
+                id SERIAL PRIMARY KEY,
+                criado_em TIMESTAMPTZ DEFAULT now(),
+                tipo TEXT,
+                msg TEXT,
+                detalhe JSONB
+            );
             CREATE TABLE IF NOT EXISTS carro_log (
                 id SERIAL PRIMARY KEY,
                 criado_em TIMESTAMPTZ DEFAULT now(),
@@ -799,6 +806,39 @@ def avisos():
         return jsonify(aviso={"id": chave, "texto": texto, "audio_b64": voz_b64(texto)})
     ESTADO.write_text(json.dumps(estado))
     return jsonify(aviso=None)
+
+
+# ── Diagnóstico: o cockpit manda erros e dados do aparelho (Android, tela, memória) ──
+
+@app.post("/carro/diag")
+@autenticado
+@limitado(400)
+def diag():
+    p = request.get_json(force=True, silent=True) or {}
+    tipo, msg = str(p.get("tipo", ""))[:40], str(p.get("msg", ""))[:500]
+    detalhe = p.get("detalhe") if isinstance(p.get("detalhe"), dict) else {}
+    app.logger.warning("DIAG [%s] %s", tipo, msg)
+
+    def _grava():
+        try:
+            with get_db() as conn, conn.cursor() as cur:
+                cur.execute("INSERT INTO carro_diag (tipo, msg, detalhe) VALUES (%s, %s, %s)",
+                            (tipo, msg, json.dumps(detalhe)[:4000]))
+        except Exception as e:
+            app.logger.warning("diag não gravou: %s", e)
+    threading.Thread(target=_grava, daemon=True).start()
+    return jsonify(ok=True)
+
+
+@app.get("/carro/diag")
+@autenticado
+def diag_ler():
+    """Últimos relatórios (pra eu ver o que aconteceu na central)."""
+    n = min(int(request.args.get("n", 50)), 300)
+    with get_db() as conn, conn.cursor() as cur:
+        cur.execute("SELECT criado_em, tipo, msg, detalhe FROM carro_diag ORDER BY id DESC LIMIT %s", (n,))
+        return jsonify([{**r, "criado_em": r["criado_em"].astimezone(FUSO).strftime("%d/%m %H:%M:%S")}
+                        for r in cur.fetchall()])
 
 
 _rotas = {}

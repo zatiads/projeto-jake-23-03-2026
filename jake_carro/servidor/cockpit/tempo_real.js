@@ -120,7 +120,9 @@ window.JakeTempoReal = (function () {
         break;
       }
       case 'error':
-        console.warn('realtime', e.error); break;
+        console.warn('realtime', e.error);
+        window.diag && diag('tempo-real', 'erro da OpenAI: ' + ((e.error && e.error.message) || ''), { codigo: e.error && e.error.code });
+        break;
     }
   }
 
@@ -163,6 +165,7 @@ window.JakeTempoReal = (function () {
   async function conversar(opcoes) {
     ui = opcoes;
     if (pc) { ui.estado('ouvindo', 'Pode falar, patrão.'); marcarAtividade(); return true; }
+    const t0 = performance.now();
     try {
       ui.estado('pensando', 'Conectando…');
       ui.nativo && ui.nativo.foco && ui.nativo.foco(true);
@@ -170,9 +173,11 @@ window.JakeTempoReal = (function () {
       ui.estado('ouvindo', 'Pode falar, patrão.');
       marcarAtividade();
       requestAnimationFrame(laçoNivel);
+      window.diag && diag('tempo-real', 'conectou', { ms: Math.round(performance.now() - t0) });
       return true;
     } catch (e) {
       console.warn('tempo real indisponível', e);
+      window.diag && diag('tempo-real', 'não conectou: ' + (e.name || '') + ' ' + (e.message || ''), { online: navigator.onLine });
       encerrar();
       return false;
     }
