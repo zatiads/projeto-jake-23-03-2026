@@ -50,26 +50,52 @@ class Acoes(private val ctx: Context) {
 
     // ── Spotify ──────────────────────────────────────────────────────────────
 
-    /** Conecta no Spotify (App Remote). Na 1ª vez o Spotify pede pra autorizar o Jake. */
-    suspend fun conectarSpotify(): SpotifyAppRemote? {
+    /** Quem quer saber o que está tocando (o mini player). */
+    var aoTocar: ((Map<String, Any>?) -> Unit)? = null
+
+    /** Conecta no Spotify (App Remote). Na 1ª vez o Spotify pede pra autorizar o Jake ([pedirAutorizacao]). */
+    suspend fun conectarSpotify(pedirAutorizacao: Boolean = true): SpotifyAppRemote? {
         spotify?.takeIf { it.isConnected }?.let { return it }
         if (spotifyClientId.isBlank() || !instalado("com.spotify.music")) return null
         val params = ConnectionParams.Builder(spotifyClientId)
             .setRedirectUri("jakecarro://callback")
-            .showAuthView(true)
+            .showAuthView(pedirAutorizacao)
             .build()
         return withTimeoutOrNull(8000) {
             suspendCancellableCoroutine { cont ->
                 SpotifyAppRemote.connect(ctx, params, object : Connector.ConnectionListener {
                     override fun onConnected(remote: SpotifyAppRemote) {
                         spotify = remote
+                        acompanhar(remote)
+                        Diag.enviar("spotify", "conectado")
                         if (cont.isActive) cont.resume(remote)
                     }
                     override fun onFailure(erro: Throwable) {
                         android.util.Log.w("Jake", "Spotify não conectou: $erro")
+                        Diag.enviar("spotify", "não conectou: ${erro.javaClass.simpleName} ${erro.message}")
                         if (cont.isActive) cont.resume(null)
                     }
                 })
+            }
+        }
+    }
+
+    /** O que toca no Spotify, direto pela conexão oficial: nome, artista, capa, tocando/pausado. */
+    private fun acompanhar(remote: SpotifyAppRemote) {
+        remote.playerApi.subscribeToPlayerState().setEventCallback { ps ->
+            val faixa = ps.track ?: return@setEventCallback aoTocar?.invoke(null) ?: Unit
+            val base = mapOf<String, Any>("titulo" to (faixa.name ?: ""), "artista" to (faixa.artist?.name ?: ""),
+                "tocando" to !ps.isPaused, "app" to "com.spotify.music")
+            aoTocar?.invoke(base)
+            faixa.imageUri?.let { img ->
+                remote.imagesApi.getImage(img, com.spotify.protocol.types.Image.Dimension.THUMBNAIL)
+                    .setResultCallback { b ->
+                        val out = java.io.ByteArrayOutputStream()
+                        android.graphics.Bitmap.createScaledBitmap(b, 128, 128, true)
+                            .compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, out)
+                        aoTocar?.invoke(base + ("capa" to "data:image/jpeg;base64," +
+                            android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)))
+                    }
             }
         }
     }

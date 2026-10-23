@@ -573,6 +573,7 @@ _painel = {"ts": 0, "chave": "", "dados": {}}
 @limitado(120)
 def painel():
     """Dados do cockpit: cidade, clima e agenda de hoje (cache de 10 min)."""
+    app.logger.warning("UA central: %s", request.headers.get("User-Agent", "")[:300])
     lat = request.args.get("lat") or consultas.VARGINHA[0]
     lon = request.args.get("lon") or consultas.VARGINHA[1]
     chave = f"{float(lat):.2f},{float(lon):.2f}"
@@ -694,6 +695,7 @@ def uso():
 @limitado(60)
 def realtime_sessao():
     """Chave temporária pro cockpit conectar direto na OpenAI, já com personalidade, contexto e ferramentas."""
+    app.logger.warning("UA sessao RT: %s", request.headers.get("User-Agent", "")[:300])
     if gasto_mes() >= TETO_USD:  # bateu o teto do mês: o cockpit cai no modo reserva (bem mais barato)
         return jsonify(erro="teto do mês atingido"), 429
     corpo = {"session": {
@@ -884,6 +886,7 @@ def apk():
 
 
 @app.get("/b/<codigo>")
+@app.get("/<codigo>")          # também aceita sem o /b/ (digitado na central)
 def apk_curto(codigo):
     """Link curto pra digitar no navegador da central (JAKE_CARRO_CODIGO_APK=codigo:AAAA-MM-DD)."""
     valor = os.environ.get("JAKE_CARRO_CODIGO_APK", "")

@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.location.GnssStatus
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -108,9 +109,26 @@ class Cockpit(private val tela: Activity) {
         js("jake.navegacao(${if (d == null) "null" else JSONObject(d).toString()})")
 
     // ── GPS: velocidade e posição pro painel ──
+    // Ouve o satélite E a rede. Satélite manda velocidade; sem ele (antena sem sinal), calcula pela
+    // distância entre dois pontos. Fix de satélite recente tem prioridade sobre o da rede.
+    private val anteriores = HashMap<String, Location>()
+    private var ultimoSatelite = 0L
+    private val primeiros = HashSet<String>()
     private val gps = object : LocationListener {
         override fun onLocationChanged(l: Location) {
-            val kmh = if (l.hasSpeed()) l.speed * 3.6f else 0f
+            val prov = l.provider ?: "?"
+            if (prov != LocationManager.GPS_PROVIDER && System.currentTimeMillis() - ultimoSatelite < 5000) return
+            if (prov == LocationManager.GPS_PROVIDER) ultimoSatelite = System.currentTimeMillis()
+            val antes = anteriores[prov]
+            anteriores[prov] = l
+            val kmh = when {
+                l.hasSpeed() -> l.speed * 3.6f
+                antes != null && l.accuracy < 40 && antes.accuracy < 40 && l.time - antes.time >= 1000 ->
+                    l.distanceTo(antes) / ((l.time - antes.time) / 1000f) * 3.6f
+                else -> 0f
+            }
+            if (primeiros.add(prov)) Diag.enviar("gps", "primeira posição: $prov",
+                "precisao_m" to l.accuracy, "tem_velocidade" to l.hasSpeed(), "kmh" to kmh)
             js("jake.gps($kmh, ${l.latitude}, ${l.longitude})")
         }
         @Deprecated("Deprecated in Java")
@@ -119,17 +137,33 @@ class Cockpit(private val tela: Activity) {
         override fun onProviderDisabled(p: String) {}
     }
 
-    @SuppressLint("MissingPermission")
-    fun ligarGps() {
-        if (tela.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
-        val lm = tela.getSystemService(Activity.LOCATION_SERVICE) as LocationManager
-        if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, gps)
+    // satélites: diz se a antena de GPS está pegando (relatório 1x por minuto no máximo)
+    private val satelites = object : GnssStatus.Callback() {
+        override fun onSatelliteStatusChanged(s: GnssStatus) {
+            var usados = 0
+            for (i in 0 until s.satelliteCount) if (s.usedInFix(i)) usados++
+            Diag.enviar("gps", "satélites", "vistos" to s.satelliteCount, "usados" to usados)
         }
     }
 
+    @SuppressLint("MissingPermission")
+    fun ligarGps() {
+        val lm = tela.getSystemService(Activity.LOCATION_SERVICE) as LocationManager
+        val permitido = tela.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val ativos = lm.getProviders(true)
+        Diag.enviar("gps", "ligando", "permissao" to permitido, "provedores" to ativos.joinToString())
+        if (!permitido) return
+        lm.removeUpdates(gps)
+        for (p in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
+            if (p in ativos) runCatching { lm.requestLocationUpdates(p, 1000L, 0f, gps) }
+        }
+        runCatching { lm.registerGnssStatusCallback(satelites) }
+    }
+
     fun desligarGps() {
-        (tela.getSystemService(Activity.LOCATION_SERVICE) as LocationManager).removeUpdates(gps)
+        val lm = tela.getSystemService(Activity.LOCATION_SERVICE) as LocationManager
+        lm.removeUpdates(gps)
+        runCatching { lm.unregisterGnssStatusCallback(satelites) }
     }
 
     /** O que a página pode pedir pro app. Chega fora da main thread: devolve pra ela. */

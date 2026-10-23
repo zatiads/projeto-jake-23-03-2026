@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "buried-raster",
+        "value": "*",
+        "files": [
+          "/root/jake_carro/servidor/cockpit/index.html"
+        ],
+        "createdAt": "2026-10-23T21:04:13.448Z",
+        "reason": "Layers #giro2/#foto/.refl start at opacity 0 and are switched on by JS (spin/pose swap); intentional, not a buried texture"
+      }
+    ]
+  }
+}

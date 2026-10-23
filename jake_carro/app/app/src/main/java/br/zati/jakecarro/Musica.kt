@@ -31,11 +31,19 @@ class Musica(private val ctx: Context, private val aoMudar: (Map<String, Any>?) 
     private val sessoes = MediaSessionManager.OnActiveSessionsChangedListener { escolher(it ?: emptyList()) }
 
     fun ligar() {
-        if (!NavLeitor.permitido(ctx)) return
+        if (!NavLeitor.permitido(ctx)) {
+            Diag.enviar("musica", "sem acesso a notificações: não dá pra ler o player")
+            return
+        }
         try {
             gerente.addOnActiveSessionsChangedListener(sessoes, componente)
-            escolher(gerente.getActiveSessions(componente))
-        } catch (_: SecurityException) {}
+            val lista = gerente.getActiveSessions(componente)
+            Diag.enviar("musica", "players abertos: ${lista.size}",
+                "apps" to lista.joinToString { "${it.packageName}:${it.playbackState?.state}" })
+            escolher(lista)
+        } catch (e: SecurityException) {
+            Diag.enviar("musica", "recusado ao ler players: ${e.message}")
+        }
     }
 
     fun desligar() {

@@ -81,6 +81,12 @@ class JakeApi {
         }
     }
 
+    fun diag(tipo: String, msg: String, detalhe: JSONObject) {
+        val corpo = JSONObject().put("tipo", tipo).put("msg", msg).put("detalhe", detalhe).toString()
+            .toRequestBody("application/json".toMediaType())
+        http.newCall(pedido("/carro/diag").post(corpo).build()).execute().close()
+    }
+
     /** Baixa o APK novo pro arquivo dado. */
     fun baixarApk(destino: File) {
         http.newCall(pedido("/carro/apk").build()).execute().use { r ->

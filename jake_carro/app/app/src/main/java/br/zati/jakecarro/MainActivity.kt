@@ -36,7 +36,7 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
     companion object {
         const val EXTRA_OUVIR = "ouvir"
         private const val PEDIDO_PERMISSOES = 1
-        private const val SAUDAR_DE_NOVO_MS = 30 * 60 * 1000L
+        private const val SAUDAR_DE_NOVO_MS = 2 * 60 * 1000L   // abertura com som de novo se ficou 2 min desligado
         private val CIANO = 0xFF22D3EE.toInt()
         private val FUNDO = 0xFF0B1220.toInt()
     }
@@ -62,6 +62,33 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
     private lateinit var nativo: View
 
     private var conversa: Job? = null
+    private var musicaSpotify: Map<String, Any>? = null
+
+    private fun mostrarMusica(m: Map<String, Any>?) {
+        cockpit.ultimaMusica = m
+        cockpit.musica(m)
+    }
+
+    private fun relatarAmbiente() {
+        val wv = runCatching { android.webkit.WebView.getCurrentWebViewPackage()?.versionName }.getOrNull()
+        Diag.enviar("app", "abriu v${BuildConfig.VERSION_CODE}",
+            "android" to android.os.Build.VERSION.RELEASE, "sdk" to android.os.Build.VERSION.SDK_INT,
+            "sistema" to android.os.Build.DISPLAY, "modelo" to android.os.Build.MODEL, "webview" to wv,
+            "microfone" to (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED),
+            "localizacao" to (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED),
+            "bolinha" to Settings.canDrawOverlays(this), "notificacoes" to NavLeitor.permitido(this),
+            "spotify_instalado" to runCatching { packageManager.getPackageInfo("com.spotify.music", 0) }.isSuccess,
+            "maps_instalado" to runCatching { packageManager.getPackageInfo("com.google.android.apps.maps", 0) }.isSuccess)
+    }
+
+    override fun onRequestPermissionsResult(codigo: Int, permissoes: Array<out String>, resultados: IntArray) {
+        super.onRequestPermissionsResult(codigo, permissoes, resultados)
+        // antes o GPS só ligava ao fechar e abrir o app depois de aceitar a permissão
+        cockpit.ligarGps()
+        musica.ligar()
+        relatarAmbiente()
+        relatarAmbiente()
+    }
     private var veioDaBolha = false
     private var versaoNova = 0
 
@@ -71,9 +98,12 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
         voz = Voz(this)
         ouvido = Ouvido(this)
         acoes = Acoes(this)
+        Diag.iniciar(api)
         cockpit = Cockpit(this).also { it.ouvinte = this }
         NavLeitor.ouvinte = { d -> runOnUiThread { cockpit.navegacao(d) } }
-        musica = Musica(this) { m -> runOnUiThread { cockpit.ultimaMusica = m; cockpit.musica(m) } }
+        // duas fontes pro mini player: os players do Android (precisa do acesso a notificações) e o Spotify direto
+        musica = Musica(this) { m -> runOnUiThread { if (m != null || musicaSpotify == null) mostrarMusica(m) } }
+        acoes.aoTocar = { m -> runOnUiThread { musicaSpotify = m; if (m != null) mostrarMusica(m) } }
         montarTela()
         telaCheia()
         registerReceiver(acordou, android.content.IntentFilter(Intent.ACTION_SCREEN_ON))
@@ -311,6 +341,7 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
         try {
             val cfg = withContext(Dispatchers.IO) { api.config() }
             acoes.spotifyClientId = cfg.optString("spotify_client_id")
+            acoes.conectarSpotify(pedirAutorizacao = false)   // se já autorizou, o mini player mostra o que toca
             versaoNova = cfg.optJSONObject("app")?.optInt("versao") ?: 0
             btnAtualizar.visibility = if (versaoNova > BuildConfig.VERSION_CODE) View.VISIBLE else View.GONE
         } catch (_: Exception) {}

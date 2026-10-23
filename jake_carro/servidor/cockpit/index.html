@@ -304,7 +304,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     if (vistos[chave] && Date.now() - vistos[chave] < 60000) return;   // o mesmo erro no máximo 1x/min
     vistos[chave] = Date.now();
     try {
-      fetch('/carro/diag', { method: 'POST', keepalive: true,
+      fetch('/carro/diag', { method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tokenDiag() },
         body: JSON.stringify({ tipo, msg: String(msg).slice(0, 500), detalhe: detalhe || {} }) }).catch(() => {});
     } catch (e) {}
