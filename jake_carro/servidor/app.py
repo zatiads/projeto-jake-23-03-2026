@@ -131,6 +131,31 @@ def autenticado(f):
     return decorated
 
 
+# ── Limite de uso: segura um app vazado de torrar a conta da OpenAI ───────────
+
+from collections import deque
+
+_janelas = {}
+
+
+def limitado(por_hora):
+    """Recusa (429) quando a rota passa de `por_hora` pedidos na última hora."""
+    def deco(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            fila = _janelas.setdefault(f.__name__, deque())
+            agora = time.time()
+            while fila and agora - fila[0] > 3600:
+                fila.popleft()
+            if len(fila) >= por_hora:
+                app.logger.warning("limite de uso: %s passou de %d/h", f.__name__, por_hora)
+                return jsonify(erro="muitos pedidos, espera um pouco"), 429
+            fila.append(agora)
+            return f(*args, **kwargs)
+        return decorated
+    return deco
+
+
 # ── Voz ───────────────────────────────────────────────────────────────────────
 
 _tts = {"proc": None, "trava": threading.Lock()}
@@ -405,6 +430,7 @@ def _primeira_do_dia():
 
 @app.get("/carro/saudacao")
 @autenticado
+@limitado(30)
 def saudacao():
     agora = datetime.now(FUSO)
     lat, lon = request.args.get("lat"), request.args.get("lon")
@@ -447,6 +473,7 @@ def saudacao():
 
 @app.post("/carro/comando")
 @autenticado
+@limitado(150)
 def comando():
     sessao = request.form.get("sessao") or str(uuid.uuid4())
     t0 = time.time()
@@ -487,6 +514,7 @@ def comando():
 
 @app.post("/carro/consulta")
 @autenticado
+@limitado(80)
 def consulta():
     """2ª etapa de 'consultar': o app já falou a frase de espera e chama isto em paralelo."""
     p = request.get_json(force=True, silent=True) or {}
@@ -535,6 +563,7 @@ _painel = {"ts": 0, "chave": "", "dados": {}}
 
 @app.get("/carro/painel")
 @autenticado
+@limitado(120)
 def painel():
     """Dados do cockpit: cidade, clima e agenda de hoje (cache de 10 min)."""
     lat = request.args.get("lat") or consultas.VARGINHA[0]
@@ -611,10 +640,55 @@ FERRAMENTAS_RT = [
 ]
 
 
+# Preço do gpt-realtime-mini por 1 milhão de tokens (US$). Atualizar se a OpenAI mudar.
+PRECO_RT = {"texto": 0.60, "texto_cache": 0.06, "audio": 10.00, "audio_cache": 0.30,
+            "texto_saida": 2.40, "audio_saida": 20.00}
+TETO_USD = float(os.environ.get("JAKE_CARRO_TETO_USD", "15"))
+
+
+def custo_resposta(u):
+    """Custo (US$) de uma resposta da voz em tempo real a partir do 'usage' que a OpenAI devolve."""
+    ent, sai = u.get("input_token_details") or {}, u.get("output_token_details") or {}
+    cache = ent.get("cached_tokens_details") or {}
+    txt_c, aud_c = cache.get("text_tokens", 0), cache.get("audio_tokens", 0)
+    tokens = {"texto": ent.get("text_tokens", 0) - txt_c, "texto_cache": txt_c,
+              "audio": ent.get("audio_tokens", 0) - aud_c, "audio_cache": aud_c,
+              "texto_saida": sai.get("text_tokens", 0), "audio_saida": sai.get("audio_tokens", 0)}
+    return sum(max(0, n) * PRECO_RT[k] for k, n in tokens.items()) / 1_000_000
+
+
+def gasto_mes():
+    return _ler_estado().get("gasto_rt", {}).get(datetime.now(FUSO).strftime("%Y-%m"), 0.0)
+
+
+@app.post("/carro/realtime/uso")
+@autenticado
+@limitado(2000)
+def realtime_uso():
+    """O cockpit manda o 'usage' de cada resposta; aqui soma o gasto do mês."""
+    u = (request.get_json(force=True, silent=True) or {}).get("usage") or {}
+    custo = custo_resposta(u)
+    estado = _ler_estado()
+    mes = datetime.now(FUSO).strftime("%Y-%m")
+    gastos = estado.setdefault("gasto_rt", {})
+    gastos[mes] = round(gastos.get(mes, 0.0) + custo, 5)
+    ESTADO.write_text(json.dumps(estado))
+    return jsonify(mes=mes, gasto_usd=gastos[mes], teto_usd=TETO_USD)
+
+
+@app.get("/carro/uso")
+@autenticado
+def uso():
+    return jsonify(mes=datetime.now(FUSO).strftime("%Y-%m"), gasto_usd=round(gasto_mes(), 2), teto_usd=TETO_USD)
+
+
 @app.post("/carro/realtime/sessao")
 @autenticado
+@limitado(60)
 def realtime_sessao():
     """Chave temporária pro cockpit conectar direto na OpenAI, já com personalidade, contexto e ferramentas."""
+    if gasto_mes() >= TETO_USD:  # bateu o teto do mês: o cockpit cai no modo reserva (bem mais barato)
+        return jsonify(erro="teto do mês atingido"), 429
     corpo = {"session": {
         "type": "realtime", "model": MODELO_RT,
         "instructions": f"{PERSONA}\n\n{INSTRUCOES_RT}\n\n{contexto()}",
@@ -637,6 +711,7 @@ def realtime_sessao():
 
 @app.post("/carro/realtime/ferramenta")
 @autenticado
+@limitado(150)
 def realtime_ferramenta():
     """Executa as ferramentas de dados que a IA pediu e devolve o resultado em texto pra ela falar."""
     p = request.get_json(force=True, silent=True) or {}
@@ -677,6 +752,7 @@ def _ler_estado():
 
 @app.get("/carro/avisos")
 @autenticado
+@limitado(60)
 def avisos():
     """No máximo 1 aviso por vez, cada um uma vez só: compromisso em 15 min, saldo baixo no Meta, chuva chegando."""
     agora = datetime.now(FUSO)
@@ -730,6 +806,7 @@ _rotas = {}
 
 @app.get("/carro/rota")
 @autenticado
+@limitado(60)
 def rota():
     """Rota pro mini mapa: acha o destino (Nominatim) e traça o caminho (OSRM). Cache por destino."""
     lat, lon, para = request.args.get("lat"), request.args.get("lon"), (request.args.get("para") or "").strip()

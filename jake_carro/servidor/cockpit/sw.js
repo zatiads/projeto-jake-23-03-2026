@@ -6,11 +6,11 @@
  * - bibliotecas e fontes de fora (não mudam): usa a cópia guardada
  * - dados (/carro/painel, /carro/rota, /carro/realtime…): sempre da rede, nunca guardados
  */
-const CACHE = 'jake-cockpit-v2';   // trocar o número apaga as cópias antigas
+const CACHE = 'jake-cockpit-v3';   // trocar o número apaga as cópias antigas
 const BASE = '/carro/cockpit/';
 const ESSENCIAIS = [
   BASE, BASE + 'index.html', BASE + 'tempo_real.js', BASE + 'marca.png', BASE + 'carro_frente.webp',
-  BASE + 'carro_tras.webp', BASE + 'carro_pose.webp', BASE + 'hb20_giro_alfa.webp', BASE + 'sons/abertura_B_nave.mp3',
+  BASE + 'carro_tras.webp', BASE + 'carro_pose.webp', BASE + 'hb20_giro_48.webp', BASE + 'sons/abertura_B_nave.mp3',
 ];
 const DE_FORA = [
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',

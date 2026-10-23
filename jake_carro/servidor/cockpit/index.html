@@ -15,7 +15,7 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
-#janela{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+#janela{position:fixed;top:0;right:0;bottom:0;left:0;display:flex;align-items:center;justify-content:center}
 #palco{position:relative;width:1024px;height:600px;overflow:hidden;transform-origin:center;
   background:radial-gradient(120% 95% at 50% 62%,#0B1A2B 0%,#060C16 46%,#03060B 100%);
   font-family:var(--corpo);color:var(--texto)}
@@ -32,7 +32,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 #piso{position:absolute;left:-10%;right:-10%;bottom:-40px;height:300px;
   background-image:linear-gradient(rgba(34,211,238,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(34,211,238,.07) 1px,transparent 1px);
   background-size:56px 56px;transform:perspective(520px) rotateX(64deg);transform-origin:bottom;opacity:.7;transition:opacity .8s}
-#estrada{position:absolute;inset:0;opacity:0;transition:opacity .8s;pointer-events:none}
+#estrada{position:absolute;top:0;right:0;bottom:0;left:0;opacity:0;transition:opacity .8s;pointer-events:none}
 .andando #estrada{opacity:1}
 .andando #piso{opacity:.25}
 
@@ -69,11 +69,11 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 #clima b{color:var(--texto);font-weight:500}
 #dir{position:absolute;right:30px;top:104px;width:236px;display:flex;flex-direction:column;gap:12px}
 .cartao{position:relative;border-radius:16px;overflow:hidden;border:1px solid rgba(34,211,238,.32);background:rgba(8,20,34,.78);
-  box-shadow:0 0 18px rgba(34,211,238,.12);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  box-shadow:0 0 18px rgba(34,211,238,.12)}
 .cartao::before{content:"";position:absolute;left:14%;right:14%;top:0;height:1px;z-index:600;pointer-events:none;
   background:linear-gradient(90deg,transparent,#7DE9F7,transparent);box-shadow:0 0 8px #22D3EE}
 #mapa-card{height:200px;cursor:pointer}
-#mapa{position:absolute;inset:0;background:#06101c}
+#mapa{position:absolute;top:0;right:0;bottom:0;left:0;background:#06101c}
 #mapa .leaflet-tile{filter:brightness(1.35) sepia(1) hue-rotate(150deg) saturate(2.2) brightness(.5) contrast(1.25)}
 #mapa .leaflet-control-attribution{background:rgba(4,7,13,.6);color:#5F8497;font-size:8px;padding:0 4px}
 #mapa .leaflet-control-attribution a{color:#5F8497}
@@ -100,18 +100,27 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 
 /* carro girando */
 #carro{position:absolute;left:268px;top:104px;width:488px;height:325px;touch-action:none;cursor:grab}
-#giro,#giro2,.refl,#foto{position:absolute;left:-30px;top:6px;width:547px;height:288px;background-repeat:no-repeat}
+#giro,#giro2,.refl,#foto{position:absolute;left:-30px;top:6px;width:548px;height:288px;background-repeat:no-repeat}
 #foto{pointer-events:none;transition:opacity .25s;
   filter:drop-shadow(0 0 1px rgba(125,233,247,.6)) drop-shadow(0 0 12px rgba(34,211,238,.22))}
 .refl{left:0;top:0}
-#reflexo{position:absolute;left:-30px;top:224px;width:547px;height:288px;transform:scaleY(-1);opacity:.22;pointer-events:none;
+#reflexo{position:absolute;left:-30px;top:224px;width:548px;height:288px;transform:scaleY(-1);opacity:.22;pointer-events:none;
   -webkit-mask-image:linear-gradient(0deg,#000 0%,transparent 26%);mask-image:linear-gradient(0deg,#000 0%,transparent 26%)}
 #luz-estudio{position:absolute;left:-40px;right:-40px;top:20px;height:290px;border-radius:50%;pointer-events:none;
   background:radial-gradient(closest-side,rgba(34,211,238,.20),rgba(14,90,140,.10) 55%,transparent)}
 
+/* WebView antigo sem "gap" no flex: margens no lugar */
+.semgap .doca>*+*{margin-left:18px}
+.semgap #dir>*+*{margin-top:12px}
+.semgap .ctl>*+*{margin-left:6px}
+.semgap #status>*+*{margin-left:18px}
+.semgap .atalho>*+*{margin-top:7px}
+.semgap #onda .lado>*+*{margin-left:3px}
+.semgap.andando #jake>*+*{margin-left:16px}
+
 /* modo noite: menos brilho pra não ofuscar na estrada */
-#palco{transition:filter 2s ease}
-#palco.noite{filter:brightness(.78) saturate(.9)}
+#pelicula{position:absolute;top:0;right:0;bottom:0;left:0;background:#000;opacity:0;pointer-events:none;transition:opacity 2s;z-index:50}
+.noite #pelicula{opacity:.22}
 .noite #horizonte{box-shadow:0 0 6px 1px rgba(34,211,238,.45)}
 .noite #horizonte-brilho,.noite #luz-estudio{opacity:.5}
 .noite .cartao,.noite .atalho .bola{box-shadow:none}
@@ -139,7 +148,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 .atalho span{font-size:13px;color:var(--suave);letter-spacing:.3px}
 /* andando */
 #velo{position:absolute;left:44px;top:150px;width:300px;height:300px}
-#velo .num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#velo .num{position:absolute;top:0;right:0;bottom:0;left:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 #velo .n{font-family:var(--tec);font-weight:500;font-size:112px;line-height:1;color:var(--gelo);font-variant-numeric:tabular-nums}
 #velo .u{font-size:20px;color:var(--suave);margin-top:6px}
 #tras{position:absolute;left:300px;top:150px;width:420px;height:280px;background:url(carro_tras.webp) center/cover no-repeat;
@@ -160,13 +169,13 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 .andando #jake{left:auto;right:40px;bottom:36px;transform:none;flex-direction:row;gap:16px}
 #orbe{position:relative;width:96px;height:96px;cursor:pointer}
 .andando #orbe{width:76px;height:76px}
-#orbe .halo{position:absolute;inset:-20px;border-radius:50%;background:radial-gradient(closest-side,var(--halo),transparent);transition:background .5s}
-#orbe .nucleo{position:absolute;inset:18%;border-radius:50%;
+#orbe .halo{position:absolute;top:-20px;right:-20px;bottom:-20px;left:-20px;border-radius:50%;background:radial-gradient(closest-side,var(--halo),transparent);transition:background .5s}
+#orbe .nucleo{position:absolute;top:18%;right:18%;bottom:18%;left:18%;border-radius:50%;
   background:radial-gradient(circle at 36% 30%,#fff 0%,var(--cor) 30%,rgba(4,7,13,.95) 78%);
   box-shadow:0 0 26px var(--cor),inset 0 0 18px rgba(255,255,255,.25);transition:box-shadow .5s,background .5s}
-#orbe .aro{position:absolute;inset:6%;border-radius:50%;border:1.5px solid var(--cor);opacity:.7;transform:rotateX(68deg) rotateZ(0deg);animation:gira 6s linear infinite}
-#orbe .aro.b{inset:0;opacity:.45;animation-duration:9s;animation-direction:reverse;transform:rotateY(64deg)}
-#orbe .meridiano{position:absolute;inset:18%;border-radius:50%;border:1px solid rgba(255,255,255,.35);transform:rotateY(60deg);animation:gira2 7s linear infinite}
+#orbe .aro{position:absolute;top:6%;right:6%;bottom:6%;left:6%;border-radius:50%;border:1.5px solid var(--cor);opacity:.7;transform:rotateX(68deg) rotateZ(0deg);animation:gira 6s linear infinite}
+#orbe .aro.b{top:0;right:0;bottom:0;left:0;opacity:.45;animation-duration:9s;animation-direction:reverse;transform:rotateY(64deg)}
+#orbe .meridiano{position:absolute;top:18%;right:18%;bottom:18%;left:18%;border-radius:50%;border:1px solid rgba(255,255,255,.35);transform:rotateY(60deg);animation:gira2 7s linear infinite}
 @keyframes gira{to{transform:rotateX(68deg) rotateZ(360deg)}}
 @keyframes gira2{to{transform:rotateY(60deg) rotateZ(360deg)}}
 #orbe.pulsa .nucleo{animation:pulsa 2.4s ease-in-out infinite}
@@ -191,6 +200,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   <div id="horizonte"></div>
   <canvas id="estrada" width="1024" height="600"></canvas>
   <div id="flash"></div>
+  <div id="pelicula"></div>
 
   <div id="topo" class="some">
     <img id="marca" src="marca.png" alt="Hyundai HB20">
@@ -286,6 +296,16 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   const nativo = window.Android || null;          // ponte com o app (Kotlin)
   const params = new URLSearchParams(location.search);
 
+  // ── WebView antigo (centrais com Android antigo) não tem "gap" no flex: liga o plano B ──
+  (function () {
+    const t = document.createElement('div');
+    t.style.cssText = 'display:flex;flex-direction:column;gap:1px;position:absolute';
+    t.appendChild(document.createElement('div')); t.appendChild(document.createElement('div'));
+    document.body.appendChild(t);
+    if (t.scrollHeight !== 1) palco.classList.add('semgap');
+    t.remove();
+  })();
+
   // ── guarda o cockpit na central pra abrir mesmo sem internet ──
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { scope: './' }).catch(() => {});
 
@@ -355,9 +375,9 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 
   // ── carro girando: folha de quadros + arraste com inércia ──
   const giro = $('giro');
-  const G = { n: 72, cols: 8, w: 760, h: 400 };   // folha com o carro recortado e alinhado pelas rodas
-  const esc = 0.72;                        // 760 → 547 px na tela (de lado cabe sem encostar no mapa)
-  const POSE = 11;                         // quadro de partida: 3/4 de frente (a pose do render)
+  const G = { n: 48, cols: 8, w: 548, h: 288 };   // 48 ângulos já no tamanho da tela: ~28 MB de RAM em vez de ~83   // folha com o carro recortado e alinhado pelas rodas
+  const esc = 1;
+  const POSE = 7;                          // quadro de partida: 3/4 de frente (a pose do render)
   const VOLTA_POSE_MS = 10000;             // soltou e ficou 10 s sem mexer: volta devagar pra pose
   const giro2 = $('giro2'), refl1 = $('refl1'), refl2 = $('refl2'), foto = $('foto');
   let fotoPronta = false;
@@ -367,7 +387,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   img.onload = () => {
     temGiro = true;
     for (const el of [giro, giro2, refl1, refl2]) {
-      el.style.backgroundImage = 'url(hb20_giro_alfa.webp)';
+      el.style.backgroundImage = 'url(hb20_giro_48.webp)';
       el.style.backgroundSize = `${G.cols * G.w * esc}px ${Math.ceil(G.n / G.cols) * G.h * esc}px`;
     }
     desenhar();
@@ -377,7 +397,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     giro.style.backgroundSize = 'cover'; giro.style.backgroundPosition = 'center';
     $('dica').style.opacity = 0;
   };
-  img.src = 'hb20_giro_alfa.webp';
+  img.src = 'hb20_giro_48.webp';
   function posicao(k) {
     k = ((k % G.n) + G.n) % G.n;
     return `${-(k % G.cols) * G.w * esc}px ${-Math.floor(k / G.cols) * G.h * esc}px`;
@@ -423,8 +443,8 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     if (!arrastando) return;
     const esc2 = parseFloat(palco.style.transform.replace(/[^\d.]/g, '')) || 1;
     const dx = (e.clientX - ultimoX) / esc2, agora = performance.now();
-    quadro += dx / 7;                     // 7 px de dedo = 1 quadro (5°), no mesmo sentido do dedo
-    vel = dx / 7 / Math.max(1, (agora - ultimoT) / 16);
+    quadro += dx / 10;                    // 10 px de dedo = 1 quadro (7,5°), no mesmo sentido do dedo
+    vel = dx / 10 / Math.max(1, (agora - ultimoT) / 16);
     ultimoX = e.clientX; ultimoT = agora; desenhar();
   });
   const soltar = () => { arrastando = false; soltouEm = Date.now(); desenhar(); };
@@ -436,7 +456,15 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     const b = document.createElement('i'); $(lado).appendChild(b); barras.push(b);
   }
   let nivel = 0, estadoAtual = 'pronto';
+  let ondaParada = false;
   function animarOnda(t) {
+    const ativa = estadoAtual === 'ouvindo' || estadoAtual === 'falando' || nivel > 0.02;
+    if (!ativa) {
+      if (!ondaParada) { barras.forEach((b) => { b.style.height = '3px'; }); ondaParada = true; }
+      requestAnimationFrame(animarOnda);
+      return;
+    }
+    ondaParada = false;
     barras.forEach((b, i) => {
       const meio = i < 34 ? i / 33 : 1 - (i - 34) / 33;   // mais alto perto da bolinha
       const ruido = Math.sin(t / 120 + i * 1.7) * 0.5 + 0.5;

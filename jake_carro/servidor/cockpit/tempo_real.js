@@ -102,6 +102,10 @@ window.JakeTempoReal = (function () {
         else ui.estado('ouvindo', textoResposta);
         break;
       case 'response.done': {
+        if (e.response && e.response.usage) {   // manda o custo pro servidor somar o mês (teto de gasto)
+          fetch('/carro/realtime/uso', { method: 'POST', headers: { 'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + ui.token() }, body: JSON.stringify({ usage: e.response.usage }) }).catch(() => {});
+        }
         const chamadas = ((e.response && e.response.output) || []).filter((i) => i.type === 'function_call');
         if (chamadas.length) {
           await Promise.all(chamadas.map(executar));
