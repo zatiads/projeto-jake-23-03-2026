@@ -35,6 +35,7 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
 
     companion object {
         const val EXTRA_OUVIR = "ouvir"
+        const val EXTRA_PALAVRA = "palavra"   // chamado pela palavra "Jake" (não pela bolinha)
         private const val PEDIDO_PERMISSOES = 1
         private const val SAUDAR_DE_NOVO_MS = 2 * 60 * 1000L   // abertura com som de novo se ficou 2 min desligado
         private val CIANO = 0xFF22D3EE.toInt()
@@ -63,6 +64,14 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
 
     private var conversa: Job? = null
     private var musicaSpotify: Map<String, Any>? = null
+    private var naFrente = false
+
+    override fun onResume() { super.onResume(); naFrente = true }
+    override fun onPause() { super.onPause(); naFrente = false }
+
+    private fun ligarEscuta() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) EscutaService.ligar(this)
+    }
 
     private fun mostrarMusica(m: Map<String, Any>?) {
         cockpit.ultimaMusica = m
@@ -87,7 +96,7 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
         cockpit.ligarGps()
         musica.ligar()
         relatarAmbiente()
-        relatarAmbiente()
+        ligarEscuta()
     }
     private var veioDaBolha = false
     private var versaoNova = 0
@@ -114,7 +123,11 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        if (intent?.getBooleanExtra(EXTRA_OUVIR, false) == true) chamarDaBolha()
+        if (intent?.getBooleanExtra(EXTRA_OUVIR, false) == true) {
+            // pela palavra "Jake" com o Jake já na tela: só escuta; vindo de outro app: escuta e devolve o app
+            if (intent.getBooleanExtra(EXTRA_PALAVRA, false) && naFrente) { veioDaBolha = false; ouvir() }
+            else chamarDaBolha()
+        }
     }
 
     override fun onStart() {
@@ -122,6 +135,8 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
         BolhaService.enviar(this, BolhaService.ESCONDER)
         cockpit.ligarGps()
         musica.ligar()
+        relatarAmbiente()
+        ligarEscuta()
         btnApps.visibility = if (nativo.visibility == View.VISIBLE) View.VISIBLE else View.GONE
         btnBolha.visibility = if (Settings.canDrawOverlays(this)) View.GONE else View.VISIBLE
         btnMaps.visibility = if (NavLeitor.permitido(this)) View.GONE else View.VISIBLE
@@ -284,9 +299,10 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
 
     override fun aoFoco(ativo: Boolean) {
         if (ativo) {
+            Escuta.pausar()
             conversa?.cancel(); ouvido.parar(); voz.calar()
             voz.pegarFoco(exclusivo = true)
-        } else voz.soltarFoco()
+        } else { voz.soltarFoco(); Escuta.retomar() }
     }
 
     override fun aoMidia(cmd: String) {
@@ -323,6 +339,8 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
         botao.text = rotulo
         (botao.background as GradientDrawable).setColor(corBotao)
         cockpit.estado(painel, frase)
+        // microfone é de um só: a escuta do "Jake" pausa enquanto ele ouve/fala e volta quando termina
+        if (painel in setOf("pronto", "feito", "offline") && rotulo != "PARAR") Escuta.retomar() else Escuta.pausar()
     }
 
     // ── Permissões / config ──────────────────────────────────────────────────
@@ -413,6 +431,7 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
             pedirPermissoes()
             return
         }
+        Escuta.pausar()   // solta o microfone ANTES de gravar
         conversa = escopo.launch {
             ouvidoTxt.text = ""
             falaTxt.text = ""

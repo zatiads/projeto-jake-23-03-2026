@@ -303,8 +303,8 @@ INSTRUCOES = """Decida UMA ação para o app executar:
   "posto de gasolina") que o Maps acha o mais perto. parametros.app = "waze" só se
   ele pedir Waze, senão "maps".
 - tocar_musica: tocar algo no Spotify. parametros.busca = o que buscar, parametros.tipo = musica|artista|playlist|album.
-  Só um nome (ex: "coloca Freud", "toca Matuê") = artista. "musica" só quando ele citar o título de uma música
-  (ex: "toca Evidências"); nesse caso ponha título e artista na busca se ele disser. Pedido de estilo/clima = playlist.
+  Use EXATAMENTE o nome que ele falou, nunca troque por outro artista. Só um nome = artista. "musica" só quando ele
+  citar o título de uma música; nesse caso ponha título e artista na busca se ele disser. Pedido de estilo/clima = playlist.
 - midia: controlar o que está tocando. parametros.comando = pausar|continuar|proxima|anterior.
 - consultar: precisa buscar dado antes de responder. "fala" = frase curta de espera
   (ex: "Deixa eu dar uma olhada, patrão.", "Só um segundo que eu puxo aqui."). parametros.consulta =
@@ -411,11 +411,35 @@ def saude():
     return jsonify(ok=True)
 
 
+PALAVRA = BASE / "palavra"   # palavra de ativação "Jake" (Porcupine): jake_android.ppn + modelo do idioma
+
+
+def config_palavra():
+    """Chave e versão da palavra "Jake"; o app baixa os arquivos quando a versão muda (sem reinstalar)."""
+    ppn = PALAVRA / "jake_android.ppn"
+    chave = os.environ.get("PICOVOICE_ACCESS_KEY", "").strip()
+    if not (chave and ppn.exists()):
+        return None
+    idioma = os.environ.get("JAKE_CARRO_PALAVRA_IDIOMA", "pt")
+    return {"chave": chave, "idioma": idioma, "versao": int(ppn.stat().st_mtime),
+            "sensibilidade": float(os.environ.get("JAKE_CARRO_PALAVRA_SENSIBILIDADE", "0.6"))}
+
+
 @app.get("/carro/config")
 @autenticado
 def config():
     return jsonify(spotify_client_id=os.environ.get("SPOTIFY_CLIENT_ID", "").strip(),
-                   app=versao_apk())
+                   app=versao_apk(), palavra=config_palavra())
+
+
+@app.get("/carro/palavra/<arquivo>")
+@autenticado
+def palavra(arquivo):
+    nomes = {"jake.ppn": "jake_android.ppn", "modelo.pv": "porcupine_params_pt.pv"}
+    alvo = PALAVRA / nomes.get(arquivo, "-")
+    if not alvo.is_file():
+        return jsonify(erro="não achei"), 404
+    return send_file(alvo, mimetype="application/octet-stream")
 
 
 ESTADO = BASE / "estado.json"
@@ -782,10 +806,20 @@ def avisos():
     except Exception as e:
         app.logger.warning("aviso agenda: %s", e)
     try:
-        for c in consultas.saldos_baixos(LIMITE_SALDO):
-            texto = (f"Patrão, a conta da {c['nome']} tá sem saldo no Meta, os anúncios vão parar." if c["saldo"] < 1
-                     else f"Patrão, a conta da {c['nome']} tá com só {round(c['saldo'])} reais de saldo no Meta.")
-            candidatos.append((f"saldo:{c['id']}:{hoje}", texto))
+        if os.environ.get("JAKE_CARRO_AVISO_SALDO", "0") != "1":   # em stand-by a pedido do Bruno (24/10)
+            raise StopIteration
+        # todas as contas novas com saldo baixo num aviso só; sem saldo primeiro
+        baixos = sorted([c for c in consultas.saldos_baixos(LIMITE_SALDO) if f"saldo:{c['id']}:{hoje}" not in dados],
+                        key=lambda c: c["saldo"])
+        if baixos:
+            partes = [f"a {c['nome']} tá sem saldo" if c["saldo"] < 1 else f"a {c['nome']} tá com {round(c['saldo'])} reais"
+                      for c in baixos[:4]]
+            texto = "Patrão, saldo baixo no Meta: " + ", ".join(partes[:-1]) + (" e " if len(partes) > 1 else "") + partes[-1] + "."
+            candidatos.append(("saldo:" + ",".join(c["id"] for c in baixos) + f":{hoje}", texto))
+            for c in baixos:  # cada conta conta como avisada hoje
+                dados[f"saldo:{c['id']}:{hoje}"] = hoje
+    except StopIteration:
+        pass
     except Exception as e:
         app.logger.warning("aviso saldo: %s", e)
     try:

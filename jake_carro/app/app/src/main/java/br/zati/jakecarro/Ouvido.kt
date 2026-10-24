@@ -14,7 +14,7 @@ import java.io.File
 class Ouvido(private val ctx: Context) {
 
     var limiarMinimo = 1800        // amplitude (0..32767) mínima pra contar como fala
-    var silencioFimMs = 1200L      // quanto silêncio depois da fala encerra a gravação
+    var silencioFimMs = 1600L      // quanto silêncio depois da fala encerra a gravação (1,2 s cortava quem pausa pra pensar)
     var esperaInicioMs = 6000L     // se ninguém falar nesse tempo, desiste
     var maximoMs = 10000L
 

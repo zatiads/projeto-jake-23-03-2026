@@ -87,6 +87,16 @@ class JakeApi {
         http.newCall(pedido("/carro/diag").post(corpo).build()).execute().close()
     }
 
+    /** Baixa um arquivo do servidor (palavra "Jake", modelo do idioma). */
+    fun baixar(caminho: String, destino: File) {
+        http.newCall(pedido(caminho).build()).execute().use { r ->
+            if (!r.isSuccessful) throw IOException("HTTP ${r.code} em $caminho")
+            val tmp = File(destino.path + ".tmp")
+            tmp.outputStream().use { r.body!!.byteStream().copyTo(it) }
+            tmp.renameTo(destino)
+        }
+    }
+
     /** Baixa o APK novo pro arquivo dado. */
     fun baixarApk(destino: File) {
         http.newCall(pedido("/carro/apk").build()).execute().use { r ->
