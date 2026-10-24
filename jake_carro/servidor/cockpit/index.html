@@ -34,7 +34,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   background-size:56px 56px;transform:perspective(520px) rotateX(64deg);transform-origin:bottom;opacity:.7;transition:opacity .8s}
 #estrada{position:absolute;top:0;right:0;bottom:0;left:0;opacity:0;transition:opacity .8s;pointer-events:none}
 .andando #estrada{opacity:1}
-.andando #piso{opacity:.25}
+.andando #piso{opacity:0}
 
 /* ── barra de cima ── */
 #topo{position:absolute;top:0;left:0;right:0;height:78px;padding:0 30px;display:flex;align-items:center;justify-content:space-between}
@@ -582,22 +582,38 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   // ── estrada andando (só no modo andando) ──
   const cv = $('estrada'), cx = cv.getContext('2d');
   let fase = 0;
+  // A estrada segue a direção do carro (3/4 traseiro, apontando pra direita e pro fundo): as linhas fogem pro
+  // horizonte à direita, passam por baixo do carro e as marcações vêm do fundo em direção à câmera.
+  const FUGA = { x: 1010, y: 300 };            // ponto de fuga, alinhado com o eixo do carro
+  const CENTRO_PISTA = -27;                     // onde o eixo do carro cruza a borda de baixo da tela
+  const LINHAS = [-1040, -780, -520, -260, 0, 260, 520, 780].map((d) => CENTRO_PISTA + d);
   function estrada() {
     if (modo === 'andando') {
       cx.clearRect(0, 0, 1024, 600);
       fase = (fase + 0.004 + kmhAtual / 9000) % 1;
-      const hx = 512, hy = 250;
-      for (let f = -6; f <= 6; f++) {
-        const xb = hx + f * 150;
-        for (let k = 0; k < 7; k++) {
-          const t0 = ((k / 7 + fase) % 1), t1 = Math.min(1, t0 + 0.06);
-          const p = (t) => [hx + (xb - hx) * t * t, hy + (600 - hy) * t * t];
-          const [x0, y0] = p(t0), [x1, y1] = p(t1);
-          cx.strokeStyle = `rgba(34,211,238,${0.08 + 0.5 * t0 * (f === -1 || f === 1 ? 1.4 : 0.6)})`;
-          cx.lineWidth = 1 + 3 * t0;
+      const ponto = (xb, t) => [FUGA.x + (xb - FUGA.x) * t, FUGA.y + (600 - FUGA.y) * t];
+      LINHAS.forEach((xb) => {
+        const pista = Math.abs(xb - CENTRO_PISTA) === 260;          // as duas bordas da pista do carro
+        // trilho contínuo e fraco (dá a direção da estrada)
+        const [a0, b0] = ponto(xb, 0.02), [a1, b1] = ponto(xb, 1.15);
+        const g = cx.createLinearGradient(a0, b0, a1, b1);
+        g.addColorStop(0, 'rgba(34,211,238,0)');
+        g.addColorStop(1, `rgba(34,211,238,${pista ? 0.35 : 0.12})`);
+        cx.strokeStyle = g; cx.lineWidth = pista ? 2 : 1;
+        cx.beginPath(); cx.moveTo(a0, b0); cx.lineTo(a1, b1); cx.stroke();
+        // marcações andando do fundo pra câmera (perspectiva: crescem perto)
+        for (let k = 0; k < 8; k++) {
+          const u = (k / 8 + fase) % 1, t0 = u * u * 1.15, t1 = Math.min(1.2, t0 + 0.035 + 0.06 * u);
+          const [x0, y0] = ponto(xb, t0), [x1, y1] = ponto(xb, t1);
+          cx.strokeStyle = `rgba(34,211,238,${0.06 + 0.55 * u * (pista ? 1.3 : 0.5)})`;
+          cx.lineWidth = 1 + 3.5 * u;
           cx.beginPath(); cx.moveTo(x0, y0); cx.lineTo(x1, y1); cx.stroke();
         }
-      }
+      });
+      // brilho no horizonte, onde a estrada some
+      const h = cx.createRadialGradient(FUGA.x, FUGA.y, 0, FUGA.x, FUGA.y, 220);
+      h.addColorStop(0, 'rgba(34,211,238,.18)'); h.addColorStop(1, 'rgba(34,211,238,0)');
+      cx.fillStyle = h; cx.fillRect(FUGA.x - 220, FUGA.y - 220, 440, 440);
     }
     requestAnimationFrame(estrada);
   }
