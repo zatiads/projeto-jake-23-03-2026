@@ -116,7 +116,10 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 .semgap #status>*+*{margin-left:18px}
 .semgap .atalho>*+*{margin-top:7px}
 .semgap #onda .lado>*+*{margin-left:3px}
-.semgap.andando #jake>*+*{margin-left:16px}
+.semgap.andando #jake>*+*{margin-left:14px}
+.semgap #velo .linha>*+*{margin-left:10px}
+.semgap #barra>*+*{margin-left:3px}
+.semgap #manobra>*+*{margin-left:14px}
 
 /* modo noite: menos brilho pra não ofuscar na estrada */
 #pelicula{position:absolute;top:0;right:0;bottom:0;left:0;background:#000;opacity:0;pointer-events:none;transition:opacity 2s;z-index:50}
@@ -146,27 +149,36 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   box-shadow:0 0 16px rgba(34,211,238,.16),inset 0 0 12px rgba(34,211,238,.08);transition:transform .15s,background .15s}
 .atalho:active .bola{transform:scale(.93);background:rgba(34,211,238,.18)}
 .atalho span{font-size:13px;color:var(--suave);letter-spacing:.3px}
-/* andando */
-#velo{position:absolute;left:44px;top:150px;width:300px;height:300px}
-#velo .num{position:absolute;top:0;right:0;bottom:0;left:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-#velo .n{font-family:var(--tec);font-weight:500;font-size:112px;line-height:1;color:var(--gelo);font-variant-numeric:tabular-nums}
-#velo .u{font-size:20px;color:var(--suave);margin-top:6px}
-#tras{position:absolute;left:300px;top:150px;width:420px;height:280px;background:url(carro_tras.webp) center/cover no-repeat;
-  -webkit-mask-image:radial-gradient(55% 60% at 50% 50%,#000 55%,transparent 100%);mask-image:radial-gradient(55% 60% at 50% 50%,#000 55%,transparent 100%)}
-#rota{position:absolute;right:40px;top:170px;width:270px}
-#rota .lbl{font-family:var(--tec);font-size:13px;letter-spacing:3px;color:var(--ciano);text-transform:uppercase}
-#rota .dest{font-size:28px;color:var(--gelo);margin-top:6px;line-height:1.2}
-#rota .cheg{font-family:var(--tec);font-size:22px;color:var(--suave);margin-top:18px}
-#manobra{display:none;margin-bottom:22px}
-#rota.nav #manobra{display:block}
-#seta{width:110px;height:110px;color:var(--ciano);filter:drop-shadow(0 0 8px rgba(34,211,238,.6))}
-#seta path{transition:d .3s}
-#dist{font-family:var(--tec);font-size:46px;line-height:1;color:var(--gelo);margin-top:6px;font-variant-numeric:tabular-nums}
-#instr{font-size:19px;color:var(--texto);margin-top:8px;line-height:1.3}
+/* andando: velocidade + computador de bordo à esquerda, carro 3/4 traseiro na estrada, curva no alto, mapa ao vivo à direita */
+#velo{position:absolute;left:30px;top:104px;width:250px}
+#velo .lbl,#viagem .lbl{font-family:var(--tec);font-size:12px;letter-spacing:3px;color:var(--ciano);text-transform:uppercase}
+#velo .linha{display:flex;align-items:baseline;gap:10px;margin-top:2px}
+#velo .n{font-family:var(--tec);font-weight:500;font-size:104px;line-height:1;color:var(--gelo);font-variant-numeric:tabular-nums}
+#velo .u{font-size:20px;color:var(--suave)}
+#barra{display:flex;gap:3px;height:16px;margin-top:12px}
+#barra i{flex:1;border-radius:2px;background:rgba(143,179,198,.14);transition:background .25s,box-shadow .25s}
+#barra i.on{background:var(--ciano);box-shadow:0 0 8px rgba(34,211,238,.6)}
+#barra i.on.alta{background:#FBBF24;box-shadow:0 0 8px rgba(251,191,36,.6)}
+#barra-escala{display:flex;justify-content:space-between;font-family:var(--tec);font-size:11px;color:var(--apagado);margin-top:4px}
+#viagem{position:absolute;left:30px;top:322px;width:250px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 14px}
+#viagem .v{font-family:var(--tec);font-size:26px;color:var(--gelo);margin-top:2px;font-variant-numeric:tabular-nums}
+#viagem .v small{font-size:13px;color:var(--suave);margin-left:3px}
+#tras{position:absolute;left:286px;top:206px;width:452px;height:238px;background:url(carro_tras34.webp) center bottom/contain no-repeat;
+  filter:drop-shadow(0 0 1px rgba(125,233,247,.6)) drop-shadow(0 0 14px rgba(34,211,238,.22))}
+#rota{position:absolute;left:300px;top:100px;width:424px;text-align:center}
+#manobra{display:none;align-items:center;justify-content:center;gap:14px}
+#rota.nav #manobra{display:flex}
+#seta{width:64px;height:64px;flex:none;color:var(--ciano);filter:drop-shadow(0 0 8px rgba(34,211,238,.6))}
+#dist{font-family:var(--tec);font-size:38px;line-height:1;color:var(--gelo);font-variant-numeric:tabular-nums;text-align:left}
+#instr{font-size:16px;color:var(--texto);margin-top:4px;line-height:1.25;text-align:left;max-width:300px}
+#rota .dest{font-size:15px;color:var(--suave);margin-top:8px}
+#rota .dest b{color:var(--gelo);font-weight:500}
+.andando #mapa-card{height:300px}
+.andando #dir{top:100px}
 
 /* ── Jake ── */
 #jake{position:absolute;left:50%;bottom:22px;z-index:2;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;transition:all .7s ease}
-.andando #jake{left:auto;right:40px;bottom:36px;transform:none;flex-direction:row;gap:16px}
+.andando #jake{bottom:16px;flex-direction:row;gap:14px}
 #orbe{position:relative;width:96px;height:96px;cursor:pointer}
 .andando #orbe{width:76px;height:76px}
 #orbe .halo{position:absolute;top:-20px;right:-20px;bottom:-20px;left:-20px;border-radius:50%;background:radial-gradient(closest-side,var(--halo),transparent);transition:background .5s}
@@ -221,7 +233,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     <div class="sub">HOJE</div>
     <div id="agenda"><div class="vazio">Carregando a agenda…</div></div>
   </div>
-  <div id="dir" class="so-parado some">
+  <div id="dir" class="some">
     <div id="mapa-card" class="cartao" role="button" aria-label="Abrir o Google Maps">
       <div id="mapa"></div>
       <div id="mapa-rotulo">MAPA</div>
@@ -258,22 +270,24 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
 
   <!-- ANDANDO -->
   <div id="velo" class="so-andando">
-    <svg width="300" height="300" viewBox="0 0 300 300" aria-hidden="true">
-      <circle cx="150" cy="150" r="128" fill="none" stroke="rgba(143,179,198,.14)" stroke-width="5" stroke-dasharray="603 805" transform="rotate(135 150 150)"/>
-      <circle id="arco" cx="150" cy="150" r="128" fill="none" stroke="#22D3EE" stroke-width="5" stroke-linecap="round" stroke-dasharray="0 805" transform="rotate(135 150 150)" style="filter:drop-shadow(0 0 6px #22D3EE);transition:stroke-dasharray .4s"/>
-    </svg>
-    <div class="num"><div class="n" id="kmh">0</div><div class="u">km/h</div></div>
+    <div class="lbl">Velocidade</div>
+    <div class="linha"><div class="n" id="kmh">0</div><div class="u">km/h</div></div>
+    <div id="barra"></div>
+    <div id="barra-escala"><span>0</span><span>40</span><span>80</span><span>120</span></div>
   </div>
-  <div id="tras" class="so-andando"></div>
+  <div id="viagem" class="so-andando">
+    <div><div class="lbl">Viagem</div><div class="v" id="v-tempo">0:00</div></div>
+    <div><div class="lbl">Rodados</div><div class="v"><span id="v-km">0,0</span><small>km</small></div></div>
+    <div><div class="lbl">Média</div><div class="v"><span id="v-media">0</span><small>km/h</small></div></div>
+    <div><div class="lbl">Máxima</div><div class="v"><span id="v-max">0</span><small>km/h</small></div></div>
+  </div>
+  <div id="tras" class="so-andando" role="img" aria-label="Seu HB20 na estrada"></div>
   <div id="rota" class="so-andando">
     <div id="manobra">
       <svg id="seta" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path id="seta-p" d="M30 90V45h40M58 30l14 15-14 15"/></svg>
-      <div id="dist"></div>
-      <div id="instr"></div>
+      <div><div id="dist"></div><div id="instr"></div></div>
     </div>
-    <div class="lbl">Destino</div>
-    <div class="dest" id="destino">Rodando livre</div>
-    <div class="cheg" id="chegada"></div>
+    <div class="dest"><b id="destino">Rodando livre</b> <span id="chegada"></span></div>
   </div>
 
   <!-- JAKE -->
@@ -521,7 +535,9 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     kmhAtual = Math.max(0, Math.round(kmh || 0));
     if (lat) { const mudou = !pos.lat || Math.abs(pos.lat - lat) > 0.05; pos = { lat, lon }; if (mudou) carregarPainel(); mapaPosicao(lat, lon); }
     $('kmh').textContent = kmhAtual;
-    $('arco').setAttribute('stroke-dasharray', `${Math.min(1, kmhAtual / 140) * 603} 805`);
+    const acesos = Math.round(Math.min(1, kmhAtual / 140) * segmentos.length);
+    segmentos.forEach((g, i) => { g.classList.toggle('on', i < acesos); g.classList.toggle('alta', i >= segmentos.length * 0.78); });
+    computadorDeBordo(kmhAtual, lat, lon);
     const quer = kmhAtual >= 12 ? 'andando' : kmhAtual <= 4 ? 'parado' : modo;
     if (quer !== modo) {
       if (Date.now() - desde > (quer === 'andando' ? 4000 : 10000)) mudarModo(quer);
@@ -530,6 +546,37 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   function mudarModo(m) {
     modo = m; desde = Date.now();
     palco.classList.toggle('andando', m === 'andando'); palco.classList.toggle('parado', m === 'parado');
+    if (mapa) setTimeout(() => { mapa.invalidateSize(); if (m === 'andando') mapa.setView(eu.getLatLng(), 16); }, 750);
+  }
+
+  // barra de velocidade (0 a 140 km/h; o último quarto fica âmbar)
+  const segmentos = [];
+  for (let i = 0; i < 28; i++) { const g = document.createElement('i'); $('barra').appendChild(g); segmentos.push(g); }
+
+  // computador de bordo: tempo, km, média e máxima da viagem (zera depois de 20 min parado)
+  const viagem = { inicio: 0, km: 0, emMovimento: 0, max: 0, ultimo: null, ultimoT: 0, andouEm: 0 };
+  function distanciaKm(a, b) {
+    const r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+    return 12742 * Math.asin(Math.sqrt(h));
+  }
+  function computadorDeBordo(kmh, lat, lon) {
+    const agora = Date.now();
+    if (viagem.andouEm && agora - viagem.andouEm > 20 * 60000) Object.assign(viagem, { inicio: 0, km: 0, emMovimento: 0, max: 0 });
+    if (kmh > 3) { if (!viagem.inicio) viagem.inicio = agora; viagem.andouEm = agora; viagem.max = Math.max(viagem.max, kmh); }
+    if (lat) {
+      const aqui = { lat, lon };
+      if (viagem.ultimo && agora - viagem.ultimoT < 30000 && kmh > 3) {
+        const d = distanciaKm(viagem.ultimo, aqui);
+        if (d < 1) { viagem.km += d; viagem.emMovimento += (agora - viagem.ultimoT) / 1000; }   // ignora saltos da posição pela rede
+      }
+      viagem.ultimo = aqui; viagem.ultimoT = agora;
+    }
+    const min = viagem.inicio ? Math.floor((agora - viagem.inicio) / 60000) : 0;
+    $('v-tempo').textContent = `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`;
+    $('v-km').textContent = viagem.km.toFixed(1).replace('.', ',');
+    $('v-media').textContent = viagem.emMovimento > 30 ? Math.round(viagem.km / (viagem.emMovimento / 3600)) : 0;
+    $('v-max').textContent = viagem.max;
   }
 
   // ── estrada andando (só no modo andando) ──
@@ -618,19 +665,13 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     $('marca').addEventListener('click', acordar);
     addEventListener('keydown', (e) => {
       if (e.key === 'a' || e.key === 'A') {
-        if (modo === 'parado') { mudarModo('andando'); kmhAtual = 62; $('kmh').textContent = 62;
-          $('arco').setAttribute('stroke-dasharray', `${62 / 140 * 603} 805`); $('destino').textContent = 'São Tomé das Letras';
+        if (modo === 'parado') { mudarModo('andando'); gps(62); $('destino').textContent = 'São Tomé das Letras';
           navegacao({ titulo: 'Vire à direita na Av. Rio Branco', texto: '400 m', sub: 'Chegada 16:31 · 87 km' }); }
         else { mudarModo('parado'); kmhAtual = 0; }
       }
     });
   }
   if (params.get('autofalar')) setTimeout(falar, 1500);   // só pra teste automático
-  if (params.get('modo') === 'andando') {
-    mudarModo('andando'); kmhAtual = 62; gps(62);
-    $('destino').textContent = 'São Tomé das Letras';
-    navegacao({ titulo: 'Vire à direita na Av. Rio Branco', texto: '400 m', sub: 'Chegada 16:31 · 87 km' });
-  }
 
   // ── ligou o carro: som da nave + tela acendendo do centro ──
   const somAbertura = new Audio('sons/abertura_B_nave.mp3');
@@ -659,7 +700,8 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   function mapaPosicao(lat, lon) {
     if (!mapa) return;
     eu.setLatLng([lat, lon]);
-    if (!navegando) mapa.panTo([lat, lon], { animate: true });
+    if (modo === 'andando') mapa.setView([lat, lon], Math.max(mapa.getZoom(), 15), { animate: true });   // segue o carro
+    else if (!navegando) mapa.panTo([lat, lon], { animate: true });
   }
   async function mapaRota(destinoTxt) {
     if (!mapa) return;
@@ -717,6 +759,14 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
   if (nativo || params.get('avisos')) { setTimeout(buscarAviso, 45000); setInterval(buscarAviso, 2 * 60 * 1000); }
 
   // ── o que o app chama ──
+  // prévia no navegador: ?modo=andando (fica no fim: precisa do mapa e do computador de bordo já criados)
+  if (params.get('modo') === 'andando') {
+    mudarModo('andando'); kmhAtual = 62; gps(62);
+    $('destino').textContent = 'São Tomé das Letras';
+    navegacao({ titulo: 'Vire à direita na Av. Rio Branco', texto: '400 m', sub: 'Chegada 16:31 · 87 km' });
+    Object.assign(viagem, { inicio: Date.now() - 23 * 60000, km: 18.4, emMovimento: 1250, max: 87 }); computadorDeBordo(62);
+  }
+
   window.jake = {
     estado, gps,
     nivel: (v) => { nivel = Math.max(nivel, Math.min(1, v)); },
