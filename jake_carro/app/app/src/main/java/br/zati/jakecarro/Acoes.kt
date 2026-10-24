@@ -105,10 +105,25 @@ class Acoes(private val ctx: Context) {
             val remote = conectarSpotify()
             if (remote != null) {
                 remote.playerApi.play(uri)
+                Diag.enviar("spotify", "tocou pela conexão oficial", "uri" to uri)
+                return
+            }
+            // Sem a conexão oficial: abre a playlist/artista/música já tocando (":play" no fim faz o Spotify
+            // começar sozinho), manda "play" por garantia e volta pro cockpit.
+            if (abrir(Intent(Intent.ACTION_VIEW, Uri.parse("$uri:play")).setPackage("com.spotify.music"))) {
+                Diag.enviar("spotify", "tocou abrindo o link", "uri" to uri)
+                kotlinx.coroutines.delay(3500)
+                tecla(KeyEvent.KEYCODE_MEDIA_PLAY)
+                kotlinx.coroutines.delay(1200)
+                runCatching {
+                    ctx.startActivity(Intent(ctx, MainActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+                }
                 return
             }
         }
-        // Sem App Remote: pede pro Spotify buscar e tocar (mesmo caminho do Google Assistente).
+        // Último recurso (sem link): pede pro Spotify buscar e tocar.
+        Diag.enviar("spotify", "só pela busca", "busca" to busca)
         val foco = when (tipo) {
             "artista" -> MediaStore.Audio.Artists.ENTRY_CONTENT_TYPE
             "album" -> MediaStore.Audio.Albums.ENTRY_CONTENT_TYPE
@@ -120,9 +135,13 @@ class Acoes(private val ctx: Context) {
             .putExtra(SearchManager.QUERY, busca)
             .putExtra(MediaStore.EXTRA_MEDIA_FOCUS, foco)
         if (tipo == "artista") pedido.putExtra(MediaStore.EXTRA_MEDIA_ARTIST, busca)
-        if (!abrir(pedido) && uri.isNotBlank()) {
-            abrir(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).setPackage("com.spotify.music"))
-        }
+        abrir(pedido)
+    }
+
+    private fun tecla(codigo: Int) {
+        val audio = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, codigo))
+        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, codigo))
     }
 
     fun midia(comando: String) {

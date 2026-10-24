@@ -35,7 +35,7 @@ MODELO = os.environ.get("JAKE_CARRO_MODELO", "gpt-4.1-mini")
 MODELO_STT = os.environ.get("JAKE_CARRO_STT", "gpt-4o-mini-transcribe")
 EDGE_BIN = os.environ.get("JAKE_EDGE_TTS", "/opt/edge-tts/bin/edge-tts")
 EDGE_VOZ = os.environ.get("JAKE_CARRO_VOZ", "pt-BR-AntonioNeural")
-EDGE_RITMO = os.environ.get("JAKE_CARRO_VOZ_RITMO", "+8%")
+EDGE_RITMO = os.environ.get("JAKE_CARRO_VOZ_RITMO", "+30%")
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
@@ -186,11 +186,26 @@ ESTILO_VOZ = ("Fale em português do Brasil, sotaque brasileiro natural. Você �
               "estilo JARVIS: voz calma, confiante e elegante, com bom humor discreto. Ritmo ágil, dicção limpa.")
 
 
+VELOCIDADE_VOZ = float(os.environ.get("JAKE_CARRO_VOZ_VELOCIDADE", "1.3"))   # Bruno pediu 1,3x (24/10)
+
+
+def acelerar(mp3):
+    """Acelera a fala sem afinar a voz (atempo do ffmpeg). Se falhar, devolve como veio."""
+    if abs(VELOCIDADE_VOZ - 1) < 0.01:
+        return mp3
+    try:
+        p = subprocess.run(["ffmpeg", "-v", "error", "-i", "pipe:0", "-filter:a", f"atempo={VELOCIDADE_VOZ}",
+                            "-f", "mp3", "-b:a", "64k", "pipe:1"], input=mp3, capture_output=True, timeout=10)
+        return p.stdout if p.returncode == 0 and p.stdout else mp3
+    except Exception:
+        return mp3
+
+
 def voz_openai(texto):
     """Mesma voz da conversa em tempo real (VOZ_RT), pra o Jake não trocar de 'pessoa'."""
     r = ia().audio.speech.create(model="gpt-4o-mini-tts", voice=os.environ.get("JAKE_CARRO_VOZ_RT", "cedar"),
                                  input=texto[:600], instructions=ESTILO_VOZ, response_format="mp3")
-    return base64.b64encode(r.content).decode()
+    return base64.b64encode(acelerar(r.content)).decode()
 
 
 def voz_b64(texto):
@@ -729,7 +744,7 @@ def realtime_sessao():
             "input": {"transcription": {"model": "gpt-4o-mini-transcribe", "language": "pt"},
                       "turn_detection": {"type": "semantic_vad", "eagerness": "high"},
                       "noise_reduction": {"type": "far_field"}},
-            "output": {"voice": VOZ_RT}},
+            "output": {"voice": VOZ_RT, "speed": min(1.5, VELOCIDADE_VOZ)}},
         "tools": FERRAMENTAS_RT, "tool_choice": "auto"}}
     try:
         r = requests.post("https://api.openai.com/v1/realtime/client_secrets", json=corpo, timeout=10,
