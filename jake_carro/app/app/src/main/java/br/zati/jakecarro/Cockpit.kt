@@ -35,6 +35,7 @@ class Cockpit(private val tela: Activity) {
         fun aoMidia(cmd: String)
         fun aoAcao(acao: String, parametros: JSONObject)
         fun aoFoco(ativo: Boolean)
+        fun aoFalarAudio(texto: String, mp3B64: String)
     }
 
     var ouvinte: Ouvinte? = null
@@ -191,6 +192,8 @@ class Cockpit(private val tela: Activity) {
                 ouvinte?.aoAcao(it.optString("acao"), it.optJSONObject("parametros") ?: JSONObject())
             }
         }
+        /** Aviso falado: o app toca (abaixa a música e devolve), em vez da página (que pausava o Spotify). */
+        @JavascriptInterface fun falarAudio(texto: String, mp3: String) = tela.runOnUiThread { ouvinte?.aoFalarAudio(texto, mp3) }
         /** true = conversa começou (abaixa/pausa a música); false = terminou */
         @JavascriptInterface fun foco(ativo: Boolean) = tela.runOnUiThread { ouvinte?.aoFoco(ativo) }
     }

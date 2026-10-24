@@ -52,6 +52,16 @@ class Voz(private val ctx: Context) {
         foco = null
     }
 
+    /** Som do próprio app (abertura) por cima da música, que só abaixa. */
+    fun tocarSom(resId: Int) {
+        runCatching {
+            pegarFoco(exclusivo = false)
+            val mp = MediaPlayer.create(ctx, resId) ?: return
+            mp.setOnCompletionListener { it.release() }
+            mp.start()
+        }
+    }
+
     suspend fun falar(texto: String, mp3B64: String = "") {
         if (mp3B64.isNotEmpty() && tocarMp3(mp3B64)) return
         falarLocal(texto)

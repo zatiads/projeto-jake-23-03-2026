@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream
  */
 class Musica(private val ctx: Context, private val aoMudar: (Map<String, Any>?) -> Unit) {
 
+    private val SPOTIFY = "com.spotify.music"
     private val gerente = ctx.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
     private val componente = ComponentName(ctx, NavLeitor::class.java)
     private var atual: MediaController? = null
@@ -52,9 +53,14 @@ class Musica(private val ctx: Context, private val aoMudar: (Map<String, Any>?) 
         atual = null
     }
 
-    /** Prefere o que está tocando; senão o primeiro player aberto. */
+    /**
+     * Ordem: o que está tocando > Spotify > outros players > Bluetooth da central (que fica sempre aberto e
+     * vazio; antes ele era escolhido e o mini player mostrava "nada tocando").
+     */
     private fun escolher(lista: List<MediaController>) {
-        val novo = lista.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING } ?: lista.firstOrNull()
+        fun nota(c: MediaController) = (if (c.playbackState?.state == PlaybackState.STATE_PLAYING) 100 else 0) +
+            (if (c.packageName == SPOTIFY) 10 else 0) + (if (c.packageName.contains("bluetooth")) -50 else 0)
+        val novo = lista.maxByOrNull { nota(it) }
         if (novo?.sessionToken == atual?.sessionToken) { avisar(); return }
         atual?.unregisterCallback(callback)
         atual = novo
@@ -85,9 +91,10 @@ class Musica(private val ctx: Context, private val aoMudar: (Map<String, Any>?) 
         return "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
     }
 
-    /** anterior | alternar | proxima. Devolve false se não tem player aberto (aí o app abre o Spotify). */
+    /** anterior | alternar | proxima. Devolve false se não tem player de música de verdade aberto. */
     fun comando(cmd: String): Boolean {
-        val t = atual?.transportControls ?: return false
+        val c = atual?.takeUnless { it.packageName.contains("bluetooth") } ?: return false
+        val t = c.transportControls
         when (cmd) {
             "anterior" -> t.skipToPrevious()
             "proxima" -> t.skipToNext()

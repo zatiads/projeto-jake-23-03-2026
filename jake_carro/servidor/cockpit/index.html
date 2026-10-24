@@ -641,8 +641,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
     setTimeout(() => palco.classList.remove('acordando'), 350);
     quadro = POSE - G.n; vel = 0; alvo = POSE;   // uma volta completa, desacelerando até a pose
     estado('pronto', 'Sistemas online.');
-    somAbertura.currentTime = 0;
-    somAbertura.play().catch(() => {});
+    if (!(nativo && nativo.falarAudio)) { somAbertura.currentTime = 0; somAbertura.play().catch(() => {}); }
   }
 
   // ── mini mapa (OpenStreetMap/CARTO escuro, tingido de ciano) ──
@@ -706,6 +705,7 @@ html,body{margin:0;height:100%;background:var(--fundo);overflow:hidden}
       const r = await fetch(`/carro/avisos${q}`, { headers: { Authorization: 'Bearer ' + token() } });
       const { aviso } = await r.json();
       if (!aviso || estadoAtual !== 'pronto') return;
+      if (nativo && nativo.falarAudio) { nativo.falarAudio(aviso.texto, aviso.audio_b64); return; }   // o app fala (só abaixa a música)
       nativo && nativo.foco && nativo.foco(true);
       estado('falando', aviso.texto);
       const som = new Audio('data:audio/mpeg;base64,' + aviso.audio_b64);

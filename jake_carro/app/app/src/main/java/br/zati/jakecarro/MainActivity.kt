@@ -307,7 +307,20 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
     }
 
     override fun aoMidia(cmd: String) {
-        if (!musica.comando(cmd)) aoAbrirApp("musica")
+        if (musica.comando(cmd)) return
+        // sem player aberto (ou só o Bluetooth): manda a tecla de mídia, que o Android entrega ao Spotify
+        acoes.midia(when (cmd) { "alternar" -> "continuar"; else -> cmd })
+    }
+
+    override fun aoFalarAudio(texto: String, mp3B64: String) {
+        if (conversa?.isActive == true) return
+        conversa = escopo.launch {
+            estado("Falando…", painel = "falando", frase = texto)
+            voz.pegarFoco(exclusivo = false)
+            voz.falar(texto, mp3B64)
+            voz.soltarFoco()
+            estado("Pronto, patrão", frase = texto)
+        }
     }
 
     // Como launcher, "voltar" não sai do Jake: só para o que ele estiver fazendo.
@@ -389,6 +402,7 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
             estado("Acordando…")
             val inicio = System.currentTimeMillis()
             cockpit.acordar()
+            voz.tocarSom(R.raw.abertura)   // pelo app: a música só abaixa (pela página, o Spotify pausava)
             val (fala, mp3) = try {
                 val loc = localizacao()
                 withContext(Dispatchers.IO) { api.saudacao(loc?.first, loc?.second) }
