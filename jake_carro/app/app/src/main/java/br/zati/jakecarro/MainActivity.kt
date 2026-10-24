@@ -145,7 +145,7 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
     override fun onStop() {
         super.onStop()
         BolhaService.enviar(this, BolhaService.MOSTRAR)
-        cockpit.desligarGps()
+        // GPS continua ligado com o Maps na frente: desligar e religar fazia ele recomeçar do zero (minutos sem posição)
         musica.desligar()
     }
 
@@ -154,6 +154,7 @@ class MainActivity : Activity(), Cockpit.Ouvinte {
         ouvido.parar()
         voz.encerrar()
         acoes.desconectar()
+        cockpit.desligarGps()
         runCatching { unregisterReceiver(acordou) }
         cockpit.web.destroy()
         super.onDestroy()

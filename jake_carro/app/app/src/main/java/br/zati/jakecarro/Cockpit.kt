@@ -123,7 +123,7 @@ class Cockpit(private val tela: Activity) {
             anteriores[prov] = l
             val kmh = when {
                 l.hasSpeed() -> l.speed * 3.6f
-                antes != null && l.accuracy < 40 && antes.accuracy < 40 && l.time - antes.time >= 1000 ->
+                antes != null && l.accuracy < 80 && antes.accuracy < 80 && l.time - antes.time >= 3000 ->
                     l.distanceTo(antes) / ((l.time - antes.time) / 1000f) * 3.6f
                 else -> 0f
             }
@@ -141,8 +141,17 @@ class Cockpit(private val tela: Activity) {
     private val satelites = object : GnssStatus.Callback() {
         override fun onSatelliteStatusChanged(s: GnssStatus) {
             var usados = 0
-            for (i in 0 until s.satelliteCount) if (s.usedInFix(i)) usados++
-            Diag.enviar("gps", "satélites", "vistos" to s.satelliteCount, "usados" to usados)
+            var forca = 0f
+            var fortes = 0
+            for (i in 0 until s.satelliteCount) {
+                if (s.usedInFix(i)) usados++
+                val cn0 = s.getCn0DbHz(i)
+                forca += cn0
+                if (cn0 >= 25) fortes++          // abaixo de ~25 dB-Hz o satélite não serve pra posição
+            }
+            // força média: < 20 = antena escondida/sem céu; 25–35 = ok; > 35 = ótima
+            Diag.enviar("gps", "satélites", "vistos" to s.satelliteCount, "usados" to usados,
+                "fortes" to fortes, "forca_media" to if (s.satelliteCount > 0) Math.round(forca / s.satelliteCount) else 0)
         }
     }
 
